@@ -1,0 +1,8 @@
+#Extra parameters that only few objects have,
+# e.g. MassRate/Luminosity/Receptance/J2Rate/Geopotential/Ring/TidalDelayFactor
+#sid	param	value
+10	MassRate	-0.3784717910405785
+10	Luminosity	3.828E+26
+399	Receptance	1.457
+301	Receptance	1.224
+399	J2Rate	-1.55772E-18
