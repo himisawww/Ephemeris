@@ -3,6 +3,8 @@ Ephemeris Integrator for Solar System
 
 This project is currently under development. The source files are not very user-friendly.
 
+For details about physics, see https://www.kamine.cloud/archives/70 and successive articles.
+
 Ephemeris: CPU and GPU Implementation of a Runge-Kutta 12-order integrator for ephemeris integration.
 
 SolarSystem: Parameters and initial values of Solar Sytem Celestial Bodies at J2000.0 (JD 2451545.0) TDB.
