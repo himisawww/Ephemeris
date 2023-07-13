@@ -2,8 +2,8 @@
 #ifdef _MSC_VER
 #include<windows.h>
 double CalcTime(){
-	static LARGE_INTEGER time_li;
-	static double time_w=(QueryPerformanceFrequency(&time_li),(double)time_li.QuadPart);
+	static thread_local LARGE_INTEGER time_li;
+	static thread_local double time_w=(QueryPerformanceFrequency(&time_li),(double)time_li.QuadPart);
 	return (QueryPerformanceCounter(&time_li),(double)time_li.QuadPart/time_w);
 }
 #else

@@ -48,6 +48,15 @@
     <ClCompile Include="ring.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="ziptree.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="crc32.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="memfile.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="ephemeris.h">
@@ -70,12 +79,18 @@
     <ClInclude Include="utils.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="ziptree.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="crc32.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="memfile.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="notes.txt">
-      <Filter>资源文件</Filter>
-    </Text>
-    <Text Include="corrections.txt">
+    <Text Include="..\SolarSystem\SolarSystem_Config.txt">
       <Filter>资源文件</Filter>
     </Text>
   </ItemGroup>

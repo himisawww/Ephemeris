@@ -9,12 +9,6 @@
 //minimum steps per rotation period for non-parent objects
 #define ROTATION_STEP_LIMIT (10)
 
-const fast_real                 //combine threshold (only for Solar System)
-    GM_max_child    =   1E13,   //( Ganymede < * < Mercury )
-    GM_max_parent   =   2E17,   //( Jupiter < * < Sun )
-//  GM_max_tiny     =   5E11;   //( Haumea < * < Pluto, Eris )
-    GM_max_tiny     =  14E11;   //( Pluto, Eris < * < Triton )
-
 #define IS_MINOR(GM)        ((GM)<GM_max_tiny)
 
 void mass_copy(mass &dst,const mass &src){

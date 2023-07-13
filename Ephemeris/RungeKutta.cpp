@@ -4,7 +4,7 @@
 #include"RungeKutta.impl"
 
 void msystem::RungeKutta12(fast_real dt,int_t n_step){
-    static const real *clist=(const real *)rk12_coefs;
+    const real *clist=(const real *)rk12_coefs;
 
     //prepare space for states
     std::vector<mass> &x=mlist;

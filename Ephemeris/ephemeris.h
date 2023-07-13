@@ -287,9 +287,28 @@ public:
     //relativistic coordinate time
     real t_eph;
     //frame time, dt for integration
-    real delta_t;
-    //frames per node, nodes per page
-    int_t node,page;
+    fast_real delta_t;
+    
+    //  0: use CPU RungeKutta
+    //  1: use GPU RungeKutta
+    //  2: use CPU/GPU Combined RungeKutta
+    enum {
+        CPU_RK12        =0,
+        GPU_RK12        =1,
+        COMBINED_RK12   =2
+    };
+    int_t integrator;
+    
+    //cadence of data_output
+    fast_real data_cadence;
+
+    //max length of a single output file, in seconds
+    fast_real max_ephm_length;
+
+    // if integrator==COMBINED_RK12, following should be specified
+    fast_real combined_delta_t;
+    fast_real GM_max_child,GM_max_parent,GM_max_tiny,Period_max_child;
+
     //list of barycens
     std::vector<barycen> blist;
     //list of masses
@@ -324,12 +343,17 @@ public:
     //for subsystem with tiny children masses, use dt as time step
     //INTEGRATOR:   0: Runge Kutta 12
     //              1: Forest Ruth
-    void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=0);
+    void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
 
     //analyse position of masses to build barycen list
     bool analyse();
     //update barycens' GM & rv
     void update_barycens();
+
+    //load system from directory
+    //     dir : directory
+    // fconfig : config file name
+    bool load_dir(const char *dir,const char *fconfig);
 
     //load system from files
     //   fbase : basic parameters and initial states
@@ -338,13 +362,13 @@ public:
     //ringpath : path for ring models
     bool load(const char *fbase,
               const char *fext=nullptr,
-              const char *gppath="",
-              const char *ringpath="");
+              const char *gppath=nullptr,
+              const char *ringpath=nullptr);
 
     //load system from checkpoint file
-    bool load_checkpoint(const char *fcp);
+    bool load_checkpoint(class mem_file *fcp);
     //save system as checkpoint
-    bool save_checkpoint(const char *fcp);
+    bool save_checkpoint(class mem_file *fcp);
 
     //get index of mass from sid, return -1 if not found
     int_t get_mid(const char *sid);

@@ -2,335 +2,387 @@
 #include<iostream>
 #include"utils.h"
 #include<thread>
+#include"ziptree.h"
+#include"memfile.h"
+#include<mutex>
 
-//  0: use CPU RungeKutta
-//  1: use GPU RungeKutta
-//  2: use CPU/GPU Combined RungeKutta
-int USE_METHOD;
+const char *readme="readme.txt";
+const char *checkpoint="checkpoint.dat";
+const char *timestamps="timestamps.dat";
+const char *version="v0.1.0";
+const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
-
-//  1 year = 8766 h
-int_t t_years;
-// dt = 10s * dt_ratio
-// should not greater than 8640
-fast_real dt_ratio;
-//  print interval in hours
-int_t print_interval;
-//  1: only do forward integration
-// -1: only do backward integration
-//  0: do both, default
-int fix_dir=0;
-//fast_real solar_mass_loss_rate=-3.771963849337985E-1*(1+0.33812787124240545*0.01);
-//fast_real solar_luminosity=3.828E+26;
-//fast_real lunar_recpt=1.457;
-//fast_real earth_recpt=1.224;
-//fast_real earth_J2rate=-1.55772E-18;
+std::mutex io_mutex,calc_mutex;
 
 const char *ip;
 const char *op;
 
-const char *extra_params="E:\\Temp\\ephm\\MoonsFit\\SolarSystem_ExtraParameters.txt";
-const char *gp_dir="E:\\Temp\\ephm\\MoonsFit\\Geopotentials";
-const char *ring_dir="E:\\Temp\\ephm\\MoonsFit\\Rings";
+//  1 year = 8766 h
+double t_years;
+//  1: only do forward integration
+// -1: only do backward integration
+//  0: do both, default
+int fix_dir=0;
 
+bool file_exist(const std::string &path){
+    FILE *fin=fopen(path.c_str(),"rb");
+    if(!fin)return false;
 
-bool USE_MULTITHREAD;
-//128M
-#define MAX_RAMBUFFER_SIZE (1ull<<27)
-//64k
-#define REDIRECT_BUFFER_SIZE (1ull<<16)
-void redirect(FILE *fdst,FILE *fsrc,size_t target){
-    fseek(fsrc,0,SEEK_SET);
-    size_t bufsize=REDIRECT_BUFFER_SIZE;
-    char binbuff[REDIRECT_BUFFER_SIZE];
-    size_t readsize;
-    while(target){
-        if(bufsize>target)bufsize=target;
-        fread(binbuff,1,bufsize,fsrc);
-        fwrite(binbuff,1,bufsize,fdst);
-        target-=bufsize;
-    }
-    fseek(fsrc,0,SEEK_SET);
+    fclose(fin);
+    return true;
+}
+
+bool sanity(double dt){
+    return dt>0&&dt!=INFINITY;
+}
+
+void dumpfile(mem_file &mf,const zipfile &zf){
+    mf.wdata.resize(zf.filesize);
+    zf.dumpfile(mf.wdata.data());
+    mf.idata=mf.wdata.data();
+    mf.isize=zf.filesize;
+    mf.offset=0;
 }
 
 int de_worker(int dir){
     msystem ms;
-    char fbuf[257];
-    sprintf(fbuf,"%s%s",ip,dir==1?".fwd":".bak");
-    bool from_ckpt=ms.load_checkpoint(fbuf);
-    if(!from_ckpt&&!ms.load(ip,extra_params,gp_dir,ring_dir))exit(-1);
-    int_t jsize=round(print_interval*360/dt_ratio);
-    if(jsize<1)jsize=1;
-    fast_real dt=fast_real(print_interval)*(3600*dir)/jsize;
-    sprintf(fbuf,"%s%s",op,dir==1?".fwd":".bak");
-    FILE *fout=fopen(fbuf,from_ckpt?"ab":"wb");
+    std::string sop=op;
+    std::string ickpt=sop+".0.zip";
+    const char *fwdbak=dir>0?"fwd":"bak";
+    size_t cur_index=1;
+    bool is_main_thread=(dir>0||fix_dir<0);
 
-    if(!fout){
-        fprintf(stderr,"Cannot open output file.");
-        exit(-1);
-    }
-    bool useRambuffer=false;
-    const char *pfbase=op+strlen(op);
-    while(pfbase>op&&!(pfbase[-1]=='\\'||pfbase[-1]=='/'))
-        --pfbase;
-    sprintf(fbuf,"del R:\\%s%s",pfbase,dir==1?".fwd":".bak");
-    FILE *frout=fopen(fbuf+4,"wb+");
-    if(frout){
-        useRambuffer=true;
-        FILE *ftemp=fout;
-        fout=frout;
-        frout=ftemp;
-    }
+    //loading process
+    io_mutex.lock();
 
-    int_t isize=t_years*8766/print_interval;
-    for(int_t i=(dir==1&&!from_ckpt?0:1);i<=isize;++i){
-        if(i>0){
-            if(USE_METHOD==0)ms.integrate(dt,jsize,0);
-       else if(USE_METHOD==1)ms.integrate(dt,jsize,1);
-       else if(USE_METHOD==2){
-                const fast_real mdt=300.;
-                int_t nc=std::round(dt/mdt);
-                ms.combined_integrate(dt/nc,nc,jsize,1);
-            }
-        }
+    if(file_exist(ickpt)){
+        // load file from ckpt
+        std::string zckpt;
 
-            double mst_eph=(double)ms.t_eph;
-            if(!USE_MULTITHREAD||dir==1){
-                static double s=CalcTime();
-                double yr=mst_eph/(8766*3600);
-                double t=CalcTime()-s;
-                printf(" %.6lfyr %.6lfs\r",yr,t);
-            }
-            fwrite(&mst_eph,sizeof(double),1,fout);
-
-            for(const auto &m:ms.mlist){
-                vec r=m.r,v=m.v,w=m.w,x=m.s.x,z=m.s.z;
-                fwrite(&r,sizeof(vec),1,fout);
-                fwrite(&v,sizeof(vec),1,fout);
-                fwrite(&w,sizeof(vec),1,fout);
-                fwrite(&x,sizeof(vec),1,fout);
-                fwrite(&z,sizeof(vec),1,fout);
-            }
-
-        if(i%24==0){
-            fflush(fout);
-            if(useRambuffer){
-                size_t frsize=_ftelli64(fout);
-                if(frsize>MAX_RAMBUFFER_SIZE){
-                    redirect(frout,fout,frsize);
-                }
+        do{
+            zckpt.resize(sop.size()+30);
+            zckpt.resize(
+                sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
+            );
+            if(!file_exist(zckpt))break;
+            ickpt.swap(zckpt);
+            ++cur_index;
+        } while(1);
+        //ickpt exists
+        zippack zp(strtowcs(ickpt));
+        for(const auto &zf:zp){
+            if(wcstostr(zf.filename)==checkpoint){
+                mem_file mf;
+                dumpfile(mf,zf);
+                ms.load_checkpoint(&mf);
+                break;
             }
         }
     }
+    else if(ip){
+        std::string sip=ip;
+        size_t spos=1+sip.find_last_of("/\\");
+        ms.load_dir(sip.substr(0,spos).c_str(),sip.substr(spos).c_str());
+        if(ms.mlist.size()){
+            zippack zp(strtowcs(ickpt),true);
+            zp.zipmems.resize(1);
+            zipmem &zm=zp.zipmems[0];
+            mem_file mf;
+            ms.save_checkpoint(&mf);
+            zm.data.swap(mf.wdata);
+            zm.filename=strtowcs(checkpoint);
+        }
+    }
+
+    io_mutex.unlock();
     
-    if(useRambuffer){
-        size_t frsize=_ftelli64(fout);
-        redirect(frout,fout,frsize);
-        fclose(fout);
-        fout=frout;
-        system(fbuf);
-    }
-
-    fclose(fout);
-
-    sprintf(fbuf,"%s%s",op,dir==1?".ckpt.fwd":".ckpt.bak");
-    ms.save_checkpoint(fbuf);
-    return 0;
-}
-
-int main(int argc,char **argv){
-#if 0
-    ip="E:\\Temp\\ephm\\MoonsFit\\grad\\Test2_CGC_300s.txt";
-#ifdef NDEBUG
-    //Combined Performance Test
-    op="E:\\Temp\\ephm\\MoonsFit\\grad\\SolarSystem_MoonsBase_CombinedPerformance_2";
-#else
-    op="E:\\Temp\\ephm\\MoonsFit\\grad\\Debug";
-#endif
-    USE_METHOD=0;
-    t_years=2;
-    dt_ratio=30;
-    print_interval=24;
-
-#else  
-
-
-    if(argc<3||argc>8){
+    if(!ms.mlist.size()){
+        fprintf(stderr,"Failed to Load System.\n");
         return -1;
     }
 
-    ip=argv[1];
-    op=argv[2];
-    if(argc>3)USE_METHOD=atoi(argv[3]);
-    if(argc>4)t_years=atoi(argv[4]);
-    if(argc>5)dt_ratio=atof(argv[5]);
-    if(argc>6)print_interval=atoi(argv[6]);
-    if(argc>7)fix_dir=atoi(argv[7]);
-#endif
-
-#ifdef NDEBUG
-    USE_MULTITHREAD=!fix_dir&&(USE_METHOD==0);
-#else
-    USE_MULTITHREAD=0;
-#endif
-    double s=CalcTime();
-    if(USE_MULTITHREAD){
-        std::thread th_future(de_worker,1);
-        std::thread th_past(de_worker,-1);
-
-        th_future.join();
-        th_past.join();
+    //check config
+    if(!sanity(ms.delta_t)||!sanity(ms.data_cadence)||!sanity(ms.max_ephm_length)||!sanity(ms.combined_delta_t)){
+        fprintf(stderr,"Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
+        return -2;
     }
-    else{
-        if(fix_dir>=0)de_worker(1);
-        if(fix_dir<=0)de_worker(-1);
+
+    bool use_cpu     =ms.integrator==int_t(msystem::     CPU_RK12);
+    bool use_gpu     =ms.integrator==int_t(msystem::     GPU_RK12);
+    bool use_combined=ms.integrator==int_t(msystem::COMBINED_RK12);
+    bool no_parallel =fix_dir||!use_cpu;
+    
+    fast_real dt=use_combined?ms.combined_delta_t:ms.delta_t;
+    int_t jsize=std::round(ms.data_cadence/dt);
+    if(jsize<1)jsize=1;
+    dt=ms.data_cadence/jsize;
+
+    int_t n_combine;
+    if(use_combined){
+        n_combine=std::round(dt/ms.delta_t);
+        if(n_combine<1)n_combine=1;
+        dt/=n_combine;
     }
-    printf("\n%lfs\n",CalcTime()-s);
-    return 0;
-}
 
-double convert(int i){
-    if(i==0)return 0;
-    return (i>0?1:-1)*exp(abs(i)*0.00858291+17.7275);
-}
-int main_testring(){
-    /*
-    msystem ms;
-    if(!ms.load(
-        "F:\\Temp\\ephm\\MoonsFit\\RingTest\\SolarSystem_MoonsBase.txt",
-        "F:\\Temp\\ephm\\MoonsFit\\RingTest\\SolarSystem_ExtraParameters.txt",
-        "F:\\Temp\\ephm\\MoonsFit\\RingTest\\Geopotentials",
-        "F:\\Temp\\ephm\\MoonsFit\\RingTest\\Rings")
-        )exit(-1);
-    */
+    if(dt!=std::round(dt)){
+        fprintf(stderr,
+            "Non-integer Delta_t(%fs):\n    This may cause round-off errors on timestamps and is disallowed.\n",
+            dt);
+        return -3;
+    }
+    
+    dt*=dir;
 
-    //test conservation
-    /*
-    FILE *fout=fopen("e:\\temp\\conserv_ring.bin","wb");
+    const double year_seconds=8766*3600;
 
-    for(int_t i=0;i<100000;++i){
-        ms.integrate(300,1);
+    int_t isize=t_years*year_seconds/ms.data_cadence;
+    int_t iunit=ms.max_ephm_length/ms.data_cadence;
 
-        fast_mpvec moment=0,momentring=0,amoment=0,amomentring=0;
+    const int_t min_iunit=4096;
+    if(isize<1){
+        fprintf(stderr,"Nothing to do.\n");
+        return 0;
+    }
+    if(iunit<min_iunit){
+        fprintf(stderr,
+            "Too less Data Points per File(%lld):\n    Changed to %lld.\n",
+            iunit,min_iunit);
+        iunit=min_iunit;
+    }
 
-        for(const auto &m:ms.mlist){
-            fast_mpvec dm=m.GM*fast_mpvec(m.v);
-            moment+=dm;
-            momentring+=dm;
+    int_t time_idx=0;
 
-            fast_mpvec mGL(m.GL);
-            fast_mpvec da=m.GM*fast_mpvec(m.r*m.v);
-            fast_mpvec das=mGL*m.GM;
-            amoment+=da+das;
-            amomentring+=da+das;
+    do{
+        if(time_idx+iunit>isize)iunit=isize-time_idx;
 
-            if(m.ringmodel){
-                const ring &mr=*m.ringmodel;
-                momentring+=dm*(mr.GM_ratio/(1-mr.GM_ratio));
-                amomentring+=da*(mr.GM_ratio/(1-mr.GM_ratio));
-                amomentring+=(mGL/mGL.norm())*(mr.GL*m.GM);
-            
-                //changing direction of disk will also produce an angular momentum
-                //however this cannot be modeled ...
-              //fast_mpvec angular_accel;
-              //angular_accel=m.dtorque;
-              ////direction changing rate of disk pole, perpendicular to disk pole
-              //angular_accel-=angular_accel%mGL/(mGL%mGL)*mGL;
-              //angular_accel/=mGL.norm();
-              ////disk inertia along this axis
-              //fast_real din=(2*mr.A-mr.J2)/3*m.GM*m.R2;
-              //amomentring+=angular_accel*din;
+        //prepare mem files to save
+        int_t mn=ms.mlist.size();
+        int_t max_dp_perfile=1+iunit;
+        mem_file mf_time;
+        mf_time.wdata.reserve(max_dp_perfile*sizeof(int_t));
+        std::vector<mem_file> mf_mlist(mn);
+        for(auto &mf:mf_mlist){
+            mf.wdata.reserve(max_dp_perfile*(5*sizeof(vec)));
+        }
+
+        int_t t_eph_start=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+
+        //ephemeris integration
+        if(no_parallel)calc_mutex.lock();
+        for(int_t i=0;i<=iunit;++i){
+            if(i>0){
+                if(use_cpu     )ms.integrate         (dt,          jsize,0);
+           else if(use_gpu     )ms.integrate         (dt,          jsize,1);
+           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1);
+            }
+
+            int_t mst_eph=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+            if(no_parallel||dir==1){
+                static double s=CalcTime();
+                double yr=mst_eph/year_seconds;
+                double t=CalcTime()-s;
+                printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t);
+            }
+            fwrite(&mst_eph,sizeof(int_t),1,&mf_time);
+
+            for(int_t mi=0;mi<mn;++mi){
+                const mass &m=ms.mlist[mi];
+                mem_file *mfp=&mf_mlist[mi];
+                vec r=m.r,v=m.v,w=m.w,x=m.s.x,z=m.s.z;
+                fwrite(&r,sizeof(vec),1,mfp);
+                fwrite(&v,sizeof(vec),1,mfp);
+                fwrite(&w,sizeof(vec),1,mfp);
+                fwrite(&x,sizeof(vec),1,mfp);
+                fwrite(&z,sizeof(vec),1,mfp);
             }
         }
+        if(no_parallel)calc_mutex.unlock();
 
-        fwrite(&moment,sizeof(fast_mpvec),1,fout);
-        fwrite(&amoment,sizeof(fast_mpvec),1,fout);
-        fwrite(&momentring,sizeof(fast_mpvec),1,fout);
-        fwrite(&amomentring,sizeof(fast_mpvec),1,fout);
-        if(i%10000==0)printf(" %d\r",i);
-    }
-    printf("\n");
+        int_t t_eph_end=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
 
-    fclose(fout);*/
-    
-    //test scaling
-    /*
-    mass &s=ms.mlist[ms.get_mid("699")];
-    for(int i=0;i<10;++i){
-        fast_mpvec ma=s.daccel;
-        ring &mr=*s.ringmodel;
-        printf("%.16le %.16le %.16le ",ma.x,ma.y,ma.z);
+        //prepare checkpoint/readme files
+        mem_file mf_ckpt,mf_readme;
+        ms.save_checkpoint(&mf_ckpt);
 
-        double gm=0;
-        for(int_t k=0;k<mr.N;++k){
-            gm+=mr.c_table[k].Gs*(pi*mr.c_table[k].R*mr.c_table[k].R);
+        char buffer[512];
+        int buffer_chars=sprintf(buffer,
+            "Calculated & Generated by Ephemeris Integrator %s\n"
+            "   Github: https://github.com/himisawww/Ephemeris \n"
+            "   Author: %s\n\n"
+            "Number of Objects:  %lld\n"
+            "   Time Range (s): [%lld, %lld]\n"
+            "   Time Step  (s):  %lld\n\n"
+            "      Time Format:   < t_eph(s): int64 >\n"
+            "      Data Format:   < r(m), v(m/s), w(rad/s), x_axis(direction), z_axis(direction): vec3{double x,y,z;} >\n\n"
+            "  Object List (index & sid):  \n"
+            ,
+            version,author, mn, t_eph_start,t_eph_end, (t_eph_end-t_eph_start)/iunit
+            );
+        fwrite(buffer,buffer_chars,1,&mf_readme);
+
+        std::vector<zipmem> zms(3+mn);
+        for(int_t mi=0;mi<mn;++mi){
+            std::string sid((char*)&ms.mlist[mi].sid);
+            buffer_chars=sprintf(buffer,
+                "%12lld : %s\n",mi,sid.c_str()
+            );
+            fwrite(buffer,buffer_chars,1,&mf_readme);
+            zms[3+mi].filename=strtowcs(sid+".dat");
+            zms[3+mi].data.swap(mf_mlist[mi].wdata);
         }
-        printf("%.16le\n",gm/(mr.GM_ratio/(1-mr.GM_ratio)));
 
-        s.scale(0.1);
-        ms.accel();
-    }
-    */
+        zms[0].filename=strtowcs(checkpoint);
+        zms[0].data.swap(mf_ckpt.wdata);
+        zms[1].filename=strtowcs(readme);
+        zms[1].data.swap(mf_readme.wdata);
+        zms[2].filename=strtowcs(timestamps);
+        zms[2].data.swap(mf_time.wdata);
 
-    //test force
-    /*
-    msystem ms;
-    if(!ms.load(
-        "F:\\Temp\\ephm\\MoonsFit\\SolarSystem_MoonsBase.txt",
-        "F:\\Temp\\ephm\\MoonsFit\\SolarSystem_ExtraParameters.txt",
-        "F:\\Temp\\ephm\\MoonsFit\\Geopotentials",
-        "F:\\Temp\\ephm\\MoonsFit\\Rings")
-        )exit(-1);
+        //save .zip
+        std::string zckpt;
+        zckpt.resize(sop.size()+30);
+        zckpt.resize(
+            sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
+        );
+        ++cur_index;
 
-    ring &mr=*ms.mlist[ms.get_mid("699")].ringmodel;
-    FILE *fout=fopen("e:\\temp\\ringtest.bin","wb");
-    for(int i=-128;i<=128;++i)
-    for(int j=-128;j<=128;++j)
-    for(int k=-128;k<=128;++k){
-        fast_mpvec r=randomdirection();
-        r*=convert(i);
-        fast_mpvec f=mr.sum(r);
-        fwrite(&r,sizeof(fast_mpvec),1,fout);
-        fwrite(&f,sizeof(fast_mpvec),1,fout);
-    }
-    fclose(fout);
-    */
+        io_mutex.lock();
+        {
+            zippack zp(strtowcs(zckpt),true);
+            zp.zipmems.swap(zms);
+        }
+        io_mutex.unlock();
+        
+        time_idx+=iunit;
+    }while(time_idx<isize);
     return 0;
 }
 
-int main_test70678(){//test 70678
-    msystem ms;
-    if(!ms.load("F:\\Temp\\ephm\\MoonsFit\\70678\\70678.txt"))exit(-1);
+int main_fun(int argc,const char **argv){
+    do{
+        if(argc<3||argc>4)break;
 
-    mass &u=ms.mlist[ms.get_mid("799")];
-    mass &u6=ms.mlist[ms.get_mid("706")];
-    mass &u7=ms.mlist[ms.get_mid("707")];
-    mass &u8=ms.mlist[ms.get_mid("708")];
+        const char *t_str=argv[argc-1];
 
-    double maxrn=0,minrn=INFINITY;
-    double maxang=0;
-    double maxangz=0;
-    for(int_t i=0;i<100000;++i){
-        ms.integrate(300,1);
+        if(*t_str=='+')fix_dir=1;
+        else if(*t_str=='-')fix_dir=-1;
+        else fix_dir=0;
 
-        mass &us=u6;
+        t_str+=std::abs(fix_dir);
 
-        vec r=us.r-u.r,v=us.v-u.v,j=r*v;
-        vec x=us.s.x,z=us.s.z;
-        double rn=r.norm();
-        if(rn<minrn)minrn=rn;
-        if(rn>maxrn)maxrn=rn;
-        double e=(maxrn-minrn)/(maxrn+minrn);
-        r/=-rn;
-        j/=j.norm();
-        double ang=atan2((r*x).norm(),r%x)/degree;
-        double angz=atan2((z*j).norm(),z%j)/degree;
-        if(ang>maxang)maxang=ang;
-        if(angz>maxangz)maxangz=angz;
-        printf("%lfd, %lf, %lf, %lf\n",
-            (double)ms.t_eph/86400.,
-            maxang,maxangz,
-            e);
+        t_years=-1;
+        if(1!=sscanf(t_str,"%lf",&t_years)||t_years<0)break;
+        
+        ip=argc>3?argv[argc-3]:nullptr;
+        op=argv[argc-2];
+
+#ifdef NDEBUG
+        std::thread th_future;
+        std::thread th_past;
+
+        if(fix_dir>=0)th_future=std::thread(de_worker,1);
+        if(fix_dir<=0)th_past=std::thread(de_worker,-1);
+
+        if(fix_dir>=0)th_future.join();
+        if(fix_dir<=0)th_past.join();
+#else
+        if(fix_dir>=0)de_worker(1);
+        if(fix_dir<=0)de_worker(-1);
+#endif
+        return 0;
+    } while(0);
+
+    printf("%s%s\n%s",
+        "Ephemeris Integrator ",version,
+        "Github: https://github.com/himisawww/Ephemeris \n\n"
+        "command line usage:\n\n"
+        "   exe_name [[ip]] [op] [[[dir]]t] \n\n"
+        "   ip: full path to configuration file (initial values & parameters\n"
+        "           should be under same directory as configuration file);\n\n"
+        "   op: full path to output ephemerides and checkpoints;\n"
+        "       when [op] contains checkpoints of previous run,\n"
+        "       [ip] can be omitted (and will be ignored if presence);\n\n"
+        "  dir: direction of integration, can be +/-, optional;\n"
+        "       +: forward, -: backward, default: both;\n\n"
+        "    t: integrate the system for [t]-years;\n\n"
+        "examples:\n\n"
+        "   // first run, integrate SolarSystem 20 years forward and backward (1980~2020):\n"
+        "   exe_name  .\\SolarSystem\\SolarSystem_Config.txt  .\\results\\dat  20\n\n"
+        "   // resume previous run, integrate 20 years backward (1960~1980):\n"
+        "   exe_name  .\\results\\dat  -20\n\n"
+        "press Enter to exit..."
+    );
+    getchar();
+    return 0;
+}
+
+//convert zips to old data pack
+int convert_format(const char *path){
+    std::string sop=path;
+    for(int dir=1;dir>=-1;dir-=2){
+        const char *fwdbak=dir>0?"fwd":"bak";
+
+        std::string zckpt;
+        size_t cur_index=1;
+        FILE *fout=fopen((sop+"."+fwdbak).c_str(),"wb");
+        do{
+            zckpt.resize(sop.size()+30);
+            zckpt.resize(
+                sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
+            );
+            if(!file_exist(zckpt))break;
+
+            zippack zp(strtowcs(zckpt));
+            mem_file mf_time;
+            std::vector<mem_file> mf_mlist;
+            int_t mi=-3;
+            for(const auto &zf:zp){
+                std::string zfn=wcstostr(zf.filename);
+                if(mi>=0){
+                    mf_mlist.resize(mi+1);
+                    dumpfile(mf_mlist[mi],zf);
+                }
+                else if(zfn==timestamps){
+                    dumpfile(mf_time,zf);
+                }
+                ++mi;
+            }
+
+            vec v5[5];
+            int_t it_eph;
+            int_t n_data=0;
+            while(1==fread(&it_eph,sizeof(int_t),1,&mf_time)){
+                double mst_eph=it_eph;
+                bool output=n_data||dir==1&&cur_index==1;
+                if(output)fwrite(&mst_eph,sizeof(double),1,fout);
+                for(auto &mf:mf_mlist){
+                    fread(&v5,sizeof(vec),5,&mf);
+                    if(output)fwrite(&v5,sizeof(vec),5,fout);
+                }
+                ++n_data;
+            }
+
+            ++cur_index;
+        } while(1);
+        fclose(fout);
     }
     return 0;
+}
+
+int main(int argc,const char **argv){
+    return main_fun(argc,argv);
+    
+    /*
+    const char *m_argv[]={
+        argv[0],
+        "E:\\Prog\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
+        "F:\\Temp\\ephm\\Ephemeris\\combine\\result",
+        "0.01"
+    };
+    const int m_argc=sizeof(m_argv)/sizeof(char *);
+    return main_fun(m_argc,m_argv);
+    */
+    
+    //convert_format("R:\\testcg\\result");
+    //return 0;
 }

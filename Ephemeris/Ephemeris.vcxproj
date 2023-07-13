@@ -54,7 +54,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.0.props" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.8.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -115,6 +115,9 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <CudaCompile>
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -162,6 +165,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="calctime.cpp" />
+    <ClCompile Include="crc32.cpp" />
+    <ClCompile Include="memfile.cpp" />
+    <ClCompile Include="ziptree.cpp" />
     <None Include="disk_approx.impl">
       <FileType>Document</FileType>
     </None>
@@ -184,20 +190,22 @@
     <None Include="ephemeris.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="crc32.h" />
     <ClInclude Include="dfloat_t.h" />
+    <ClInclude Include="memfile.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="vec_t.h" />
+    <ClInclude Include="ziptree.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="RungeKutta.cu" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="corrections.txt" />
-    <Text Include="notes.txt" />
+    <Text Include="..\SolarSystem\SolarSystem_Config.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.0.targets" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.8.targets" />
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>

@@ -1,7 +1,12 @@
 #include"ephemeris.h"
 #include"utils.h"
+#include"memfile.h"
+#include"ziptree.h"
 
 #define MAX_LINESIZE 1024
+#define MAX_PATHSIZE 260
+
+const char *default_path=".";
 
 std::string readline(FILE *fin){
     std::string result;
@@ -27,23 +32,189 @@ std::string readline(FILE *fin){
     } while(1);
 }
 
+bool msystem::load_dir(const char *dir,const char *fconfig){
+    if(!dir||!*dir)dir=default_path;
+    if(!fconfig)return false;
+    if(strlen(dir)+strlen(fconfig)+1>MAX_PATHSIZE){
+        fprintf(stderr,"Path too long: %s\\%s\n",dir,fconfig);
+        return false;
+    }
+
+    const char *integrators_list[]={
+        "CPU_RK12","GPU_RK12","COMBINED_RK12"
+    };
+    const char *config_keys_list[]={
+        "Initial",
+        "Extra",
+        "Geopotentials",
+        "Rings",
+        "TDB",
+        "Integrator",
+        "Delta_t",
+        "Cadence",
+        "Max_Ephemeris_Length",
+        "Combined_Delta_t_Max",
+        "Combined_GM_Max_Parent",
+        "Combined_GM_Max_Child",
+        "Combined_GM_Max_Tiny",
+        "Combined_Period_Max_Child"
+    };
+    const int config_keys_size=sizeof(config_keys_list)/sizeof(char *);
+    std::map<std::string,std::string> config;
+    for(int i=0;i<config_keys_size;++i)
+        config.insert({config_keys_list[i],""});
+
+    char fname[MAX_LINESIZE],sname[MAX_LINESIZE],sval[MAX_LINESIZE];
+    sprintf(fname,"%s\\%s",dir,fconfig);
+
+    bool failed=false;
+    FILE *fin=fopen(fname,"r");
+    if(!fin){
+        fprintf(stderr,"File Not Exist: %s\n",fname);
+        return false;
+    }
+
+    while(1){
+        std::string chbuf=readline(fin);
+        if(chbuf.size()==0)break;
+        if(chbuf.size()>=MAX_LINESIZE){
+            fprintf(stderr,
+                "Loading %s\n Line Too Long: %s\n",
+                fname,chbuf.c_str());
+            failed=true;
+            break;
+        }
+
+        int n=sscanf(chbuf.c_str(),"%s%s",sname,sval);
+        if(n!=2){
+            fprintf(stderr,
+                "Loading %s\n Line Length Error: %s\n",
+                fname,chbuf.c_str());
+            failed=true;
+            break;
+        }
+
+        auto it=config.find(sname);
+        if(it==config.end()){
+            fprintf(stderr,
+                "Loading %s\n Unknown Parameter: %s\n",
+                fname,sname);
+            failed=true;
+            break;
+        }
+
+        if(it->second.size()){
+            fprintf(stderr,
+                "Loading %s\n Duplicate Parameter: %s\n",
+                fname,sname);
+            failed=true;
+            break;
+        }
+        
+        it->second=sval;
+    }
+    fclose(fin);
+    if(failed)return false;
+
+    std::string
+        &fbase      =config["Initial"],
+        &fext       =config["Extra"],
+        &gppath     =config["Geopotentials"],
+        &ringpath   =config["Rings"];
+
+    if(!fbase.size()){
+        fprintf(stderr,
+            "Loading %s\n Missing Parameter: Initial\n",
+            fname);
+        return false;
+    }
+    
+    sprintf(sname,"%s\\",dir);
+
+    if(!load((sname+fbase).c_str(),
+        fext.size()?(sname+fext).c_str():nullptr,
+        gppath.size()?(sname+gppath).c_str():nullptr,
+        ringpath.size()?(sname+ringpath).c_str():nullptr
+        ))return false;
+
+    const char *pval;
+
+    pval=config["Integrator"].c_str();
+    if(*pval){
+        integrator=-1;
+        const int integrators_size=sizeof(integrators_list)/sizeof(char*);
+        for(int i=0;i<integrators_size;++i){
+            if(0==strcmp(pval,integrators_list[i]))integrator=i;
+        }
+        if(integrator<0){
+            fprintf(stderr,
+                "Loading %s\n Invalid Integrator: %s\n",
+                fname,pval);
+            return false;
+        }
+    }
+    else fprintf(stderr,
+        "Warning: Using Default Integrator: %s\n",
+        integrators_list[integrator]);
+
+#define LOAD_CONFIG(NAME,PARAM) do{                \
+    pval=config[NAME].c_str();                     \
+    if(*pval)PARAM=atof(pval);                     \
+    else fprintf(stderr,                           \
+        "Warning: Using Default " NAME ": %e\n",   \
+        double(PARAM));                     }while(0)
+
+    LOAD_CONFIG("TDB",t_eph);
+    LOAD_CONFIG("Delta_t",delta_t);
+    LOAD_CONFIG("Cadence",data_cadence);
+    LOAD_CONFIG("Max_Ephemeris_Length",max_ephm_length);
+
+    if(integrator==int_t(COMBINED_RK12)){
+        LOAD_CONFIG("Combined_Delta_t_Max",combined_delta_t);
+        LOAD_CONFIG("Combined_GM_Max_Parent",GM_max_parent);
+        LOAD_CONFIG("Combined_GM_Max_Child",GM_max_child);
+        LOAD_CONFIG("Combined_GM_Max_Tiny",GM_max_tiny);
+        LOAD_CONFIG("Combined_Period_Max_Child",Period_max_child);
+    }
+#undef LOAD_CONFIG
+    return true;
+}
+
 bool msystem::load(
     const char *fbase,
     const char *fext,
     const char *gppath,
     const char *ringpath){
 
+    //defalt value for solar system
     t_eph=0;
     delta_t=300;//5min
-    node=96;//28800s = 8h
-    page=4383;//4yr
+    integrator=int_t(COMBINED_RK12);
+    data_cadence=3600;//1h
+    max_ephm_length=631152000;//20yr
+    combined_delta_t=28800;//8h
+    GM_max_parent=2E17;
+    GM_max_child=1E13;
+    GM_max_tiny=14E11;
+    Period_max_child=0;
 
     blist.clear();
     mlist.clear();
     midx.clear();
     tidal_childlist.clear();
 
-    //load solar system
+    if(!fbase)return false;
+    if(!gppath||!*gppath)gppath=default_path;
+    if(!ringpath||!*ringpath)ringpath=default_path;
+    if(strlen(gppath)>MAX_PATHSIZE){
+        fprintf(stderr,"Geopotentials Path too long: %s\n",gppath);
+        return false;
+    }
+    if(strlen(ringpath)>MAX_PATHSIZE){
+        fprintf(stderr,"Rings Path too long: %s\n",ringpath);
+        return false;
+    }
+
     bool failed=false;
     FILE *fin=fopen(fbase,"r");
     if(!fin){
@@ -256,33 +427,33 @@ bool msystem::load(
 }
 
 static const int_t CheckPoint_Magic=0x53484c486d687045;
+static const int_t Version_Number=1;
 //contents in mass is irrelevant after this parameter
 #define Mass_Auxiliary_Head Erot
 
 struct fcp_header{
     int_t magic;//0x53484c486d687045
-    int_t masssize;
+    int_t version;
+    real t_eph;
+    fast_real delta_t;
+    int_t integrator;
+    fast_real data_cadence,max_ephm_length;
+    fast_real combined_delta_t;
+    fast_real GM_max_child,GM_max_parent,GM_max_tiny,Period_max_child;
     int_t nmass,nbarycen;
-    real t_eph,delta_t;
-    int_t node,page;
+    int_t masssize;
 };
 struct barycen_ids{
     int_t pid,hid,gid,tid,mid;
     int_t nch;
 };
 
-bool msystem::load_checkpoint(const char *fcp){
+bool msystem::load_checkpoint(mem_file *fin){
     blist.clear();
     mlist.clear();
     midx.clear();
     tidal_childlist.clear();
     
-    FILE *fin=fopen(fcp,"rb");
-    if(!fin){
-        fprintf(stderr,"File Not Exist: %s\n",fcp);
-        return false;
-    }
-
     mass mwrite;
     const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
 
@@ -292,6 +463,7 @@ bool msystem::load_checkpoint(const char *fcp){
     do{
         if(1!=fread(&h,sizeof(h),1,fin)
          ||h.magic!=CheckPoint_Magic
+         ||h.version!=Version_Number
          ||h.masssize!=masssize){
             failed=true;
             break;
@@ -300,8 +472,14 @@ bool msystem::load_checkpoint(const char *fcp){
         blist.resize(h.nbarycen);
         t_eph=h.t_eph;
         delta_t=h.delta_t;
-        node=h.node;
-        page=h.page;
+        integrator=h.integrator;
+        data_cadence=h.data_cadence;
+        max_ephm_length=h.max_ephm_length;
+        combined_delta_t=h.combined_delta_t;
+        GM_max_child=h.GM_max_child;
+        GM_max_parent=h.GM_max_parent;
+        GM_max_tiny=h.GM_max_tiny;
+        Period_max_child=h.Period_max_child;
 
         for(auto &b:blist){
             barycen_ids bids;
@@ -351,29 +529,30 @@ bool msystem::load_checkpoint(const char *fcp){
         update_barycens();
     } while(false);
 
-    fclose(fin);
     return !failed;
 }
 
-bool msystem::save_checkpoint(const char *fcp){
-    FILE *fout=fopen(fcp,"wb");
-    if(!fout){
-        fprintf(stderr,"Cannot open: %s\n",fcp);
-        return false;
-    }
+bool msystem::save_checkpoint(mem_file *fout){
 
     mass mwrite;
     const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
     
     fcp_header h;
     h.magic=CheckPoint_Magic;
-    h.masssize=masssize;
-    h.nmass=mlist.size();
-    h.nbarycen=blist.size();
+    h.version=Version_Number;
     h.t_eph=t_eph;
     h.delta_t=delta_t;
-    h.node=node;
-    h.page=page;
+    h.integrator=integrator;
+    h.data_cadence=data_cadence;
+    h.max_ephm_length=max_ephm_length;
+    h.combined_delta_t=combined_delta_t;
+    h.GM_max_child=GM_max_child;
+    h.GM_max_parent=GM_max_parent;
+    h.GM_max_tiny=GM_max_tiny;
+    h.Period_max_child=Period_max_child;
+    h.nmass=mlist.size();
+    h.nbarycen=blist.size();
+    h.masssize=masssize;
     
     fwrite(&h,sizeof(h),1,fout);
 
@@ -405,6 +584,6 @@ bool msystem::save_checkpoint(const char *fcp){
             fwrite(m.ringmodel,(size_t)mwrite.ringmodel,1,fout);
         }
     }
-    fclose(fout);
+
     return true;
 }
