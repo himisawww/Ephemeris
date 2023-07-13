@@ -1,7 +1,11 @@
 # Ephemeris
 Ephemeris Integrator for Solar System
 
-This project is currently under development. The source files are not very user-friendly.
+<del> This project is currently under development. The source files are not very user-friendly. </del>
+
+Now this program is very user-friendly. Just run the released executable, and then follow the instructions to perform Ephemeris Integration!
+
+( However for now it has no built-in functions to read/use/interpolate the output ephemeris data. These will be implemented in future. )
 
 For details about physics, see https://www.kamine.cloud/archives/70 and successive articles.
 
