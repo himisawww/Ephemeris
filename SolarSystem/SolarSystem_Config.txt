@@ -1,0 +1,45 @@
+#param      value
+
+#file paths
+Initial             SolarSystem_Initial.txt
+Extra               SolarSystem_ExtraParameters.txt
+Geopotentials       Geopotentials
+Rings               Rings
+
+#ephemeris time of initial value
+TDB                 0
+
+#integrator: COMBINED_RK12/CPU_RK12/GPU_RK12
+Integrator          COMBINED_RK12
+
+#delta_t (seconds)
+Delta_t             300
+
+#output data cadence (seconds)
+Cadence             3600
+
+#max length of a single output file (seconds)
+#631152000 == 20 years
+Max_Ephemeris_Length     631152000
+
+#if use COMBINED_RK12, following params should be specified
+
+#maximum delta_t (seconds) for GPU integration of combined system
+Combined_Delta_t_Max          28800
+
+#anybody more massive than this will not combine its children
+#( Jupiter < * < Sun )
+Combined_GM_Max_Parent        2E17
+
+#anybody more massive than this will not be combined to its parent
+#( Ganymede < * < Mercury )
+Combined_GM_Max_Child         1E13
+
+#anybody more massive than this will not be omitted in sub-system cpu integrations
+#( Pluto, Eris < * < Triton )
+Combined_GM_Max_Tiny         14E11
+
+#anybody with orbital period (seconds) more than this will not be combined to its parent
+# default is 0 to disable, i.e. always combine, equivalent as inf.
+# Not implemented
+Combined_Period_Max_Child   0
