@@ -9,7 +9,7 @@
 const char *readme="readme.txt";
 const char *checkpoint="checkpoint.dat";
 const char *timestamps="timestamps.dat";
-const char *version="v0.1.0";
+const char *version="v0.1.1";
 const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
 std::mutex io_mutex,calc_mutex;
@@ -85,6 +85,10 @@ int de_worker(int dir){
         ms.load_dir(sip.substr(0,spos).c_str(),sip.substr(spos).c_str());
         if(ms.mlist.size()){
             zippack zp(strtowcs(ickpt),true);
+            if(!zp.fzip){
+                fprintf(stderr,"Cannot open output file. Is its directory exist?\nThe program will exit.\n");
+                exit(-1);
+            }
             zp.zipmems.resize(1);
             zipmem &zm=zp.zipmems[0];
             mem_file mf;
