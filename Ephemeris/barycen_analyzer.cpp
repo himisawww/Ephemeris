@@ -10,7 +10,7 @@ barycen::barycen(){
 }
 
 struct bdata{
-    fast_real minr;
+    fast_real minr,factor;
     fast_real maxinfl;
     bool del;
 };
@@ -76,7 +76,7 @@ bool msystem::analyse(){
             bi.v_sys/=bi.GM_sys;
         }
 
-        //update dl.minr
+        //update dl.minr&factor
         for(int_t i=0;i<bn;++i)if(!dl[i].del){
             barycen &bi=bl[i];
             bdata &di=dl[i];
@@ -86,6 +86,12 @@ bool msystem::analyse(){
             else{//is barycen
                 fast_mpvec r=bl[bi.gid].r_sys-bl[bi.hid].r_sys;
                 di.minr=r.norm();
+                fast_real gmh=fast_real(bl[bi.hid].GM_sys);
+                fast_real gmg=fast_real(bl[bi.gid].GM_sys);
+                fast_real q=gmh>gmg?gmg/gmh:gmh/gmg;
+                di.minr/=1-1.0001*(std::cbrt(q)-q);
+                q+=1;q*=q;
+                di.factor=1/q;
             }
         }
 
@@ -142,6 +148,19 @@ bool msystem::analyse(){
                 fast_real r2=r%r,r1=sqrt(r2);
                 if(r1<di.minr||r1<dj.minr)continue;
                 fast_real infl=fast_real(bj.GM)/(r2*r1);
+                int_t tj=j,tp=bj.pid;
+                // if j is one of a binary-system, and i is distant from the system-center
+                // j's influence should be reduced by a factor
+                while(tp>=0){
+                    barycen &bp=bl[tp];
+                    if(!(bp.mid<0&&(bp.hid==tj||bp.gid==tj)))break;
+                    fast_mpvec dr(bp.r_sys-bi.r);
+                    fast_real minr=dl[tp].minr;
+                    if(dr%dr>minr*minr)
+                        infl*=dl[tp].factor;
+                    tj=tp;
+                    tp=bp.pid;
+                }
                 if(infl>di.maxinfl){
                     di.maxinfl=infl;
                     bi.pid=j;
@@ -245,20 +264,6 @@ bool msystem::analyse(){
     blist.swap(bl);
     return true;
 }
-/*
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-bool msystem::save(const char *fjson){
-    FILE *fout=fopen(fjson,"w");
-    if(!fout)return false;
-
-    if(!analyse())return false;
-
-    boost::property_tree::ptree pt;
-    pt.put("T_epoch",real_to_string((fast_real)t_eph,"s"));
-    boost::property_tree::write_json(fjson,pt);
-}
-*/
 /*
 //combine minor bodies to majors
 int_t msystem::combine(int method){

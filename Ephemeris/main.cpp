@@ -9,7 +9,7 @@
 const char *readme="readme.txt";
 const char *checkpoint="checkpoint.dat";
 const char *timestamps="timestamps.dat";
-const char *version="v0.1.1";
+const char *version="v0.1.2";
 const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
 std::mutex io_mutex,calc_mutex;
@@ -375,18 +375,4 @@ int convert_format(const char *path){
 
 int main(int argc,const char **argv){
     return main_fun(argc,argv);
-    
-    /*
-    const char *m_argv[]={
-        argv[0],
-        "E:\\Prog\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
-        "F:\\Temp\\ephm\\Ephemeris\\combine\\result",
-        "0.01"
-    };
-    const int m_argc=sizeof(m_argv)/sizeof(char *);
-    return main_fun(m_argc,m_argv);
-    */
-    
-    //convert_format("R:\\testcg\\result");
-    //return 0;
 }
