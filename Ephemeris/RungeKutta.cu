@@ -23,20 +23,22 @@ typedef std::vector<std::pair<int_t,ring*>> ringdata_t;
 #define myfree myfree
 #else
 void mycudaMalloc(void *devPtr,size_t size){
-    static void *mem;
+    static void *mem=0;
     static size_t memsize=0;
-    if(memsize!=size){
+    if(memsize<size){
         cudaFree(mem);
         cudaMalloc(&mem,size);
+        memsize=size;
     }
     *(void**)devPtr=mem;
 }
 void *mymalloc(size_t size){
-    static void *mem;
+    static void *mem=0;
     static size_t memsize=0;
-    if(memsize!=size){
+    if(memsize<size){
         free(mem);
         mem=malloc(size);
+        memsize=size;
     }
     return mem;
 }
