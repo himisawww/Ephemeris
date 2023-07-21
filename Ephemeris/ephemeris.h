@@ -4,7 +4,7 @@
 #include<cmath>
 #include<vector>
 #include<map>
-
+#include<string>
 #include"dfloat_t.h"
 typedef dfloat_t<double> real;
 
@@ -239,6 +239,10 @@ public:
     fast_real Erot;
     fast_mpvec Egrad;
     fast_mpvec idaccel,idtorque;
+    //used by msystem::integrate to test if a collision occurred and whether time step is appropriate
+    // and by msystem::combined_integrate to test if a capture occurred
+    fast_real min_distance;
+    fast_real max_influence;
 
     //calculate deformation matrix(C_potential) and inertia matrix(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
@@ -328,6 +332,8 @@ public:
     void deform();
     //calculate acceleration and solve for angular velocity
     void accel();
+    //same as accel, use GPU
+    void Cuda_accel();
 
     //Runge-Kutta-12 integrator
     void RungeKutta12(fast_real dt,int_t n_step);
@@ -335,25 +341,26 @@ public:
     void Cuda_RungeKutta12(fast_real dt,int_t n_step);
 
     //integrate ephemerides
-    //INTEGRATOR:   0: Runge Kutta 12
-    //              1: Forest Ruth
+    //USE_GPU:   0: CPU Runge Kutta 12
+    //           1: GPU Runge Kutta 12
     void integrate(fast_real dt,int_t n_step,int USE_GPU=0);
     //integrate ephemerides
     //for full system with un-parented tiny masses, use (dt*n_combine) as time step
-    //for subsystem with tiny children masses, use dt as time step
-    //INTEGRATOR:   0: Runge Kutta 12
-    //              1: Forest Ruth
+    //for subsystem with tiny children masses, use dt as time step, always use CPU
+    //USE_GPU:   use CPU(0)/GPU(1) for single-step integration of full system
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
 
     //analyse position of masses to build barycen list
-    bool analyse();
+    //reconstruct: if true, analyse from scratch;
+    //             if false, update existing structure when necessary, this is faster.
+    bool analyse(bool reconstruct=false);
     //update barycens' GM & rv
     void update_barycens();
 
     //load system from directory
     //     dir : directory
     // fconfig : config file name
-    bool load_dir(const char *dir,const char *fconfig);
+    bool load_dir(std::map<std::string,std::string> &config,const char *dir,const char *fconfig);
 
     //load system from files
     //   fbase : basic parameters and initial states

@@ -6,10 +6,14 @@
 #include"memfile.h"
 #include<mutex>
 
-const char *readme="readme.txt";
+const int n_zipheaders=3;
 const char *checkpoint="checkpoint.dat";
+const char *readme="readme.txt";
+const char *structure="structure.json";
 const char *timestamps="timestamps.dat";
-const char *version="v0.1.2";
+const char *data_suffix=".dat";
+const char *initialdir="system_initial";
+const char *version="v0.1.3";
 const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
 std::mutex io_mutex,calc_mutex;
@@ -17,6 +21,7 @@ std::mutex io_mutex,calc_mutex;
 const char *ip;
 const char *op;
 
+const double year_seconds=8766*3600;
 //  1 year = 8766 h
 double t_years;
 //  1: only do forward integration
@@ -42,6 +47,69 @@ void dumpfile(mem_file &mf,const zipfile &zf){
     mf.idata=mf.wdata.data();
     mf.isize=zf.filesize;
     mf.offset=0;
+}
+
+void print_string(mem_file *mf,int_t level,const std::string &str){
+    if(mf->offset==0||mf->wdata[mf->offset-1]=='\n'){
+        //indent
+        mf->wdata.resize(mf->offset+level);
+        memset(mf->wdata.data()+mf->offset,' ',level);
+        mf->offset+=level;
+    }
+    fwrite(str.data(),str.size(),1,mf);
+}
+void print_structure(const msystem &ms,mem_file *mf,int_t root=-1,int_t level=0){
+    if(root<0){
+        root=ms.blist.size();
+        do{
+            if(--root<0)return;
+        } while(!(ms.blist[root].pid<0));
+    }
+
+    const barycen& br=ms.blist[root];
+    int_t cn=br.children.size();
+    std::string barycen_name;
+
+    if(br.hid<0){
+        barycen_name=(const char *)&ms.mlist[br.mid].sid;
+        if(cn==0){
+            print_string(mf,level,"\""+barycen_name+"\"");
+            return;
+        }
+        print_string(mf,level,"{\n");
+        print_string(mf,level,"       \"ID\":\""+barycen_name+"\"");
+    }
+    else{
+        barycen_name="Barycenter[";
+        barycen_name+=(const char *)&ms.mlist[ms.blist[br.hid].mid].sid;
+        if(ms.blist[br.hid].hid>=0)barycen_name+=" System";
+        barycen_name+=", ";
+        barycen_name+=(const char *)&ms.mlist[ms.blist[br.gid].mid].sid;
+        if(ms.blist[br.gid].hid>=0)barycen_name+=" System";
+        barycen_name+="]";
+        print_string(mf,level,"{\n");
+        print_string(mf,level,"       \"ID\":\""+barycen_name+"\",\n");
+        print_string(mf,level,"  \"Primary\":");
+        print_structure(ms,mf,br.hid,level+12);
+        print_string(mf,level,",\n");
+        print_string(mf,level,"\"Secondary\":");
+        print_structure(ms,mf,br.gid,level+12);
+    }
+
+    if(cn){
+        print_string(mf,level,",\n");
+        print_string(mf,level," \"Children\":[\n");
+        for(int_t i=0;i<cn;){
+            print_structure(ms,mf,br.children[i],level+16);
+            print_string(mf,level,(++i==cn)+",\n");
+        }
+
+        print_string(mf,level,"            ]\n");
+    }
+    else{
+        print_string(mf,level,"\n");
+    }
+    print_string(mf,level,"}");
 }
 
 int de_worker(int dir){
@@ -78,11 +146,15 @@ int de_worker(int dir){
                 break;
             }
         }
+        printf("Loaded %lld bodies from checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
     }
     else if(ip){
         std::string sip=ip;
         size_t spos=1+sip.find_last_of("/\\");
-        ms.load_dir(sip.substr(0,spos).c_str(),sip.substr(spos).c_str());
+        std::map<std::string,std::string> config;
+        std::string dirstr(spos?sip.substr(0,spos):".\\");
+        std::string fconfig(sip.substr(spos));
+        ms.load_dir(config,dirstr.c_str(),fconfig.c_str());
         if(ms.mlist.size()){
             zippack zp(strtowcs(ickpt),true);
             if(!zp.fzip){
@@ -95,6 +167,36 @@ int de_worker(int dir){
             ms.save_checkpoint(&mf);
             zm.data.swap(mf.wdata);
             zm.filename=strtowcs(checkpoint);
+            
+            std::string
+                &fbase      =config["Initial"],
+                &fext       =config["Extra"],
+                &gppath     =config["Geopotentials"],
+                &ringpath   =config["Rings"];
+            std::string initdir=std::string(initialdir)+"/";
+            zp.zipmems.push_back({strtowcs(initdir),{}});
+
+            zp.zipmems.push_back({strtowcs(initdir+fconfig),mem_file((dirstr+fconfig).c_str()).wdata});
+            zp.zipmems.push_back({strtowcs(initdir+fbase),mem_file((dirstr+fbase).c_str()).wdata});
+            if(fext.size())
+                zp.zipmems.push_back({strtowcs(initdir+fext),mem_file((dirstr+fext).c_str()).wdata});
+            if(gppath.size())
+                zp.zipmems.push_back({strtowcs(initdir+gppath+"/"),{}});
+            if(ringpath.size())
+                zp.zipmems.push_back({strtowcs(initdir+ringpath+"/"),{}});
+            for(const auto &m:ms.mlist){
+                if(m.gpmodel){
+                    zp.zipmems.push_back({
+                        strtowcs(initdir+gppath+"/"+(const char*)&m.sid+".txt"),
+                        mem_file((dirstr+gppath+"\\"+(const char*)&m.sid+".txt").c_str()).wdata});
+                }
+                if(m.ringmodel){
+                    zp.zipmems.push_back({
+                        strtowcs(initdir+ringpath+"/"+(const char*)&m.sid+".txt"),
+                        mem_file((dirstr+ringpath+"\\"+(const char*)&m.sid+".txt").c_str()).wdata});
+                }
+            }
+            printf("Loaded %lld bodies from files.\nSaving checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
         }
     }
 
@@ -136,8 +238,6 @@ int de_worker(int dir){
     }
     
     dt*=dir;
-
-    const double year_seconds=8766*3600;
 
     int_t isize=t_years*year_seconds/ms.data_cadence;
     int_t iunit=ms.max_ephm_length/ms.data_cadence;
@@ -181,11 +281,21 @@ int de_worker(int dir){
             }
 
             int_t mst_eph=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
-            if(no_parallel||dir==1){
+            if(no_parallel||is_main_thread){
                 static double s=CalcTime();
-                double yr=mst_eph/year_seconds;
-                double t=CalcTime()-s;
-                printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t);
+                static double oldt=-INFINITY;
+                static int_t skip_count=0,skip_size=1;
+                if(++skip_count>=skip_size){
+                    double yr=mst_eph/year_seconds;
+                    double t=CalcTime();
+                    printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
+                    int_t new_skip_size=std::round(skip_size/(t-oldt));
+                    if(new_skip_size<=0)new_skip_size=1;
+                    if(new_skip_size>2*skip_size)new_skip_size=2*skip_size;
+                    skip_size=new_skip_size;
+                    skip_count=0;
+                    oldt=t;
+                }
             }
             fwrite(&mst_eph,sizeof(int_t),1,&mf_time);
 
@@ -204,8 +314,8 @@ int de_worker(int dir){
 
         int_t t_eph_end=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
 
-        //prepare checkpoint/readme files
-        mem_file mf_ckpt,mf_readme;
+        //prepare checkpoint/readme/structure files
+        mem_file mf_ckpt,mf_readme,mf_struct;
         ms.save_checkpoint(&mf_ckpt);
 
         char buffer[512];
@@ -224,23 +334,27 @@ int de_worker(int dir){
             );
         fwrite(buffer,buffer_chars,1,&mf_readme);
 
-        std::vector<zipmem> zms(3+mn);
+        print_structure(ms,&mf_struct);
+        
+        std::vector<zipmem> zms(n_zipheaders+mn);
         for(int_t mi=0;mi<mn;++mi){
             std::string sid((char*)&ms.mlist[mi].sid);
             buffer_chars=sprintf(buffer,
                 "%12lld : %s\n",mi,sid.c_str()
             );
             fwrite(buffer,buffer_chars,1,&mf_readme);
-            zms[3+mi].filename=strtowcs(sid+".dat");
-            zms[3+mi].data.swap(mf_mlist[mi].wdata);
+            zms[n_zipheaders+mi].filename=strtowcs(sid+data_suffix);
+            zms[n_zipheaders+mi].data.swap(mf_mlist[mi].wdata);
         }
 
         zms[0].filename=strtowcs(checkpoint);
         zms[0].data.swap(mf_ckpt.wdata);
         zms[1].filename=strtowcs(readme);
         zms[1].data.swap(mf_readme.wdata);
-        zms[2].filename=strtowcs(timestamps);
-        zms[2].data.swap(mf_time.wdata);
+        zms[2].filename=strtowcs(structure);
+        zms[2].data.swap(mf_struct.wdata);
+        zms[n_zipheaders-1].filename=strtowcs(timestamps);
+        zms[n_zipheaders-1].data.swap(mf_time.wdata);
 
         //save .zip
         std::string zckpt;
@@ -339,7 +453,7 @@ int convert_format(const char *path){
             zippack zp(strtowcs(zckpt));
             mem_file mf_time;
             std::vector<mem_file> mf_mlist;
-            int_t mi=-3;
+            int_t mi=-n_zipheaders;
             for(const auto &zf:zp){
                 std::string zfn=wcstostr(zf.filename);
                 if(mi>=0){
@@ -375,4 +489,17 @@ int convert_format(const char *path){
 
 int main(int argc,const char **argv){
     return main_fun(argc,argv);
+
+    const char *m_argv[]={
+        argv[0],
+        "F:\\Temp\\ephm\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
+        //"R:\\grad\\result",
+        "F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
+        "+20"
+    };
+    const int m_argc=sizeof(m_argv)/sizeof(char *);
+    return main_fun(m_argc,m_argv);
+    
+    //convert_format("R:\\testcg\\result");
+    //return 0;
 }

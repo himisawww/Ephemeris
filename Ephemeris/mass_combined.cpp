@@ -74,8 +74,6 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
     fast_real dt_long=dt*n_combine;
     for(int_t i_step=0;i_step<n_step;++i_step){
         //initialize
-        double s;
-        double sp=CalcTime();
 
         Sc.mlist.clear();
 
@@ -254,27 +252,16 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.accel();
         }
 
-        s=CalcTime();
-        sp=s-sp;
-
         // integrate
 #ifndef NDEBUG
-        double sc=CalcTime();
         Sc.integrate(dt_long,1,USE_GPU);
-        s=CalcTime();
-        sc=s-sc;
 
-        double sx=s;
         Sx.integrate(dt_long,1,0);
-        s=CalcTime();
-        sx=s-sx;
 
-        double sn=s;
         for(auto &sns:Sn){
             sns.second.integrate(dt,n_combine,0);
         }
-        s=CalcTime();
-        sn=s-sn;
+
 #else
         std::vector<std::thread> threads;
         threads.reserve(Sn.size());
@@ -282,25 +269,16 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             threads.push_back(std::thread(thread_work,&sns.second,dt,n_combine));
         }
 
-        double sx=s;
         Sx.integrate(dt_long,1,0);
-        s=CalcTime();
-        sx=s-sx;
 
-        double sc=CalcTime();
         Sc.integrate(dt_long,1,USE_GPU);
-        s=CalcTime();
-        sc=s-sc;
 
-        double sn=s;
         for(auto &th:threads){
             th.join();
         }
-        s=CalcTime();
-        sn=s-sn;
+
 #endif
         //finalize
-        double sf=CalcTime();
 
         for(int_t i=0;i<mn;++i){
             mass &mi=mlist[i];
@@ -381,17 +359,15 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
 
         t_eph=Sc.t_eph;
         update((fast_real)t_eph);
-        accel();
+        if(USE_GPU)Cuda_accel();
+        else accel();
+    }
 
-        s=CalcTime();
-        sf=s-sf;
-        if(0)printf("\n"
-            "prepare: %lfs\n"
-            "int(Sc): %lfs\n"
-            "int(Sx): %lfs\n"
-            "int(Sn): %lfs\n"
-            "  final: %lfs\n",
-            sp,sc,sx,sn,sf);
+    if(analyse()){
+        fprintf(stderr,
+            "\nInfo: At Ephemeris Time: %lld s\n"
+            "   System orbital structure is updated by combined_integrator.\n",
+            int_t(t_eph.hi)+int_t(t_eph.lo));
     }
 
     return;

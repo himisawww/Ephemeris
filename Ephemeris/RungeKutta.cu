@@ -9,6 +9,8 @@
 #define CUDA_CORES 1920
 #define MAXBLOCKS (1920/32)
 
+#define cuda_max(a,b) ((a)>(b)?(a):(b))
+
 //geopotential data, mlist[first].gpmodel==second
 typedef std::vector<std::pair<int_t,geopotential*>> gpdata_t;
 //ring data, mlist[first].ringmodel==second
@@ -125,6 +127,8 @@ struct maccel_1{
 };
 struct maccel_2{
     fast_mpvec gaccel,daccel,dtorque;
+    fast_real min_distance;
+    fast_real max_influence;
 };
 
 //copied from geopotential.cpp, subroutines are added ``static __device__''
@@ -457,11 +461,6 @@ void __device__ accel_0(){//deform
 
             int_t max_iter=4;
             do{
-                if(threadIdx.x==0){
-                    mi.phi=0;
-                    mi.naccel=0;
-                    mi.C_potential=0;
-                }
                 maccel_1 *tpmi=(maccel_1 *)sharedMem+threadIdx.x;
                 tpmi[0].phi=0;
                 tpmi[0].naccel=0;
@@ -511,9 +510,9 @@ void __device__ accel_0(){//deform
                 }
                 __syncthreads();
                 if(threadIdx.x<1){
-                    mi.phi+=tpmi[0].phi+tpmi[1].phi;
-                    mi.naccel+=tpmi[0].naccel+tpmi[1].naccel;
-                    mi.C_potential+=tpmi[0].C_potential+tpmi[1].C_potential;
+                    mi.phi=tpmi[0].phi+tpmi[1].phi;
+                    mi.naccel=tpmi[0].naccel+tpmi[1].naccel;
+                    mi.C_potential=tpmi[0].C_potential+tpmi[1].C_potential;
                 }
                 __syncthreads();
 
@@ -544,8 +543,6 @@ void __device__ accel_0(){//deform
                 mi.beta2=mi.beta%mi.beta;
                 mi.phi/=c2;
                 mi.naccel/=c2;
-
-                mi.daccel=mi.dtorque=mi.gaccel=0;
             }
         }
     }
@@ -564,6 +561,8 @@ void __device__ accel_1(){//accel
             tpmi[0].gaccel=0;
             tpmi[0].daccel=0;
             tpmi[0].dtorque=0;
+            tpmi[0].min_distance=0;
+            tpmi[0].max_influence=0;
             for(int dj=0;dj<dkf.nmass;dj+=blockDim.x){
                 int j=dj+threadIdx.x;
                 if(j<dkf.nmass&&i!=j){
@@ -584,7 +583,8 @@ void __device__ accel_1(){//accel
                     fast_mpvec b=mj.beta-mi.beta;
                     tpmi[0].gaccel+=7*tp_dphi/2*mj.naccel+tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
                     //end post-newtonian correction
-
+                    tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,rr);
+                    tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tp_dg);
                     //rotational & tidal deformation: gravity, torque
                     fast_mpvec Cr=mi.C_potential%r;
                     fast_mpvec dg=mj.GM*rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));
@@ -618,13 +618,19 @@ void __device__ accel_1(){//accel
                     tpmi[0].gaccel+=tpmi[wing].gaccel;
                     tpmi[0].daccel+=tpmi[wing].daccel;
                     tpmi[0].dtorque+=tpmi[wing].dtorque;
+                    tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,tpmi[wing].min_distance);
+                    tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tpmi[wing].max_influence);
                 }
             }
             __syncthreads();
             if(threadIdx.x<1){
-                mi.gaccel+=tpmi[0].gaccel+tpmi[1].gaccel;
-                mi.daccel+=tpmi[0].daccel+tpmi[1].daccel;
-                mi.dtorque+=tpmi[0].dtorque+tpmi[1].dtorque;
+                mi.gaccel=tpmi[0].gaccel+tpmi[1].gaccel;
+                mi.daccel=tpmi[0].daccel+tpmi[1].daccel;
+                mi.dtorque=tpmi[0].dtorque+tpmi[1].dtorque;
+                tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,tpmi[1].min_distance);
+                mi.min_distance=cuda_max(mi.min_distance,tpmi[0].min_distance);
+                tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tpmi[1].max_influence);
+                mi.max_influence=cuda_max(mi.max_influence,tpmi[0].max_influence);
             }
             __syncthreads();
         }
@@ -718,13 +724,54 @@ void __device__ accel_2(){//higher harmonics
     }
 }
 
-void __global__ Cuda_RungeKutta_Kernel(){
-
+void __device__ Cuda_accel(){
     const fast_real c=299792458;
     const fast_real c2=c*c;
-
-    const real *clist=(const real *)rk12_coefs;
     cooperative_groups::grid_group grid=cooperative_groups::this_grid();
+
+    mass *x=dkf.dmlist;
+    int mn=dkf.nmass;
+    int i0=blockIdx.x*dkf.mass_per_block;
+
+    grid.sync();
+    accel_0();
+    grid.sync();
+    accel_1();
+    grid.sync();
+    accel_2();
+    grid.sync();
+    for(int di=0;di<dkf.mass_per_block;di+=blockDim.x){
+        int i=i0+di+threadIdx.x;
+        if(i<mn&&di+threadIdx.x<dkf.mass_per_block){
+            mass &mi=x[i];
+            mi.phi*=c2;
+            mi.naccel*=c2;
+
+            //ring correction
+            if(mi.ringmodel){
+                mass &m=mi;
+                ring &mr=*m.ringmodel;
+                //ring has inertia that prevents extra accelerations
+                m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;
+                //ring has angular momentum that prevents extra angular accelerations
+                fast_mpvec mGL=m.GL;
+                fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);
+                fast_mpvec ptorque=m.dtorque;
+                ptorque=ptorque%mGL*rmGL2*mGL;
+                fast_mpvec dtorque=m.dtorque-ptorque;
+                //ptorque(parallel to GL) will not change
+                //  since this part has nothing to do with the ring
+                //dtorque(perpendicular to GL) will decrease
+                //  due to ring's angular momentum
+                dtorque*=1/(1+rmGL*mr.GL);
+                m.dtorque=dtorque+ptorque;
+            }
+        }
+    }
+}
+
+void __global__ Cuda_RungeKutta_Kernel(){
+    const real *clist=(const real *)rk12_coefs;
 
     mass_state *x0=dkf.x0,*f=dkf.f;
     mass *x=dkf.dmlist;
@@ -825,40 +872,7 @@ void __global__ Cuda_RungeKutta_Kernel(){
                 }
             }
 
-            grid.sync();
-            accel_0();
-            grid.sync();
-            accel_1();
-            grid.sync();
-            accel_2();
-            grid.sync();
-            for(int di=0;di<dkf.mass_per_block;di+=blockDim.x){
-                int i=i0+di+threadIdx.x;
-                if(i<mn&&di+threadIdx.x<dkf.mass_per_block){
-                    mass &mi=x[i];
-                    mi.phi*=c2;
-                    mi.naccel*=c2;
-                    //ring correction
-                    if(mi.ringmodel){
-                        mass &m=mi;
-                        ring &mr=*m.ringmodel;
-                        //ring has inertia that prevents extra accelerations
-                        m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;
-                        //ring has angular momentum that prevents extra angular accelerations
-                        fast_mpvec mGL=m.GL;
-                        fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);
-                        fast_mpvec ptorque=m.dtorque;
-                        ptorque=ptorque%mGL*rmGL2*mGL;
-                        fast_mpvec dtorque=m.dtorque-ptorque;
-                        //ptorque(parallel to GL) will not change
-                        //  since this part has nothing to do with the ring
-                        //dtorque(perpendicular to GL) will decrease
-                        //  due to ring's angular momentum
-                        dtorque*=1/(1+rmGL*mr.GL);
-                        m.dtorque=dtorque+ptorque;
-                    }
-                }
-            }
+            Cuda_accel();
         }
     }
 }
@@ -869,6 +883,29 @@ void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     ringdata_t mrg;
     cuda_rungekutta_kernel_config kf;
     kf.load(mlist,mgp,mrg,dt,n_step);
+    kf.t_eph=t_eph;
+    cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
+    //Cuda_Kernel<<<kf.nblocks,kf.nthreads>>>();
+    cudaLaunchCooperativeKernel(
+        (void*)Cuda_RungeKutta_Kernel,
+        dim3(kf.nblocks),
+        dim3(kf.nthreads),
+        nullptr,
+        kf.nthreads*std::max(sizeof(maccel_1),sizeof(maccel_2))
+    );
+    cudaDeviceSynchronize();
+    kf.save(mlist,mgp,mrg);
+}
+
+void __global__ Cuda_accel_Kernel(){
+    Cuda_accel();
+}
+
+void msystem::Cuda_accel(){
+    gpdata_t mgp;
+    ringdata_t mrg;
+    cuda_rungekutta_kernel_config kf;
+    kf.load(mlist,mgp,mrg,0,0);
     kf.t_eph=t_eph;
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
     //Cuda_Kernel<<<kf.nblocks,kf.nthreads>>>();

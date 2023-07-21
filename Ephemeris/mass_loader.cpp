@@ -32,10 +32,10 @@ std::string readline(FILE *fin){
     } while(1);
 }
 
-bool msystem::load_dir(const char *dir,const char *fconfig){
+bool msystem::load_dir(std::map<std::string,std::string> &config,const char *dir,const char *fconfig){
     if(!dir||!*dir)dir=default_path;
-    if(!fconfig)return false;
-    if(strlen(dir)+strlen(fconfig)+1>MAX_PATHSIZE){
+    if(!fconfig||!*fconfig)return false;
+    if(strlen(dir)+strlen(fconfig)+1>=MAX_PATHSIZE){
         fprintf(stderr,"Path too long: %s\\%s\n",dir,fconfig);
         return false;
     }
@@ -60,7 +60,7 @@ bool msystem::load_dir(const char *dir,const char *fconfig){
         "Combined_Period_Max_Child"
     };
     const int config_keys_size=sizeof(config_keys_list)/sizeof(char *);
-    std::map<std::string,std::string> config;
+    config.clear();
     for(int i=0;i<config_keys_size;++i)
         config.insert({config_keys_list[i],""});
 

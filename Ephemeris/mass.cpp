@@ -147,8 +147,8 @@ void msystem::deform(){
 void msystem::accel(){
     int_t mn=mlist.size();
 
-    static const fast_real c=299792458;
-    static const fast_real c2=c*c;
+    const fast_real c=299792458;
+    const fast_real c2=c*c;
 
     //prepare
     for(int_t i=0;i<mn;++i){
@@ -169,6 +169,7 @@ void msystem::accel(){
         mi.naccel/=c2;
 
         mi.daccel=mi.dtorque=mi.gaccel=0;
+
     }
 
 
@@ -192,7 +193,8 @@ void msystem::accel(){
             fast_mpvec b=mj.beta-mi.beta;
             mi.gaccel+=7*tp_dphi/2*mj.naccel+tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
             //end post-newtonian correction
-
+            mi.min_distance=std::max(mi.min_distance,rr);
+            mi.max_influence=std::max(mi.max_influence,tp_dg);
             //rotational & tidal deformation: gravity, torque
             fast_mpvec Cr=mi.C_potential%r;
             fast_mpvec dg=rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));
@@ -374,6 +376,7 @@ void msystem::accel(){
         mass &mi=mlist[i];
         mi.phi*=c2;
         mi.naccel*=c2;
+
         if(mi.ringmodel){
             mass &m=mi;
             ring &mr=*m.ringmodel;
@@ -438,8 +441,36 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
         dt=-dt;
     }
     
-        if(!USE_GPU)RungeKutta12(dt,n_step);
-        else Cuda_RungeKutta12(dt,n_step);
+    for(auto &m:mlist)m.max_influence=m.min_distance=0;
     
+    if(!USE_GPU)RungeKutta12(dt,n_step);
+    else Cuda_RungeKutta12(dt,n_step);
+    
+    //square of maximum angular displacement per step for circular orbit
+    const double TIMESTEP_THRESHOLD=0.01;
+    double dt2=dt*dt;
+
+    for(auto &m:mlist){
+        m.min_distance=1/m.min_distance;
+        if(m.R>m.min_distance){
+            fprintf(stderr,
+                "\nCatastrophy: At Ephemeris Time: %lld s\n"
+                "   Collision of Celestial Bodies Detected !!!\n"
+                "   Another body entered radius of <%s>:\n"
+                "       %.16e m <  %.16le m\n"
+                "   Note the program is not designed to handle body collisions.\n"
+                "   Ephemeris further than this may be unreliable.\n",
+               int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,m.min_distance,m.R);
+        }
+        if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
+            fprintf(stderr,
+                "\nWarning: At Ephemeris Time: %lld s\n"
+                "   Time step too large for accurate integration of <%s>.\n"
+                "       %.16e s >  %.16le s\n"
+                "   Ephemeris further than this may be inaccurate.\n",
+                int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
+        }
+    }
+
     t_eph+=dt*n_step;
 }

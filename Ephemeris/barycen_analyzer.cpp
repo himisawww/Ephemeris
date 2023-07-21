@@ -15,22 +15,41 @@ struct bdata{
     bool del;
 };
 
-bool msystem::analyse(){
+bool msystem::analyse(bool reconstruct){
+    int_t old_bn=reconstruct?0:blist.size();
     int_t mn=mlist.size();
-    std::vector<barycen> bl(mn);
-    std::vector<bdata> dl(mn);
-    for(int_t i=0;i<mn;++i){
-        barycen &bi=bl[i];
-        bdata &di=dl[i];
-        bi.pid=-1;
-        bi.hid=-1;
-        bi.gid=-1;
-        bi.mid=i;
-        di.del=false;
+    std::vector<barycen> bl;
+    std::vector<bdata> dl;
+    if(old_bn){
+        bl.resize(old_bn);
+        dl.resize(old_bn);
+        for(int_t i=0;i<old_bn;++i){
+            barycen &bi=bl[i];
+            bdata &di=dl[i];
+            bi.pid=blist[i].pid;
+            bi.hid=blist[i].hid;
+            bi.gid=blist[i].gid;
+            bi.mid=bi.hid<0?blist[i].mid:-1;
+            di.del=false;
+        }
+    }
+    else{
+        bl.resize(mn);
+        dl.resize(mn);
+        for(int_t i=0;i<mn;++i){
+            barycen &bi=bl[i];
+            bdata &di=dl[i];
+            bi.pid=-1;
+            bi.hid=-1;
+            bi.gid=-1;
+            bi.mid=i;
+            di.del=false;
+        }
     }
 
-    bool diff;
+    bool diff=false;
     do{
+        if(diff)old_bn=0;
         int_t bn=bl.size();
 
         //update barycens: bl.rvGM,rvGM_sys;
@@ -110,8 +129,14 @@ bool msystem::analyse(){
                 barycen &p=bl[bi.pid];
                 if(p.hid==i||p.gid==i){//is one of binary
                     fast_real r1=dl[bi.pid].minr,r2=r1*r1;
-                    di.maxinfl=fast_real(p.GM)/(r2*r1);
-                    di.maxinfl*=2;//make binaries more stable. does it make sense?
+                    if(r1<dl[p.hid].minr||r1<dl[p.gid].minr){//too close to be a companion of binary
+                        bi.pid=-1;
+                        di.maxinfl=0;
+                    }
+                    else{
+                        di.maxinfl=fast_real(p.GM)/(r2*r1);
+                        di.maxinfl*=2;//make binaries more stable. does it make sense?
+                    }
                 }
                 else{
                     fast_mpvec r=bi.r_sys-p.r;
@@ -125,6 +150,7 @@ bool msystem::analyse(){
                     }
                 }
             }
+            if(old_bn)di.maxinfl*=2;//make existing stucture more stable.
         }
         if(n_root!=1)root=-1;
 
@@ -176,6 +202,12 @@ bool msystem::analyse(){
             if(bl[bi.hid].pid!=i||bl[bi.gid].pid!=i){
                 di.del=true;
                 diff=true;
+                int_t ti=i,tp=bi.pid;
+                while(tp>=0&&(bl[tp].hid==ti||bl[tp].gid==ti)){
+                    dl[tp].del=true;
+                    ti=tp;
+                    tp=bl[ti].pid;
+                }
             }
         }
         //create new barycens
@@ -207,6 +239,8 @@ bool msystem::analyse(){
             diff=true;
         }
     } while(diff);
+
+    if(old_bn)return false;
 
     //remove deleted barycens
     std::vector<int_t> newindex(bl.size()+1,-1);
