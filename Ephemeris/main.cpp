@@ -196,7 +196,7 @@ int de_worker(int dir){
                         mem_file((dirstr+ringpath+"\\"+(const char*)&m.sid+".txt").c_str()).wdata});
                 }
             }
-            printf("Loaded %lld bodies from files.\nSaving checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
+            printf("Loaded %lld bodies from initial %s.\nSaving checkpoint %s\n",ms.mlist.size(),sip.c_str(),ickpt.c_str());
         }
     }
 

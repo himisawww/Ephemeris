@@ -454,20 +454,24 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
         m.min_distance=1/m.min_distance;
         if(m.R>m.min_distance){
             fprintf(stderr,
-                "\nCatastrophy: At Ephemeris Time: %lld s\n"
+                "\n\n************************************************************************\n"
+                "Catastrophy: At Ephemeris Time: %lld s\n"
                 "   Collision of Celestial Bodies Detected !!!\n"
                 "   Another body entered radius of <%s>:\n"
                 "       %.16e m <  %.16le m\n"
                 "   Note the program is not designed to handle body collisions.\n"
-                "   Ephemeris further than this may be unreliable.\n",
+                "   Ephemeris further than this may be unreliable.\n"
+                "************************************************************************\n\n",
                int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,m.min_distance,m.R);
         }
         if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
             fprintf(stderr,
+                "\n\n************************************************************************\n"
                 "\nWarning: At Ephemeris Time: %lld s\n"
                 "   Time step too large for accurate integration of <%s>.\n"
                 "       %.16e s >  %.16le s\n"
-                "   Ephemeris further than this may be inaccurate.\n",
+                "   Ephemeris further than this may be inaccurate.\n"
+                "************************************************************************\n\n",
                 int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
         }
     }

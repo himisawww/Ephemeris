@@ -347,7 +347,7 @@ public:
     //integrate ephemerides
     //for full system with un-parented tiny masses, use (dt*n_combine) as time step
     //for subsystem with tiny children masses, use dt as time step, always use CPU
-    //USE_GPU:   use CPU(0)/GPU(1) for single-step integration of full system
+    //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
 
     //analyse position of masses to build barycen list
