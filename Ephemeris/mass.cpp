@@ -467,8 +467,8 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
         if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
             fprintf(stderr,
                 "\n\n************************************************************************\n"
-                "\nWarning: At Ephemeris Time: %lld s\n"
-                "   Time step too large for accurate integration of <%s>.\n"
+                "Warning: At Ephemeris Time: %lld s\n"
+                "   Time step is too large for accurate integration of <%s>.\n"
                 "       %.16e s >  %.16le s\n"
                 "   Ephemeris further than this may be inaccurate.\n"
                 "************************************************************************\n\n",
