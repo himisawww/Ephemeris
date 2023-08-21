@@ -278,6 +278,8 @@ int de_worker(int dir){
             }
 
             int_t mst_eph=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+            
+            io_mutex.lock();
             if(fix_dir||dir>0){
                 static double s=CalcTime();
                 static double oldt=-INFINITY;
@@ -292,8 +294,11 @@ int de_worker(int dir){
                     skip_size=new_skip_size;
                     skip_count=0;
                     oldt=t;
+                    if(time_idx+i==isize&&!fix_dir)fix_dir=-dir;
                 }
             }
+            io_mutex.unlock();
+
             fwrite(&mst_eph,sizeof(int_t),1,&mf_time);
 
             for(int_t mi=0;mi<mn;++mi){
@@ -364,6 +369,7 @@ int de_worker(int dir){
         {
             zippack zp(strtowcs(zckpt),true);
             zp.zipmems.swap(zms);
+            printf("\nSaving ephemeris & checkpoint %s\n",zckpt.c_str());
         }
         io_mutex.unlock();
         
@@ -373,6 +379,11 @@ int de_worker(int dir){
 }
 
 int main_fun(int argc,const char **argv){
+
+    printf("%s%s\n%s",
+        "Ephemeris Integrator ",version,
+        "Github: https://github.com/himisawww/Ephemeris \n\n");
+
     do{
         if(argc<3||argc>4)break;
 
@@ -390,25 +401,25 @@ int main_fun(int argc,const char **argv){
         ip=argc>3?argv[argc-3]:nullptr;
         op=argv[argc-2];
 
+        bool fwd=fix_dir>=0,bak=fix_dir<=0;
+
 #ifdef NDEBUG
         std::thread th_future;
         std::thread th_past;
 
-        if(fix_dir>=0)th_future=std::thread(de_worker,1);
-        if(fix_dir<=0)th_past=std::thread(de_worker,-1);
+        if(fwd)th_future=std::thread(de_worker,1);
+        if(bak)th_past=std::thread(de_worker,-1);
 
-        if(fix_dir>=0)th_future.join();
-        if(fix_dir<=0)th_past.join();
+        if(fwd)th_future.join();
+        if(bak)th_past.join();
 #else
-        if(fix_dir>=0)de_worker(1);
-        if(fix_dir<=0)de_worker(-1);
+        if(fwd)de_worker(1);
+        if(bak)de_worker(-1);
 #endif
         return 0;
     } while(0);
 
-    printf("%s%s\n%s",
-        "Ephemeris Integrator ",version,
-        "Github: https://github.com/himisawww/Ephemeris \n\n"
+    printf("%s",
         "command line usage:\n\n"
         "   exe_name [[ip]] [op] [[[dir]]t] \n\n"
         "   ip: full path to configuration file (initial values & parameters\n"
