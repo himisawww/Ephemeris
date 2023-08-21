@@ -4,12 +4,15 @@
 #include<algorithm>
 #include<cuda_runtime.h>
 #include<cooperative_groups.h>
+#include<mutex>
 
 #define WARP_SIZE 32
 #define CUDA_CORES 1920
 #define MAXBLOCKS (1920/32)
 
 #define cuda_max(a,b) ((a)>(b)?(a):(b))
+
+std::mutex cuda_mutex;
 
 //geopotential data, mlist[first].gpmodel==second
 typedef std::vector<std::pair<int_t,geopotential*>> gpdata_t;
@@ -884,6 +887,7 @@ void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     gpdata_t mgp;
     ringdata_t mrg;
     cuda_rungekutta_kernel_config kf;
+    cuda_mutex.lock();
     kf.load(mlist,mgp,mrg,dt,n_step);
     kf.t_eph=t_eph;
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
@@ -897,6 +901,7 @@ void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     );
     cudaDeviceSynchronize();
     kf.save(mlist,mgp,mrg);
+    cuda_mutex.unlock();
 }
 
 void __global__ Cuda_accel_Kernel(){
@@ -907,6 +912,7 @@ void msystem::Cuda_accel(){
     gpdata_t mgp;
     ringdata_t mrg;
     cuda_rungekutta_kernel_config kf;
+    cuda_mutex.lock();
     kf.load(mlist,mgp,mrg,0,0);
     kf.t_eph=t_eph;
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
@@ -920,4 +926,5 @@ void msystem::Cuda_accel(){
     );
     cudaDeviceSynchronize();
     kf.save(mlist,mgp,mrg);
+    cuda_mutex.unlock();
 }

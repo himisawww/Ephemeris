@@ -16,7 +16,7 @@ const char *initialdir="system_initial";
 const char *version="v0.1.3";
 const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
-std::mutex io_mutex,calc_mutex;
+std::mutex io_mutex;
 
 const char *ip;
 const char *op;
@@ -118,7 +118,6 @@ int de_worker(int dir){
     std::string ickpt=sop+".0.zip";
     const char *fwdbak=dir>0?"fwd":"bak";
     size_t cur_index=1;
-    bool is_main_thread=(dir>0||fix_dir<0);
 
     //loading process
     io_mutex.lock();
@@ -216,7 +215,6 @@ int de_worker(int dir){
     bool use_cpu     =ms.integrator==int_t(msystem::     CPU_RK12);
     bool use_gpu     =ms.integrator==int_t(msystem::     GPU_RK12);
     bool use_combined=ms.integrator==int_t(msystem::COMBINED_RK12);
-    bool no_parallel =fix_dir||!use_cpu;
     
     fast_real dt=use_combined?ms.combined_delta_t:ms.delta_t;
     int_t jsize=std::round(ms.data_cadence/dt);
@@ -272,7 +270,6 @@ int de_worker(int dir){
         int_t t_eph_start=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
 
         //ephemeris integration
-        if(no_parallel)calc_mutex.lock();
         for(int_t i=0;i<=iunit;++i){
             if(i>0){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
@@ -281,11 +278,11 @@ int de_worker(int dir){
             }
 
             int_t mst_eph=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
-            if(no_parallel||is_main_thread){
+            if(fix_dir||dir>0){
                 static double s=CalcTime();
                 static double oldt=-INFINITY;
                 static int_t skip_count=0,skip_size=1;
-                if(++skip_count>=skip_size){
+                if(++skip_count>=skip_size||i==iunit){
                     double yr=mst_eph/year_seconds;
                     double t=CalcTime();
                     printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
@@ -310,7 +307,6 @@ int de_worker(int dir){
                 fwrite(&z,sizeof(vec),1,mfp);
             }
         }
-        if(no_parallel)calc_mutex.unlock();
 
         int_t t_eph_end=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
 
@@ -493,9 +489,9 @@ int main(int argc,const char **argv){
     const char *m_argv[]={
         argv[0],
         "F:\\Temp\\ephm\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
-        //"R:\\grad\\result",
-        "F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
-        "+20"
+        "R:\\grad\\result",
+        //"F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
+        "0.01"
     };
     const int m_argc=sizeof(m_argv)/sizeof(char *);
     return main_fun(m_argc,m_argv);
