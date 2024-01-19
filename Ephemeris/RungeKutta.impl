@@ -1,3 +1,39 @@
+#ifdef CUDA_IMPL
+
+#define CONST_TABLE static __device__ const
+#define RUNGE_KUTTA void __global__ Cuda_RungeKutta_Kernel()
+#define PREPARE                          \
+mass_state *x0=dkf.x0,*f=dkf.f;          \
+mass *x=dkf.dmlist;                      \
+fast_real dt=dkf.dt;                     \
+                                         \
+int mn=dkf.nmass;                        \
+int i0=blockIdx.x*dkf.mass_per_block;
+#define CONFIG dkf.
+#define FORALL_MASS                                     \
+for(int di=0;di<dkf.mass_per_block;di+=blockDim.x){     \
+    int i=i0+di+threadIdx.x;                            \
+    if(i<mn&&di+threadIdx.x<dkf.mass_per_block)
+#define FORALL_MASS_END }
+#define ACCEL Cuda_accel
+
+#else
+
+#define CONST_TABLE static const
+#define RUNGE_KUTTA void msystem::RungeKutta12(fast_real dt,int_t n_step)
+#define PREPARE                                   \
+std::vector<mass> &x=mlist;                       \
+int_t mn=x.size();                                \
+static thread_local std::vector<mass_state> x0,f; \
+x0.resize(mn);                                    \
+f.resize(25*mn);
+#define CONFIG
+#define FORALL_MASS for(int_t i=0;i<mn;++i)
+#define FORALL_MASS_END 
+#define ACCEL accel
+
+#endif
+
 //dfloat_t<double> representation of RungeKutta12 coefficients table, little endian
 CONST_TABLE uint64_t rk12_coefs[]={
     0x3fc999999999999a, 0xbc6999999999999a, 0xbfcba781948b0fcd, 0xbc6ba781948b0fcd, 0x3fe8b0fcd6e9e065, 0x3c7161f9add3c0ca, 0x3fcaaaaaaaaaaaab, 0xbc65555555555555, 0x0000000000000000, 0x0000000000000000,
@@ -66,3 +102,94 @@ CONST_TABLE uint64_t rk12_coefs[]={
     0x3fcba1b7611fb4d8, 0x3c5cd3b4f0838382, 0x3fc1b784990653ef, 0xbc61b4758859299e, 0xbfb2492492492492, 0xbc52492492492492, 0xbfb999999999999a, 0x3c5999999999999a, 0xbfa999999999999a, 0x3c4999999999999a,
     0xbfa999999999999a, 0x3c4999999999999a, 0xbfa5555555555555, 0xbc45555555555555, 0xbfa0000000000000, 0x0000000000000000, 0xbf98000000000000, 0x0000000000000000, 0x3f98618618618618, 0x3c38618618618618
 };
+
+
+RUNGE_KUTTA{
+    const real *clist=(const real *)rk12_coefs;
+
+    PREPARE;
+    
+    for(int_t i_step=0;i_step<CONFIG n_step;++i_step){
+        FORALL_MASS{
+            x0[i]=x[i];
+        }FORALL_MASS_END
+
+        fast_real dt_k;
+        for(int_t k=1;k<=25;++k){
+            dt_k=0;
+            FORALL_MASS{
+                mass_state &fi=f[mn*(k-1)+i];
+                mass &xi=x[i];
+                fi.v=xi.v;
+                fi.naccel=xi.gaccel+xi.daccel+xi.naccel;
+                fi.w=xi.w;
+                fi.dtorque=xi.dtorque;
+
+                if(k==25){
+                    fast_mpvec j(xi.GL),&w=xi.w;
+                    fast_mpvec wxj=w*j;
+                    fast_real wxj2=wxj%wxj;
+                    if(wxj2!=0){
+                        fast_mpmat ir=xi.GI.inverse();
+                        fast_real dt2=dt*dt;
+                        fast_real e=w%j*(fast_real(1)/2);
+                        fast_real de=(ir%w)%((ir%wxj)*j+w*wxj);
+                        de*=e*dt2*dt2/(36*wxj2);
+                        xi.Erot=de;
+                        xi.Egrad=wxj;
+                    }
+                    else{
+                        xi.Erot=0;
+                        xi.Egrad=0;
+                    }
+                }
+
+                xi.v=0;
+                xi.naccel=0;
+                xi.w=0;
+                xi.dtorque=0;
+            }FORALL_MASS_END
+
+            for(int_t j=0;j<k;++j){
+                const real &ckj=clist[k*(k-1)/2+j];
+                const fast_real fckj=(fast_real)ckj;
+                if(ckj.hi){
+                    dt_k+=fckj;
+                    FORALL_MASS{
+                        mass_state &fi=f[mn*j+i];
+                        mass &xi=x[i];
+                        xi.v+=ckj*fi.v;
+                        xi.naccel+=fckj*fi.naccel;
+                        xi.w+=fckj*fi.w;
+                        xi.dtorque+=fckj*fi.dtorque;
+                    }FORALL_MASS_END
+                }
+            }
+
+            fast_real t=fast_real(CONFIG t_eph)+dt*(dt_k+i_step);
+            FORALL_MASS{
+                const mass_state &xi0=x0[i];
+                mass &xi=x[i];
+
+                xi.r=xi0.r+real(dt)*xi.v;
+                xi.v=xi0.v+mpvec(dt*xi.naccel);
+                xi.w/=dt_k;
+                xi.s=xi0.s;
+                fast_mpvec dw=(fast_real(2)/3)*(xi.w-xi0.w);
+                xi.s+=rotation_matrix(xi.w-dw,dt*dt_k/2)%fast_mpmat(xi.s);
+                xi.s+=rotation_matrix(xi.w+dw,dt*dt_k/2)%fast_mpmat(xi.s);
+                xi.GL=xi0.GL+mpvec(dt*xi.dtorque);
+            
+                if(k==25){
+                    xi.s+=rotation_matrix(xi.Egrad,xi.Erot)%fast_mpmat(xi.s);
+                }
+                //update
+                xi.GM=xi.GM0+xi.dGM*t;
+
+                xi.exJ2=xi.dJ2*t;
+            }FORALL_MASS_END
+            
+            ACCEL();
+        }
+    }
+}

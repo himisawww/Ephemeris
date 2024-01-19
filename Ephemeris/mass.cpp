@@ -1,4 +1,5 @@
 #include"ephemeris.h"
+#include"mass.hpp"
 
 void mass::scale(fast_real factor){
 
@@ -53,13 +54,6 @@ void mass::deform_this(const std::vector<mass> &mlist){
     int_t mn=mlist.size();
     mass &mi=*this;
 
-    fast_mpmat fmis(mi.s);
-    fast_mpmat mc(mi.C_static);
-    mc.x.x+=mi.exJ2/2;
-    mc.y.y+=mi.exJ2/2;
-    mc.z.z-=mi.exJ2;
-    mc=fmis.toworld(mc);
-
     mi.phi=0;
     mi.naccel=0;
     mi.C_potential=0;
@@ -67,72 +61,20 @@ void mass::deform_this(const std::vector<mass> &mlist){
         if(mi.tide_delay!=0){
     for(int_t j=0;j<mn;++j)if(this!=&mlist[j]){
         const mass &mj=mlist[j];
-        fast_mpvec r=mj.r-mi.r;
-        fast_mpvec v=mj.v-mi.v;
-        fast_real rr2=1/(r%r);
-        fast_real rr=sqrt(rr2);
-        fast_real tp_dphi=rr*mj.GM;
-        mi.phi-=tp_dphi;
-        fast_real tp_dg=rr2*tp_dphi;
-        mi.naccel+=tp_dg*r;
-
-        //damped tidal deformation matrix
-        fast_real fmj=-3*tp_dg;
-        fast_mpvec dw=r*(mi.w*r-v)*rr2;
-        fast_real dw2=dw%dw,dw1=sqrt(dw2),dwt=dw1*mi.tide_delay*mj.tide_delay_factor;
-        fast_real
-            ecwt2=1+4*dwt*dwt,
-            secwt2=sqrt(ecwt2),
-            x0=sqrt((1+secwt2)/(2*ecwt2)),
-            y0=dwt*sqrt(2/(ecwt2*(1+secwt2))),
-            z02=dwt*dwt*(2/(ecwt2+secwt2));
-        fast_mpvec
-            dr=r*x0+dw*r*(y0/dw1);
-        mi.C_potential+=(
-            fast_mpmat(fast_real(1)/3-z02)
-            -fast_mpmat(dr*rr2,dr)
-            +fast_mpmat(dw*(z02/dw2),dw)
-            )*(fmj*mi.k2);
+        DAMPED_TIDAL_DEFORMATION_MATRIX(mi);
     }
     }else{//mi.tide_delay==0
     for(int_t j=0;j<mn;++j)if(this!=&mlist[j]){
         const mass &mj=mlist[j];
-        fast_mpvec r=mj.r-mi.r;
-        fast_mpvec v=mj.v-mi.v;
-        fast_real rr2=1/(r%r);
-        fast_real rr=sqrt(rr2);
-        fast_real tp_dphi=rr*mj.GM;
-        mi.phi-=tp_dphi;
-        fast_real tp_dg=rr2*tp_dphi;
-        mi.naccel+=tp_dg*r;
-
-        //damped tidal deformation matrix
-        fast_real fmj=-3*tp_dg;
-        fast_mpvec dw=r*(mi.w*r-v)*rr2;
-        fast_real dw2=dw%dw,dw1=sqrt(dw2);
-        mi.C_potential+=(
-            fast_mpmat(fast_real(1)/3)
-            -fast_mpmat(r*rr2,r)
-            )*(fmj*mi.k2);
+        DAMPED_TIDAL_DEFORMATION_MATRIX_NDELAY(mi);
     }
     }}else{//mi.k2==0
     for(int_t j=0;j<mn;++j)if(this!=&mlist[j]){
         const mass &mj=mlist[j];
-        fast_mpvec r=mj.r-mi.r;
-        fast_mpvec v=mj.v-mi.v;
-        fast_real rr2=1/(r%r);
-        fast_real rr=sqrt(rr2);
-        fast_real tp_dphi=rr*mj.GM;
-        mi.phi-=tp_dphi;
-        fast_real tp_dg=rr2*tp_dphi;
-        mi.naccel+=tp_dg*r;
+        DAMPED_TIDAL_DEFORMATION_MATRIX_NK2(mi);
     }
     }
-    fast_real w2=mi.w%mi.w;
-    mi.C_potential+=fast_mpmat(w2*mi.k2r/3)-fast_mpmat(mi.w*mi.k2r,mi.w);
-    mi.C_potential*=mi.R*mi.R2/(2*mi.GM);
-    mi.C_potential+=mc;
-    mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+    UPDATE_HARMONICS;
 }
 void mass::deform_all(std::vector<mass> &mlist){
     int_t mn=mlist.size();
@@ -154,19 +96,15 @@ void msystem::accel(){
     for(int_t i=0;i<mn;++i){
         mass &mi=mlist[i];
 
-        int_t max_iter=4;
+        int_t max_iter=MAX_ANGULAR_VELOCITY_ITER;
         do{
             mi.deform_this(mlist);
-            //angular accelerate
-            fast_mpvec oldw=mi.w;
-            mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));
-            if((mi.w-oldw).norm()<1e-9*oldw.norm())break;
+            bool should_break;
+            UPDATE_ANGULAR_VELOCITY;
+            if(should_break)break;
         } while(--max_iter);
 
-        mi.beta=fast_mpvec(mi.v)/c;
-        mi.beta2=mi.beta%mi.beta;
-        mi.phi/=c2;
-        mi.naccel/=c2;
+        PREPARE_RELATIVITY;
 
         mi.daccel=mi.dtorque=mi.gaccel=0;
 
@@ -178,42 +116,12 @@ void msystem::accel(){
 
         for(int_t j=0;j<mn;++j)if(i!=j){
             mass &mj=mlist[j];
-            fast_mpvec r=mj.r-mi.r;
-            fast_real rr2=1/(r%r);
-            fast_real rr=sqrt(rr2);
-            fast_real rr3=rr*rr2;
-
-            //start post-newtonian correction
-            fast_real tp_dphi=rr*mj.GM;
-            fast_real tp_dg=rr2*tp_dphi;
-            fast_real rbj=r%mj.beta;
-            fast_real tp_rbjrr2=rbj*rr;
-            tp_rbjrr2*=tp_rbjrr2;
-            fast_real delta1=4*mi.phi+mj.phi+mi.beta2+2*mj.beta2-4*(mi.beta%mj.beta)+(r%mj.naccel-3*tp_rbjrr2)/2;
-            fast_mpvec b=mj.beta-mi.beta;
-            mi.gaccel+=7*tp_dphi/2*mj.naccel+tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
-            //end post-newtonian correction
+            RELATIVITY(mi);
             mi.min_distance=std::max(mi.min_distance,rr);
             mi.max_influence=std::max(mi.max_influence,tp_dg);
-            //rotational & tidal deformation: gravity, torque
-            fast_mpvec Cr=mi.C_potential%r;
-            fast_mpvec dg=rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));
-            mi.daccel+=dg*mj.GM;
-            mj.daccel-=dg*mi.GM;
-            mi.dtorque+=mj.GM*(r*dg);
-            //start lense thirring
-            fast_real rcr32=2*mj.GM/c*rr3;
-            fast_mpvec GL=mi.GL;
-            fast_mpvec GLb=GL*b;
-            mi.daccel-=rcr32*(GLb-3*(GLb%r)*rr2*r);
-            mi.dtorque-=rcr32*(GL*(r*b));
-            fast_mpvec GLj=mj.GL;
-            mi.daccel+=(rcr32*(GLj-3*(GLj%r)*rr2*r))*b;
-            //end lense thirring
-
-            //start radiation pressure
-            mi.daccel+=mj.lum*mi.rR2_4Mc*rr3*r;
-            //end radiation pressure
+            ROTATIONAL_TIDAL_DEFORMATION;
+            LENSE_THIRRING(mi);
+            RADIATION_PRESSURE(mi);
 
             /*start shape-shape torque, 17cm for lunar libration
             if(i==10&&j==3){
@@ -341,9 +249,7 @@ void msystem::accel(){
                 fast_mpmat fmis(mi.s);
                 fast_mpvec lr=fmis.tolocal(r);
                 fast_mpvec an=fmis.toworld(mi.gpmodel->sum(mi.R,lr));
-                mi.daccel-=mj.GM*an;
-                mj.daccel+=mi.GM*an;
-                mi.dtorque-=mj.GM*(r*an);
+                APPLY_NONPOINT_FORCE(mi);
             }
 #endif
             //start ring gravity model
@@ -352,9 +258,7 @@ void msystem::accel(){
                 fast_mpmat fgls(migl.perpunit(),0,migl/migl.norm());
                 fast_mpvec lr=fgls.tolocal(r);
                 fast_mpvec an=fgls.toworld(mi.ringmodel->sum(lr));
-                mi.daccel-=mj.GM*an;
-                mj.daccel+=mi.GM*an;
-                mi.dtorque-=mj.GM*(r*an);
+                APPLY_NONPOINT_FORCE(mi);
             }
         }
     }
@@ -374,26 +278,10 @@ void msystem::accel(){
     
     for(int_t i=0;i<mn;++i){
         mass &mi=mlist[i];
-        mi.phi*=c2;
-        mi.naccel*=c2;
+        FINALIZE_RELATIVITY;
 
         if(mi.ringmodel){
-            mass &m=mi;
-            ring &mr=*m.ringmodel;
-            //ring has inertia that prevents extra accelerations
-            m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;
-            //ring has angular momentum that prevents extra angular accelerations
-            fast_mpvec mGL=m.GL;
-            fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);
-            fast_mpvec ptorque=m.dtorque;
-            ptorque=ptorque%mGL*rmGL2*mGL;
-            fast_mpvec dtorque=m.dtorque-ptorque;
-            //ptorque(parallel to GL) will not change
-            //  since this part has nothing to do with the ring
-            //dtorque(perpendicular to GL) will decrease
-            //  due to ring's angular momentum
-            dtorque*=1/(1+rmGL*mr.GL);
-            m.dtorque=dtorque+ptorque;
+            RING_CORRECTION;
         }
     }
 }

@@ -68,6 +68,9 @@
     <None Include="RungeKutta.impl">
       <Filter>源文件</Filter>
     </None>
+    <None Include="geopotential.impl">
+      <Filter>源文件</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vec_t.h">
@@ -86,6 +89,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="memfile.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="mass.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
