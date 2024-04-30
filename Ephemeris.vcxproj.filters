@@ -1,0 +1,156 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="utils">
+      <UniqueIdentifier>{324efa1f-d638-4d05-8a97-17f38bb1ed85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{5842b758-60c3-41c8-bd97-115343ebc353}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{a414b83c-21f2-4e8c-8f11-ae0847db1b3f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="physics">
+      <UniqueIdentifier>{dd8e1822-8912-4ffa-a462-7692c71189f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="integrators">
+      <UniqueIdentifier>{55c990b6-754d-4e2b-8006-6c97ac3fbb12}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="modules">
+      <UniqueIdentifier>{f3be6ef5-c5b9-4578-962e-e4cfcce8eaff}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Tests\tests.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Tests\test_geopotential.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils\calctime.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils\crc32.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils\wcs_convert.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\geopotential.cpp">
+      <Filter>physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\math\random.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\ring.cpp">
+      <Filter>physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils\memfile.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils\ziptree.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\math\Keplerians.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\mass.cpp">
+      <Filter>physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\barycen_analyzer.cpp">
+      <Filter>physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\integrators\mass_combined.cpp">
+      <Filter>integrators</Filter>
+    </ClCompile>
+    <ClCompile Include="src\integrators\RungeKutta.cpp">
+      <Filter>integrators</Filter>
+    </ClCompile>
+    <ClCompile Include="src\modules\mass_loader.cpp">
+      <Filter>modules</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\physics\geopotential.impl">
+      <Filter>physics</Filter>
+    </None>
+    <None Include="src\physics\disk_approx.impl">
+      <Filter>physics</Filter>
+    </None>
+    <None Include="src\integrators\RungeKutta.impl">
+      <Filter>integrators</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Tests\tests.h">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\calctime.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\crc32.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\wcs_convert.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\dfloat_t.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\vec_t.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\definitions.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="src\physics\geopotential.h">
+      <Filter>physics</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\random.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\physics\ring.h">
+      <Filter>physics</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\memfile.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\ziptree.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\Keplerians.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\physics\mass.h">
+      <Filter>physics</Filter>
+    </ClInclude>
+    <ClInclude Include="src\physics\CelestialSystem.h">
+      <Filter>physics</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="initials\SolarSystem\SolarSystem_Config.txt">
+      <Filter>资源文件</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="src\integrators\RungeKutta.cu">
+      <Filter>integrators</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
