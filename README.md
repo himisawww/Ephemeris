@@ -9,6 +9,8 @@ Now this program is very user-friendly. Just run the released executable, and th
 
 For details about physics, see https://www.kamine.cloud/archives/70 and successive articles.
 
+I also rendered an animation of the Moon viewed from the Earth using the results of this program (v0.1.3) and posted it on Bilibili([BV1zb411Z7B4](https://www.bilibili.com/video/BV1zb411Z7B4/))! The animation covered the period of J2000~2040 TDB, including Lunar Phase and Libration, Solar and Lunar Eclipses, and Exact Times of Lunar Phases, Solar Terms, and Zodiac Signs.
+
 - Ephemeris: CPU and GPU Implementation of a Runge-Kutta 12-order integrator for ephemeris integration.
 
 - SolarSystem: Parameters and initial values of Solar Sytem Celestial Bodies at J2000.0 (JD 2451545.0) TDB.
