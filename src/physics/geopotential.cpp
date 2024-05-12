@@ -1,14 +1,15 @@
 #include"geopotential.h"
 #include<string>
 #include<cstdio>
+#include"utils/memio.h"
 #ifndef USE_NEW_GEOPOTENTIAL
 //we support at most order 8 harmonics...
 static const int_t Max_N=8;
 #include"geopotential.impl"
 
-geopotential *geopotential::load(mem_file &fin,fast_real ref_radius_factor){
+geopotential *geopotential::load(const char *file,fast_real ref_radius_factor){
     std::string linebuf;
-    const char *file=fin.c_str();
+    MFILE *fin=mopen(file);
     if(!fin){
         fprintf(stderr,"%s : Error opening harmonics model\n",file);
         return nullptr;
@@ -70,7 +71,7 @@ geopotential *geopotential::load(mem_file &fin,fast_real ref_radius_factor){
             }
         }
     }
-
+    fclose(fin);
     if(!ret)return nullptr;
 
     //precompute coefficient tables
@@ -113,9 +114,9 @@ int_t geopotential::size() const{
 
 #include"geopotential.impl"
 
-geopotential *geopotential::load(mem_file &fin,fast_real ref_radius_factor,int_t N_start){
+geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,int_t N_start){
     std::string linebuf;
-    const char *file=fin.c_str();
+    MFILE *fin=mopen(file);
     if(!fin){
         fprintf(stderr,"%s : Error opening harmonics model\n",file);
         return nullptr;
@@ -198,7 +199,7 @@ geopotential *geopotential::load(mem_file &fin,fast_real ref_radius_factor,int_t
                 file,chbuf);
         }
     }
-
+    fclose(fin);
     if(!ret)return nullptr;
 
     if(lskip)

@@ -4,7 +4,7 @@
 
 std::wstring strtowcs(std::string str,bool from_utf8,bool allow_error){
 	std::wstring result;
-	int codepage=from_utf8?CP_UTF8:CP_ACP;//UTF-8|GBK to UTF-16
+	int codepage=from_utf8?CP_UTF8:CP_ACP;//UTF-8|ANSI to UTF-16
 	int dwflags=allow_error?0:MB_ERR_INVALID_CHARS;
 	int reqsize=MultiByteToWideChar(codepage,dwflags,
 		(LPCSTR)str.data(),str.size(),
@@ -19,7 +19,7 @@ std::wstring strtowcs(std::string str,bool from_utf8,bool allow_error){
 }
 std::string wcstostr(std::wstring str,bool to_utf8,bool allow_error){
 	std::string result;
-	int codepage=to_utf8?CP_UTF8:CP_ACP;//UTF-8|GBK to UTF-16
+	int codepage=to_utf8?CP_UTF8:CP_ACP;//UTF-16 to UTF-8|ANSI
 	int dwflags=to_utf8?(allow_error?0:WC_ERR_INVALID_CHARS):0;
 	BOOL haserr;
 	LPBOOL useddef=to_utf8||allow_error?NULL:&haserr;

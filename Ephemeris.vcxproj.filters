@@ -1,18 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="源文件">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="头文件">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
-    <Filter Include="资源文件">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
     <Filter Include="utils">
       <UniqueIdentifier>{324efa1f-d638-4d05-8a97-17f38bb1ed85}</UniqueIdentifier>
     </Filter>
@@ -31,10 +19,22 @@
     <Filter Include="modules">
       <UniqueIdentifier>{f3be6ef5-c5b9-4578-962e-e4cfcce8eaff}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resources">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="sources">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
-      <Filter>源文件</Filter>
+      <Filter>sources</Filter>
     </ClCompile>
     <ClCompile Include="src\Tests\tests.cpp">
       <Filter>tests</Filter>
@@ -60,10 +60,10 @@
     <ClCompile Include="src\physics\ring.cpp">
       <Filter>physics</Filter>
     </ClCompile>
-    <ClCompile Include="src\utils\memfile.cpp">
+    <ClCompile Include="src\utils\memio.cpp">
       <Filter>utils</Filter>
     </ClCompile>
-    <ClCompile Include="src\utils\ziptree.cpp">
+    <ClCompile Include="src\utils\zipio.cpp">
       <Filter>utils</Filter>
     </ClCompile>
     <ClCompile Include="src\math\Keplerians.cpp">
@@ -83,6 +83,9 @@
     </ClCompile>
     <ClCompile Include="src\modules\mass_loader.cpp">
       <Filter>modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\test_prepare.cpp">
+      <Filter>tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -116,7 +119,7 @@
       <Filter>math</Filter>
     </ClInclude>
     <ClInclude Include="src\definitions.h">
-      <Filter>头文件</Filter>
+      <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="src\physics\geopotential.h">
       <Filter>physics</Filter>
@@ -127,10 +130,7 @@
     <ClInclude Include="src\physics\ring.h">
       <Filter>physics</Filter>
     </ClInclude>
-    <ClInclude Include="src\utils\memfile.h">
-      <Filter>utils</Filter>
-    </ClInclude>
-    <ClInclude Include="src\utils\ziptree.h">
+    <ClInclude Include="src\utils\memio.h">
       <Filter>utils</Filter>
     </ClInclude>
     <ClInclude Include="src\math\Keplerians.h">
@@ -142,15 +142,56 @@
     <ClInclude Include="src\physics\CelestialSystem.h">
       <Filter>physics</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\zipio.h">
+      <Filter>utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">
-      <Filter>资源文件</Filter>
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\301.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\399.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\499.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\599.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Rings\699.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\699.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\799.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\899.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\SolarSystem_ExtraParameters.txt">
+      <Filter>resources</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\SolarSystem_Initial.txt">
+      <Filter>resources</Filter>
     </Text>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="src\integrators\RungeKutta.cu">
       <Filter>integrators</Filter>
     </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Ephemeris.rc">
+      <Filter>resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

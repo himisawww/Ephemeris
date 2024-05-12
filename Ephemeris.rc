@@ -1,0 +1,86 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEU)
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// HTML
+//
+
+IDR_SolarConfig         HTML                    "initials/SolarSystem/SolarSystem_Config.txt"
+
+IDR_SolarInitial        HTML                    "initials/SolarSystem/SolarSystem_Initial.txt"
+
+IDR_SolarExtra          HTML                    "initials/SolarSystem/SolarSystem_ExtraParameters.txt"
+
+IDR_RingSaturn          HTML                    "initials/SolarSystem/Rings/699.txt"
+
+IDR_GPMoon              HTML                    "initials/SolarSystem/Geopotentials/301.txt"
+
+IDR_GPEarth             HTML                    "initials/SolarSystem/Geopotentials/399.txt"
+
+IDR_GPMars              HTML                    "initials/SolarSystem/Geopotentials/499.txt"
+
+IDR_GPJupiter           HTML                    "initials/SolarSystem/Geopotentials/599.txt"
+
+IDR_GPSaturn            HTML                    "initials/SolarSystem/Geopotentials/699.txt"
+
+IDR_GPUranus            HTML                    "initials/SolarSystem/Geopotentials/799.txt"
+
+IDR_GPNeptune           HTML                    "initials/SolarSystem/Geopotentials/899.txt"
+
+#endif
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

@@ -242,9 +242,9 @@ public:
         const char *ringpath=nullptr);
 
     //load system from checkpoint file
-    bool load_checkpoint(mem_file *fcp);
+    bool load_checkpoint(MFILE *fcp);
     //save system as checkpoint
-    bool save_checkpoint(mem_file *fcp);
+    bool save_checkpoint(MFILE *fcp);
 
     //get index of mass from sid, return -1 if not found
     int_t get_mid(const char *sid);

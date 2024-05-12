@@ -1,6 +1,5 @@
 #pragma once
 #include"definitions.h"
-#include"utils/memfile.h"
 
 //ring attractor
 class ring{
@@ -20,7 +19,7 @@ public:
     // if negative, the angular momentum of the ring is reversed,
     // mass of the ring system will be multiplied by its absolute value,
     // default to 1, ring is disabled when equal to 0.
-    static ring *load(mem_file &file,fast_real ref_GM,fast_real ref_R2,fast_real direction_mass_factor=1);
+    static ring *load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real direction_mass_factor=1);
     static void unload(ring *);
     //sizeof this structure
     int_t size() const;

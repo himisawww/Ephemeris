@@ -1,6 +1,7 @@
 #include"ring.h"
 #include<vector>
 #include<string>
+#include"utils/memio.h"
 
 #define MAX_LINESIZE 1024
 
@@ -20,9 +21,9 @@ void adddisk(std::vector<disk> &disks,fast_real Gs,fast_real R,fast_real H){
     disks.push_back({Gs,R,H});
 }
 
-ring *ring::load(mem_file &fin,fast_real ref_GM,fast_real ref_R2,fast_real direction_mass_factor){
+ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real direction_mass_factor){
     std::string linebuf;
-    const char *file=fin.c_str();
+    MFILE *fin=mopen(file);
     if(!fin){
         fprintf(stderr,"%s : Error opening ring model\n",file);
         return nullptr;
@@ -66,7 +67,7 @@ ring *ring::load(mem_file &fin,fast_real ref_GM,fast_real ref_R2,fast_real direc
         adddisk(disks,-Gs, rin,thick);
         adddisk(disks, Gs,rout,thick);
     }
-
+    fclose(fin);
     if(failed)return nullptr;
 
     int_t N=disks.size();

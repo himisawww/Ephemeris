@@ -13,11 +13,18 @@ int test_fun(){
 #define DECLARE_TEST(T,S,L) \
 int T();                    \
 tests.push_back({T,S,L})
-
+    
+    
+    DECLARE_TEST(test_prepare,      "Preparing",
+        "Preparing resources (initials and params of celestial bodies)\n"
+        "   for testing procedures.\n"
+        );
     DECLARE_TEST(test_geopotential, "Geopotential",
         "Make sure the implementation of geopotential model is correct\n"
         "   by direct comparing to (Associated-) Legendre Polynomials.\n"
     );
+
+
     int_t N=tests.size();
     for(int_t i=0;i<N;++i){
         test_t &t=tests[i];
@@ -27,13 +34,16 @@ tests.push_back({T,S,L})
             fprintf(stderr,
                 "\n"
                 "\n***********************   Test Failed!   ***********************\n"
-                "\n TEST  NAME: %s"
-                "\nDESCRIPTION:\n %s"
-                "\n****************************************************************\n",
-                t.description,t.long_description);
+                "\n   TEST NAME: %s"
+                "\nFAILURE CODE: %d"
+                "\n DESCRIPTION:\n"
+                "\n %s"
+                "\n****************************************************************\n"
+                "\nPlease contact the author via github for further information.\n\n",
+                t.description,result,t.long_description);
             return result;
         }
-        printf("\nAll Tests Passed.\n");
     }
+    printf("\nAll Tests Passed.\n");
     return 0;
 }

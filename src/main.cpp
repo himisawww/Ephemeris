@@ -2,8 +2,7 @@
 #include<iostream>
 #include<thread>
 #include<mutex>
-#include"utils/ziptree.h"
-#include"utils/memfile.h"
+#include"utils/zipio.h"
 #include"utils/wcs_convert.h"
 #include"utils/calctime.h"
 #include"tests/tests.h"
@@ -31,19 +30,11 @@ double t_years;
 //  0: do both, default
 int fix_dir=0;
 
-bool file_exist(const std::string &path){
-    FILE *fin=fopen(path.c_str(),"rb");
-    if(!fin)return false;
-
-    fclose(fin);
-    return true;
-}
-
 bool sanity(double dt){
     return dt>0&&dt!=INFINITY;
 }
 
-void print_string(mem_file *mf,int_t level,const std::string &str){
+void print_string(MFILE *mf,int_t level,const std::string &str){
     if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
         //indent
         std::string indent(level,' ');
@@ -51,7 +42,7 @@ void print_string(mem_file *mf,int_t level,const std::string &str){
     }
     fwrite(str.data(),str.size(),1,mf);
 }
-void print_structure(const msystem &ms,mem_file *mf,int_t root=-1,int_t level=0){
+void print_structure(const msystem &ms,MFILE *mf,int_t root=-1,int_t level=0){
     if(root<0){
         root=ms.blist.size();
         do{
@@ -129,11 +120,11 @@ int de_worker(int dir){
             ++cur_index;
         } while(1);
         //ickpt exists
-        zippack zp(strtowcs(ickpt));
+        izippack zp(ickpt);
         for(const auto &zf:zp){
-            if(wcstostr(zf.filename)==checkpoint){
-                mem_file mf;
-                mf.read(zf);
+            if(zf.name()==checkpoint){
+                MFILE mf;
+                zf.dumpfile(mf);
                 ms.load_checkpoint(&mf);
                 break;
             }
@@ -148,44 +139,42 @@ int de_worker(int dir){
         std::string fconfig(sip.substr(spos));
         ms.load_dir(config,dirstr.c_str(),fconfig.c_str());
         if(ms.mlist.size()){
-            zippack zp(strtowcs(ickpt),true);
-            if(!zp.fzip){
+            ozippack zp(ickpt);
+            if(!zp){
                 fprintf(stderr,"Cannot open output file. Is its directory exist?\nThe program will exit.\n");
                 exit(-1);
             }
-            zp.zipmems.resize(1);
-            zipmem &zm=zp.zipmems[0];
-            mem_file mf;
+            zp.resize(1);
+            MFILE &mf=zp[0];
             ms.save_checkpoint(&mf);
-            mf.swap(zm.data);
-            zm.filename=strtowcs(checkpoint);
-            
+            mf.set_name(checkpoint);
+
             std::string
                 &fbase      =config["Initial"],
                 &fext       =config["Extra"],
                 &gppath     =config["Geopotentials"],
                 &ringpath   =config["Rings"];
             std::string initdir=std::string(initialdir)+"/";
-            zp.zipmems.push_back({strtowcs(initdir),{}});
+            zp.push_back(initdir,{});
 
-            zp.zipmems.push_back({strtowcs(initdir+fconfig),mem_file((dirstr+fconfig).c_str()).data()});
-            zp.zipmems.push_back({strtowcs(initdir+fbase),mem_file((dirstr+fbase).c_str()).data()});
+            zp.push_back(initdir+fconfig,MFILE(dirstr+fconfig));
+            zp.push_back(initdir+fbase,MFILE(dirstr+fbase));
             if(fext.size())
-                zp.zipmems.push_back({strtowcs(initdir+fext),mem_file((dirstr+fext).c_str()).data()});
+                zp.push_back(initdir+fext,MFILE(dirstr+fext));
             if(gppath.size())
-                zp.zipmems.push_back({strtowcs(initdir+gppath+"/"),{}});
+                zp.push_back(initdir+gppath+"/",{});
             if(ringpath.size())
-                zp.zipmems.push_back({strtowcs(initdir+ringpath+"/"),{}});
+                zp.push_back(initdir+ringpath+"/",{});
             for(const auto &m:ms.mlist){
                 if(m.gpmodel){
-                    zp.zipmems.push_back({
-                        strtowcs(initdir+gppath+"/"+(const char*)&m.sid+".txt"),
-                        mem_file((dirstr+gppath+"\\"+(const char*)&m.sid+".txt").c_str()).data()});
+                    zp.push_back(
+                        initdir+gppath+"/"+(const char*)&m.sid+".txt",
+                        MFILE(dirstr+gppath+"\\"+(const char*)&m.sid+".txt"));
                 }
                 if(m.ringmodel){
-                    zp.zipmems.push_back({
-                        strtowcs(initdir+ringpath+"/"+(const char*)&m.sid+".txt"),
-                        mem_file((dirstr+ringpath+"\\"+(const char*)&m.sid+".txt").c_str()).data()});
+                    zp.push_back(
+                        initdir+ringpath+"/"+(const char*)&m.sid+".txt",
+                        MFILE(dirstr+ringpath+"\\"+(const char*)&m.sid+".txt"));
                 }
             }
             printf("Loaded %lld bodies from initial %s.\nSaving checkpoint %s\n",ms.mlist.size(),sip.c_str(),ickpt.c_str());
@@ -253,10 +242,15 @@ int de_worker(int dir){
         //prepare mem files to save
         int_t mn=ms.mlist.size();
         int_t max_dp_perfile=1+iunit;
-        mem_file mf_time;
+        std::vector<MFILE> zms(n_zipheaders+mn);
+        MFILE &mf_ckpt=zms[0];
+        MFILE &mf_readme=zms[1];
+        MFILE &mf_struct=zms[2];
+        MFILE &mf_time=zms[3];
         mf_time.reserve(max_dp_perfile*sizeof(int_t));
-        std::vector<mem_file> mf_mlist(mn);
-        for(auto &mf:mf_mlist){
+        MFILE *mf_mlist=&zms[n_zipheaders];
+        for(int_t mi=0;mi<mn;++mi){
+            MFILE &mf=mf_mlist[mi];
             mf.reserve(max_dp_perfile*(5*sizeof(vec)));
         }
 
@@ -296,7 +290,7 @@ int de_worker(int dir){
 
             for(int_t mi=0;mi<mn;++mi){
                 const mass &m=ms.mlist[mi];
-                mem_file *mfp=&mf_mlist[mi];
+                MFILE *mfp=&mf_mlist[mi];
                 vec r=m.r,v=m.v,w=m.w,x=m.s.x,z=m.s.z;
                 fwrite(&r,sizeof(vec),1,mfp);
                 fwrite(&v,sizeof(vec),1,mfp);
@@ -309,11 +303,9 @@ int de_worker(int dir){
         int_t t_eph_end=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
 
         //prepare checkpoint/readme/structure files
-        mem_file mf_ckpt,mf_readme,mf_struct;
         ms.save_checkpoint(&mf_ckpt);
 
-        char buffer[512];
-        int buffer_chars=sprintf(buffer,
+        fprintf(&mf_readme,
             "Calculated & Generated by Ephemeris Integrator %s\n"
             "   Github: https://github.com/himisawww/Ephemeris \n"
             "   Author: %s\n\n"
@@ -326,42 +318,34 @@ int de_worker(int dir){
             ,
             version,author, mn, t_eph_start,t_eph_end, (t_eph_end-t_eph_start)/iunit
             );
-        fwrite(buffer,buffer_chars,1,&mf_readme);
 
         print_structure(ms,&mf_struct);
         
-        std::vector<zipmem> zms(n_zipheaders+mn);
+        mf_ckpt.set_name(checkpoint);
+        mf_readme.set_name(readme);
+        mf_struct.set_name(structure);
+        mf_time.set_name(timestamps);
         for(int_t mi=0;mi<mn;++mi){
+            MFILE &mf=mf_mlist[mi];
             std::string sid((char*)&ms.mlist[mi].sid);
-            buffer_chars=sprintf(buffer,
+            fprintf(&mf_readme,
                 "%12lld : %s\n",mi,sid.c_str()
             );
-            fwrite(buffer,buffer_chars,1,&mf_readme);
-            zms[n_zipheaders+mi].filename=strtowcs(sid+data_suffix);
-            mf_mlist[mi].swap(zms[n_zipheaders+mi].data);
+            mf.set_name(sid+data_suffix);
         }
-
-        zms[0].filename=strtowcs(checkpoint);
-        mf_ckpt.swap(zms[0].data);
-        zms[1].filename=strtowcs(readme);
-        mf_readme.swap(zms[1].data);
-        zms[2].filename=strtowcs(structure);
-        mf_struct.swap(zms[2].data);
-        zms[n_zipheaders-1].filename=strtowcs(timestamps);
-        mf_time.swap(zms[n_zipheaders-1].data);
 
         //save .zip
         std::string zckpt;
         zckpt.resize(sop.size()+30);
         zckpt.resize(
-            sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
+            sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak)
         );
         ++cur_index;
 
         io_mutex.lock();
         {
-            zippack zp(strtowcs(zckpt),true);
-            zp.zipmems.swap(zms);
+            ozippack zp(zckpt);
+            zp.swap(zms);
             printf("\nSaving ephemeris & checkpoint %s\n",zckpt.c_str());
         }
         io_mutex.unlock();
@@ -444,7 +428,7 @@ int convert_format(const char *path){
 
         std::string zckpt;
         size_t cur_index=1;
-        FILE *fout=fopen((sop+"."+fwdbak).c_str(),"wb");
+        MFILE *fout=mopen(sop+"."+fwdbak,MFILE_STATE::WRITE_FILE);
         do{
             zckpt.resize(sop.size()+30);
             zckpt.resize(
@@ -452,18 +436,18 @@ int convert_format(const char *path){
             );
             if(!file_exist(zckpt))break;
 
-            zippack zp(strtowcs(zckpt));
-            mem_file mf_time;
-            std::vector<mem_file> mf_mlist;
+            izippack zp(zckpt);
+            MFILE mf_time;
+            std::vector<MFILE> mf_mlist;
             int_t mi=-n_zipheaders;
             for(const auto &zf:zp){
-                std::string zfn=wcstostr(zf.filename);
+                std::string zfn=zf.name();
                 if(mi>=0){
                     mf_mlist.resize(mi+1);
-                    mf_mlist[mi].read(zf);
+                    zf.dumpfile(mf_mlist[mi]);
                 }
                 else if(zfn==timestamps){
-                    mf_time.read(zf);
+                    zf.dumpfile(mf_time);
                 }
                 ++mi;
             }

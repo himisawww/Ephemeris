@@ -1,6 +1,5 @@
 #pragma once
 #include"definitions.h"
-#include"utils/memfile.h"
 
 #ifndef USE_NEW_GEOPOTENTIAL
 //geopotential summer
@@ -19,7 +18,7 @@ public:
     // treat the coefficients as their reference radius is R*ref_radius_factor,
     // degree-n coefficients will be multiplied by ref_radius_factor^n,
     // default to 1, geopotential is disabled when equal to 0.
-    static geopotential *load(mem_file &file,fast_real ref_radius_factor=1);
+    static geopotential *load(const char *file,fast_real ref_radius_factor=1);
     static void unload(geopotential *);
     //sizeof this structure
     int_t size() const;
@@ -50,7 +49,7 @@ public:
     // degree-n coefficients will be multiplied by ref_radius_factor^n,
     // default to 1, geopotential is disabled when equal to 0.
     //N_start: starting degree of harmonics
-    static geopotential *load(mem_file &file,fast_real ref_radius_factor=1,int_t N_start=3);
+    static geopotential *load(const char *file,fast_real ref_radius_factor=1,int_t N_start=3);
     static void unload(geopotential *);
     //sizeof this structure
     int_t size() const;

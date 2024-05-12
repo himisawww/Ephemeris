@@ -1,7 +1,7 @@
 #include"physics/CelestialSystem.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"utils/memfile.h"
+#include"utils/memio.h"
 
 
 #define MAX_LINESIZE 1024
@@ -45,7 +45,7 @@ bool msystem::load_dir(std::map<std::string,std::string> &config,const char *dir
     sprintf(fname,"%s\\%s",dir,fconfig);
 
     bool failed=false;
-    mem_file fin(fname);
+    MFILE *fin=mopen(fname);
     if(!fin){
         fprintf(stderr,"File Not Exist: %s\n",fname);
         return false;
@@ -90,7 +90,7 @@ bool msystem::load_dir(std::map<std::string,std::string> &config,const char *dir
         
         it->second=sval;
     }
-    fin.close();
+    fclose(fin);
     if(failed)return false;
 
     std::string
@@ -193,7 +193,7 @@ bool msystem::load(
     }
 
     bool failed=false;
-    mem_file fin(fbase);
+    MFILE *fin=mopen(fbase);
     if(!fin){
         fprintf(stderr,"File Not Exist: %s\n",fbase);
         return false;
@@ -267,9 +267,7 @@ bool msystem::load(
         m.ringmodel=nullptr;
         if(gprf!=0){
             sprintf(sname,"%s\\%s.txt",gppath,sid);
-            mem_file gpfile(sname);
-            m.gpmodel=geopotential::load(gpfile,gprf);
-            gpfile.close();
+            m.gpmodel=geopotential::load(sname,gprf);
             if(!m.gpmodel){
                 failed=true;
                 break;
@@ -277,9 +275,7 @@ bool msystem::load(
         }
         if(ringmf!=0){
             sprintf(sname,"%s\\%s.txt",ringpath,sid);
-            mem_file rfile(sname);
-            m.ringmodel=ring::load(rfile,m.GM,m.R2,ringmf);
-            rfile.close();
+            m.ringmodel=ring::load(sname,m.GM,m.R2,ringmf);
             if(!m.ringmodel){
                 failed=true;
                 break;
@@ -322,11 +318,11 @@ bool msystem::load(
 
         mlist.push_back(m);
     }
-    fin.close();
+    fclose(fin);
     if(failed)return false;
 
     if(fext){
-        mem_file finex(fext);
+        MFILE *finex=mopen(fext);
         if(!finex){
             fprintf(stderr,"File Not Exist: %s\n",fext);
             return false;
@@ -383,7 +379,7 @@ bool msystem::load(
                 break;
             }
         }
-        finex.close();
+        fclose(finex);
         if(failed)return false;
     }
 
@@ -429,7 +425,7 @@ struct barycen_ids{
     int_t nch;
 };
 
-bool msystem::load_checkpoint(mem_file *fin){
+bool msystem::load_checkpoint(MFILE *fin){
     blist.clear();
     mlist.clear();
     midx.clear();
@@ -519,7 +515,7 @@ bool msystem::load_checkpoint(mem_file *fin){
     return !failed;
 }
 
-bool msystem::save_checkpoint(mem_file *fout){
+bool msystem::save_checkpoint(MFILE *fout){
 
     mass mwrite;
     const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;

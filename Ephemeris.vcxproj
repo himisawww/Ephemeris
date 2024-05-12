@@ -174,21 +174,23 @@
     <ClCompile Include="src\physics\mass.cpp" />
     <ClCompile Include="src\physics\ring.cpp" />
     <ClCompile Include="src\Tests\tests.cpp" />
+    <ClCompile Include="src\tests\test_prepare.cpp" />
     <ClCompile Include="src\Tests\test_geopotential.cpp" />
     <ClCompile Include="src\utils\calctime.cpp" />
     <ClCompile Include="src\utils\crc32.cpp" />
-    <ClCompile Include="src\utils\memfile.cpp" />
+    <ClCompile Include="src\utils\memio.cpp" />
     <ClCompile Include="src\utils\wcs_convert.cpp" />
     <ClCompile Include="src\main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="src\utils\ziptree.cpp" />
+    <ClCompile Include="src\utils\zipio.cpp" />
     <None Include="src\integrators\RungeKutta.impl" />
     <None Include="src\physics\disk_approx.impl" />
     <None Include="src\physics\geopotential.impl" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resource.h" />
     <ClInclude Include="src\definitions.h" />
     <ClInclude Include="src\math\dfloat_t.h" />
     <ClInclude Include="src\math\Keplerians.h" />
@@ -201,15 +203,28 @@
     <ClInclude Include="src\Tests\tests.h" />
     <ClInclude Include="src\utils\calctime.h" />
     <ClInclude Include="src\utils\crc32.h" />
-    <ClInclude Include="src\utils\memfile.h" />
+    <ClInclude Include="src\utils\memio.h" />
     <ClInclude Include="src\utils\wcs_convert.h" />
-    <ClInclude Include="src\utils\ziptree.h" />
+    <ClInclude Include="src\utils\zipio.h" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="initials\SolarSystem\Geopotentials\301.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\399.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\499.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\599.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\699.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\799.txt" />
+    <Text Include="initials\SolarSystem\Geopotentials\899.txt" />
+    <Text Include="initials\SolarSystem\Rings\699.txt" />
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt" />
+    <Text Include="initials\SolarSystem\SolarSystem_ExtraParameters.txt" />
+    <Text Include="initials\SolarSystem\SolarSystem_Initial.txt" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="src\integrators\RungeKutta.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Ephemeris.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

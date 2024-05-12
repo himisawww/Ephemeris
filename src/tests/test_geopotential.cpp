@@ -1,7 +1,9 @@
 #include"definitions.h"
-#include"utils/memfile.h"
+#include"utils/memio.h"
 #include"physics/geopotential.h"
 #include"utils/calctime.h"
+
+#define TEST_MEMPATH "__gptest.gp"
 
 // test parameter
 #define TEST_JVAL 0.1919810
@@ -198,15 +200,16 @@ int test_geopotential(){
 
 		geopotential_reference gpref;
 		gpref.data.push_back({n,m,c,s});
-		mem_file gpmf;
+		MFILE gpmf;
 		fprintf(&gpmf,"%lld\t%lld\n",n,m?n:0);
 		fprintf(&gpmf,"%lld\t%lld\t%.16le\t%.16le\n",n,m,c,s);
-		gpmf.publish();
+		gpmf.publish(TEST_MEMPATH);
 #ifndef USE_NEW_GEOPOTENTIAL
-		geopotential *gp=geopotential::load(gpmf,REFERENCE_RADIUS_FACTOR);
+		geopotential *gp=geopotential::load(TEST_MEMPATH,REFERENCE_RADIUS_FACTOR);
 #else
-		geopotential *gp=geopotential::load(gpmf,REFERENCE_RADIUS_FACTOR,2);
+		geopotential *gp=geopotential::load(TEST_MEMPATH,REFERENCE_RADIUS_FACTOR,2);
 #endif
+		if(!gp)return 2;
 		fast_real rn=TEST_RADIUS;
 		for(int_t ir=0;ir<TEST_N;++ir){
 			fast_real max_norm(0);

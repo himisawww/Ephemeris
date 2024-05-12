@@ -27,7 +27,7 @@ const double pi=3.1415926535897932;
 const double degree=pi/180;
 
 // pre-declarations
-class mem_file;
+class MFILE;
 
 class geopotential;
 class ring;
