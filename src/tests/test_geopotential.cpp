@@ -239,6 +239,6 @@ int test_geopotential(){
 		}
 	}
 
-	printf("Passed(%f), Done in %fs\n",max_rerr/TEST_EPSILON,CalcTime()-start_time);
+	printf("Passed(%f), Done in %fs",max_rerr/TEST_EPSILON,CalcTime()-start_time);
     return 0;
 }

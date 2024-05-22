@@ -174,6 +174,7 @@
     <ClCompile Include="src\physics\mass.cpp" />
     <ClCompile Include="src\physics\ring.cpp" />
     <ClCompile Include="src\Tests\tests.cpp" />
+    <ClCompile Include="src\tests\test_kepler.cpp" />
     <ClCompile Include="src\tests\test_prepare.cpp" />
     <ClCompile Include="src\Tests\test_geopotential.cpp" />
     <ClCompile Include="src\utils\calctime.cpp" />

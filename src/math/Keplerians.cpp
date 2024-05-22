@@ -50,10 +50,11 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     //adjust j-direction if j not perpendicular to r due to numerical errors
     j-=(j%r/rr)*r;
     double jj=j%j;
-    if(jj==0){
+    double jjeps=epsilon*epsilon*r0;
+    if(jj<jjeps){
         //if jj==0, use finite-pseudo-j to avoid singularity
         j=r.perpunit();
-        j*=epsilon*sqrt(r0);
+        j*=sqrt(jjeps);
         jj=j%j;
     }
 
@@ -131,7 +132,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
     bool msign=mp<0;
     if(msign)mp=-mp;
 
-    double x,y;
+    double x=NAN,y=NAN;
 
 #ifndef USE_NEW_ALGORITHM
     y=3*mp;
@@ -148,7 +149,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
             yy=y*y;
             y4=yy*yy;
             diff=y*((3+yy)/6+q*(q*(7+5*y4*yy)/112-(5+3*y4)/40))-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             oldy=y;
             y-=diff/((1+yy)/2+q*(q-2+(5*q*yy-6)*y4)/16);
             olddiff=diff;
@@ -168,7 +169,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         do{
             double shea=sinh(ea);
             diff=e0*shea-ea-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             x=cosh(ea);
             y=shea;
             ea-=diff/(e0*x-1);
@@ -188,7 +189,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         do{
             double sinea=sin(ea);
             diff=ea-e0*sinea-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             x=cos(ea);
             y=sinea;
             ea-=diff/(1-e0*x);
@@ -207,14 +208,14 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         //parabolic orbit
 
         //solve y
-        double oldx,oldy,yy,y4;
+        double oldx=NAN,oldy=NAN,yy,y4;
         double olddiff=HUGE_VAL,diff;
         do{
             yy=y*y;
             y4=yy*yy;
             x=sqrt(1+q*yy);
             diff=y/(1+e0)+y*yy*kep(x)-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             oldx=x;
             oldy=y;
             y-=diff/((1+yy)/2+q*(q-2+(5*q*yy-6)*y4)/16);
@@ -235,7 +236,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
             double c=cosh(ea);
             double s=sinh(ea);
             diff=s*(q/(1+e0)+s*s*kep(c))-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             x=c;
             y=s;
             ea-=diff/(e0*c-1);
@@ -256,7 +257,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
             double c=cos(ea);
             double s=sin(ea);
             diff=(c<0?ea-e0*s:s*(-q/(1+e0)+s*s*kep(c)))-mp;
-            if(abs(olddiff)<=abs(diff))break;
+            if(!(abs(diff)<abs(olddiff)))break;
             x=c;
             y=s;
             ea-=diff/(1-e0*c);

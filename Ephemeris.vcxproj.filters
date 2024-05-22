@@ -87,6 +87,9 @@
     <ClCompile Include="src\tests\test_prepare.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\test_kepler.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

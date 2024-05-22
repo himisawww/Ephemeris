@@ -1,5 +1,7 @@
 #include"physics/CelestialSystem.h"
 #include"tests/tests.h"
+#include"math/random.h"
+#include"utils/calctime.h"
 
 struct test_t{
     int (*test)();
@@ -7,14 +9,16 @@ struct test_t{
     const char *long_description;
 };
 
-int test_fun(){
+int test_fun(uint64_t seed){
     std::vector<test_t> tests;
     printf("Starting tests...");
 #define DECLARE_TEST(T,S,L) \
 int T();                    \
 tests.push_back({T,S,L})
     
-    
+    if(seed==0)seed=*(uint64_t*)&(const double &)CalcTime();
+    seedrandom(seed);
+
     DECLARE_TEST(test_prepare,      "Preparing",
         "Preparing resources (initials and params of celestial bodies)\n"
         "   for testing procedures.\n"
@@ -23,7 +27,10 @@ tests.push_back({T,S,L})
         "Make sure the implementation of geopotential model is correct\n"
         "   by direct comparing to (Associated-) Legendre Polynomials.\n"
     );
-
+    DECLARE_TEST(test_kepler,       "Keplerians",
+        "Test convertion between state vectors and orbital keplerian\n"
+        "   parameters.\n"
+    );
 
     int_t N=tests.size();
     for(int_t i=0;i<N;++i){
@@ -35,12 +42,13 @@ tests.push_back({T,S,L})
                 "\n"
                 "\n***********************   Test Failed!   ***********************\n"
                 "\n   TEST NAME: %s"
-                "\nFAILURE CODE: %d"
-                "\n DESCRIPTION:\n"
+                "\n DESCRIPTION:"
                 "\n %s"
+                "\nFAILURE CODE: %d"
+                "\n   TEST SEED: %016llx\n"
                 "\n****************************************************************\n"
                 "\nPlease contact the author via github for further information.\n\n",
-                t.description,result,t.long_description);
+                t.description,t.long_description,result,seed);
             return result;
         }
     }
