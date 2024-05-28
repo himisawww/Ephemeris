@@ -78,7 +78,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     yy=y*y;
 
     //adjust q for higher precision (when e->1)
-    if(ee*xx>1+yy)q=(1+yy-2*r0)/xx;
+    if(e0<2&&ee*xx>1+yy)q=(1+yy-2*r0)/xx;
     else q=ee-1;
 #ifndef USE_NEW_ALGORITHM
     if(abs((2-x)*q)<parabolic_threshold/2){
