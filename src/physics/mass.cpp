@@ -142,118 +142,12 @@ void msystem::accel(){
                 //printf("%le ",sstorque.norm());
                 mi.dtorque+=sstorque;*/
             //start higher harmonics
-#if 0
-            if(i==10){// lunar geopotential model
-                const int_t maxN=6;
-
-                // Jn = J[n-3]
-                const fast_real J[]={
-                    8.4597026974594570E-06, //J3
-                   -9.7044138365700000E-06, //J4
-                    7.4221608384052890E-07, //J5
-                   -1.3767531350969900E-05  //J6
-                };
-
-                // Cij = C[i*(i-1)/2+j-4]
-                const fast_real C[]={
-                    2.8480741195592860E-05, //C31
-                    4.8449420619770600E-06, //C32
-                    1.6756178134114570E-06, //C33
-                   -5.7048697319733210E-06, //C41
-                   -1.5912271792977430E-06, //C42
-                   -8.0678881596778210E-08, //C43
-                   -1.2692158612216040E-07, //C44
-                   -8.6629769308983560E-07, //C51
-                    7.1199537967353330E-07, //C52
-                    1.5399750424904520E-08, //C53
-                    2.1444704319218450E-08, //C54
-                    7.6596153884006140E-09, //C55
-                    1.2024363601545920E-06, //C61
-                   -5.4703897324156850E-07, //C62
-                   -6.8785612757292010E-08, //C63
-                    1.2915580402925160E-09, //C64
-                    1.1737698784460500E-09, //C65
-                   -1.0913395178881540E-09  //C66
-                };
-
-                // Sij = S[i*(i-1)/2+j-4]
-                const fast_real S[]={
-                    5.8915551555318640E-06, //S31
-                    1.6844743962783900E-06, //S32
-                   -2.4742714379805760E-07, //S33
-                    1.5789202789245720E-06, //S41
-                   -1.5153915796731720E-06, //S42
-                   -8.0349266627431070E-07, //S43
-                    8.2964257754075220E-08, //S44
-                   -3.5272289393243820E-06, //S51
-                    1.7107886673430380E-07, //S52
-                    2.8736257616334340E-07, //S53
-                    5.2652110720146800E-10, //S54
-                   -6.7824035473995330E-09, //S55
-                   -2.0453507141252220E-06, //S61
-                   -2.6966834353574270E-07, //S62
-                   -7.1063745295915780E-08, //S63
-                   -1.5361616966632300E-08, //S64
-                   -8.3465073195142520E-09, //S65
-                    1.6844213702632920E-09  //S66
-                };
-                
-                fast_real phi,lambda;
-                fast_mpmat fmis(mi.s);
-                fast_mpvec lr=fmis.tolocal(r);
-                phi=atan2(lr.z,sqrt(lr.x*lr.x+lr.y*lr.y));
-                lambda=atan2(lr.y,lr.x);
-                fast_real
-                    cl=cos(lambda),cp=cos(phi),
-                    sl=sin(lambda),sp=sin(phi);
-
-                fast_mpvec
-                    ax( cl*cp, sl*cp,sp),
-                    ay(-   sl,    cl, 0),
-                    az(-cl*sp,-sl*sp,cp);
-
-                fast_real R_r=mi.R*rr;
-                fast_mpvec an(0);
-                for(int_t n=maxN;n>=3;--n){
-                    const fast_real &Jn=J[n-3];
-                    fast_real sgncp=std::copysign(fast_real(1),cp);
-
-                    an.x+=Jn*(n+1)*std::legendre(n,sp);
-                    an.z-=Jn*sgncp*std::assoc_legendre(n,1,sp);
-                    for(int_t m=1;m<=n;++m){
-                        const fast_real &Cnm=C[n*(n-1)/2+m-4];
-                        const fast_real &Snm=S[n*(n-1)/2+m-4];
-                        fast_real cml=cos(m*lambda),sml=sin(m*lambda);
-                        an.x-=(n+1)*std::assoc_legendre(n,m,sp)*(Cnm*cml+Snm*sml);
-                        fast_real anyp;
-                        if(abs(cp)>abs(sp)){
-                            anyp=std::assoc_legendre(n,m,sp)/cp;
-                        }
-                        else{
-                            anyp=sgncp*(
-                                std::assoc_legendre(n,m+1,sp)
-                               +(n+m)*(n-m+1)*std::assoc_legendre(n,m-1,sp)
-                                )/(2*m*sp);
-                        }
-                        an.y+=m*anyp*(-Cnm*sml+Snm*cml);
-                        an.z+=(m*sp*anyp-(n+m)*(n-m+1)*sgncp*std::assoc_legendre(n,m-1,sp))*(Cnm*cml+Snm*sml);
-                    }
-                    an*=R_r;
-                }
-                an*=rr2*R_r*R_r;
-                an=fmis.toworld(an.x*ax+an.y*ay+an.z*az);
-                mi.daccel-=mj.GM*an;
-                mj.daccel+=mi.GM*an;
-                mi.dtorque-=mj.GM*(r*an);
-            }
-#else
             if(mi.gpmodel){
                 fast_mpmat fmis(mi.s);
                 fast_mpvec lr=fmis.tolocal(r);
                 fast_mpvec an=fmis.toworld(mi.gpmodel->sum(mi.R,lr));
                 APPLY_NONPOINT_FORCE(mi);
             }
-#endif
             //start ring gravity model
             if(mi.ringmodel){
                 fast_mpvec migl=mi.GL;

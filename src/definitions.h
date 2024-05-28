@@ -20,7 +20,6 @@ typedef mat_t<fast_real> fast_mpmat;
 typedef int64_t int_t;
 
 //compile switches
-#define USE_NEW_GEOPOTENTIAL
 
 //consts
 const double pi=3.1415926535897932;
