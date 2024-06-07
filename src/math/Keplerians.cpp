@@ -265,7 +265,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         } while(1);
 
         y=y/sq;
-        if(x<0)x=(e0-x)/q;
+        if(x+q<0)x=(e0-x)/q;
         else x=(1-y*y)/(e0+x);
     }
 #endif
