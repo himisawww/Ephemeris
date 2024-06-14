@@ -90,6 +90,9 @@
     <ClCompile Include="src\tests\test_kepler.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\math\interp.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
@@ -150,6 +153,9 @@
     </ClInclude>
     <ClInclude Include="src\utils\zipio.h">
       <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\interp.h">
+      <Filter>math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
