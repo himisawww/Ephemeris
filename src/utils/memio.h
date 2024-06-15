@@ -2,7 +2,6 @@
 #include<cstdint>
 #include<string>
 #include<vector>
-#include<map>
 #include<cstdio>
 
 /* usage:
@@ -47,26 +46,35 @@ public:
     typedef uint8_t byte_t;
     typedef int64_t index_t;
 private:
-    // specified when open a file
+    // specified when open a file.
+    // WRITE_FILE && !fp : cache will be published in this name when close;
+    // [otherwise]: auxiliary;
     std::string filename;
-    // used for memory read/write
-    // [READ_CACHE]/WRITE_CACHE
+    // local cache used for memory read/write
+    // [READ_CACHE] : store data to be read;
+    // WRITE_CACHE || WRITE_FILE && !fp : used to store wrote data;
     std::vector<byte_t> cached_data;
-    // used for file read/write
-    // when in WRITE_CACHE state, cache will flush to this file when close
-    // READ_FILE/WRITE_FILE/WRITE_CACHE
+    // used for actuall disk io
+    // READ_FILE || WRITE_FILE && fp : the file reading/writing;
+    // WRITE_CACHE : if fp, cache will flush to this file when close;
     FILE *fp;
     // used for memory read
-    // READ_CACHE
+    // READ_CACHE : the begining address and byte size of reading cache
     const byte_t *idata;
     index_t isize;
     // used for memory read/write
-    // WRITE_CACHE/READ_CACHE
+    // READ_CACHE || WRITE_CACHE || WRITE_FILE &&!fp : current position of io
     index_t offset;
 
+    /* usage of members under possible states:
+        READ_CACHE:          [cached_data],   idata, isize, offset
+         READ_FILE:                        fp
+       WRITE_CACHE:           cached_data, fp,              offset
+    WRITE_FILE:          
+            &&  fp:                        fp
+            && !fp: filename, cached_data,                  offset
+    */
     MFILE_STATE state;
-
-    static std::map<std::string,std::vector<byte_t>> mem_library;
 
 public:
     MFILE(MFILE &&mf);
@@ -80,14 +88,14 @@ public:
     ~MFILE(){ close(); }
 
     int close();
-    //resize cache and reset state to READ_CACHE,
-    //return address of prepared cache.
+    //resize local cache, set reading cache pointer to it, and set state to READ_CACHE.
+    //return address of prepared local cache.
     byte_t *reset(size_t new_cache_size);
 
     const std::string &get_name() const{ return filename; }
     void set_name(const std::string &_name){ filename=_name; }
 
-    // (READ_FILE) read file to cache and converts to READ_CACHE
+    // (READ_FILE/READ_CACHE) read file/memory to local cache and converts to READ_CACHE
     void load_data();
     // (WRITE_CACHE/READ_CACHE) get data
     const byte_t *data() const{ return state==MFILE_STATE::READ_CACHE?idata:cached_data.data(); }
@@ -114,4 +122,11 @@ public:
     //      no writing to disk;
     //      can be further read by MFILE(filename);
     bool publish(const std::string &fname="");
+
+    // When open failed in WRITE_FILE mode, that is, cannot create FILE for writing,
+    // if true: MFILE is still a valid WRITE_FILE stream, all wrote data will be
+    //          cached in memory and published in its filename when close.
+    // if false: MFILE will be INVALID.
+    static bool set_wcache_onfail(bool do_publish);
+    static bool get_wcache_onfail();
 };

@@ -1,6 +1,6 @@
 #include"memio.h"
 #include<cstdarg>
-
+#include<map>
 #include"wcs_convert.h"
 
 FILE *fopen(const std::string &fname,bool is_read){
@@ -12,14 +12,23 @@ bool file_exist(const std::string &path){
     return MFILE(path).is_valid();
 }
 
-std::map<std::string,std::vector<MFILE::byte_t>> MFILE::mem_library;
+static std::map<std::string,std::vector<MFILE::byte_t>> mem_library;
+static bool s_publish_invalid_ofile=false;
+
+bool MFILE::set_wcache_onfail(bool do_publish){
+    bool ret=s_publish_invalid_ofile;
+    s_publish_invalid_ofile=do_publish;
+    return ret;
+}
+bool MFILE::get_wcache_onfail(){
+    return s_publish_invalid_ofile;
+}
 
 MFILE::MFILE(MFILE &&mf):
     filename(std::move(mf.filename)),
     cached_data(std::move(mf.cached_data))
 {
     fp=mf.fp;
-    mf.fp=nullptr;
     idata=mf.idata;
     isize=mf.isize;
     offset=mf.offset;
@@ -42,9 +51,8 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     if(state==MFILE_STATE::INVALID)return;
     bool is_read_=is_read();
     bool is_cache_=is_cache();
-    filename=_fname;
     if(is_read_){
-        auto it=mem_library.find(filename);
+        auto it=mem_library.find(_fname);
         if(it!=mem_library.end()){
             const auto &pmem=it->second;
             idata=pmem.data();
@@ -56,14 +64,16 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     }
 
     fp=fopen(_fname,is_read_);
-    if(!fp)
+    if(!fp&&(is_read_||!s_publish_invalid_ofile))
         state=MFILE_STATE::INVALID;
     else if(is_read_){
         state=MFILE_STATE::READ_FILE;
         if(is_cache_)load_data();
     }
-    else
-        offset=0;
+    else{
+        if(!fp||is_cache_)offset=0;
+        if(!fp&&!is_cache_)filename=_fname;
+    }
 }
 
 // open memory to write (WRITE_CACHE)
@@ -85,14 +95,18 @@ MFILE *mopen(const std::string &_fname,MFILE_STATE _state){
 }
 
 int MFILE::close(){
+    if(state==MFILE_STATE::INVALID)
+        return EOF;
+    if(state==MFILE_STATE::WRITE_CACHE&&fp)
+        fwrite(cached_data.data(),1,cached_data.size(),fp);
+    if(state==MFILE_STATE::WRITE_FILE&&!fp){
+        state=MFILE_STATE::WRITE_CACHE;
+        publish(filename);
+    }
     MFILE_STATE ostate=state;
     state=MFILE_STATE::INVALID;
-    if(ostate==MFILE_STATE::INVALID)
-        return EOF;
     if(ostate==MFILE_STATE::READ_CACHE||!fp)
         return 0;
-    if(ostate==MFILE_STATE::WRITE_CACHE)
-        fwrite(cached_data.data(),1,cached_data.size(),fp);
     return fclose(fp);
 }
 MFILE::byte_t *MFILE::reset(size_t new_cache_size){
@@ -106,7 +120,13 @@ MFILE::byte_t *MFILE::reset(size_t new_cache_size){
 }
 
 void MFILE::load_data(){
-    if(state==MFILE_STATE::READ_FILE){
+    if(state==MFILE_STATE::READ_CACHE){
+        if(idata!=cached_data.data()||isize!=cached_data.size()){
+            std::vector<byte_t>(idata,idata+isize).swap(cached_data);
+            idata=cached_data.data();
+        }
+    }
+    else if(state==MFILE_STATE::READ_FILE){
         offset=tell();
         seek(0,SEEK_END);
         isize=tell();
@@ -120,7 +140,7 @@ void MFILE::load_data(){
 }
 
 bool MFILE::is_valid() const{
-    return this&&state!=MFILE_STATE::INVALID;
+    return state!=MFILE_STATE::INVALID;
 }
 bool MFILE::is_read() const{
     return state==MFILE_STATE::READ_CACHE||state==MFILE_STATE::READ_FILE;
@@ -137,11 +157,11 @@ void MFILE::reserve(size_t rsize){
 }
 
 int64_t MFILE::tell() const{
-    if(is_cache())return offset;
+    if(is_cache()||state==MFILE_STATE::WRITE_FILE&&!fp)return offset;
     return _ftelli64(fp);
 }
 int MFILE::seek(int64_t fpos,int forg){
-    if(is_cache()){
+    if(is_cache()||state==MFILE_STATE::WRITE_FILE&&!fp){
         size_t s=size();
         if(forg==SEEK_SET)offset=fpos;
         else if(forg==SEEK_CUR)offset+=fpos;
@@ -183,9 +203,11 @@ size_t MFILE::read(void *buffer,size_t e_size,size_t e_count){
 }
 size_t MFILE::write(const void *buffer,size_t e_size,size_t e_count){
     if(state==MFILE_STATE::WRITE_FILE){
-        return fwrite(buffer,e_size,e_count,fp);
+        if(fp)return fwrite(buffer,e_size,e_count,fp);
     }
-    else if(state==MFILE_STATE::WRITE_CACHE){
+    else if(state!=MFILE_STATE::WRITE_CACHE)
+        return 0;
+
         if(e_size==0)return e_count;
         size_t max_count=-1-offset;
         max_count/=e_size;
@@ -197,8 +219,6 @@ size_t MFILE::write(const void *buffer,size_t e_size,size_t e_count){
         memcpy(cached_data.data()+offset,buffer,wsize);
         offset+=wsize;
         return e_count;
-    }
-    return 0;
 }
 
 std::string MFILE::readline(){
