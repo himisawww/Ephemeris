@@ -1,5 +1,5 @@
 ﻿#include"Keplerians.h"
-#define USE_NEW_ALGORITHM
+
 //12(2^-53)^(1/4)
 static const double parabolic_threshold=0.00123;
 static const double epsilon=1e-16;
@@ -80,23 +80,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     //adjust q for higher precision (when e->1)
     if(e0<2&&ee*xx>1+yy)q=(1+yy-2*r0)/xx;
     else q=ee-1;
-#ifndef USE_NEW_ALGORITHM
-    if(abs((2-x)*q)<parabolic_threshold/2){
-        //parabolic orbit
-        double y4=yy*yy;
-        m=y*((3+yy)/6+q*(q*(7+5*y4*yy)/112-(5+3*y4)/40));
-    }
-    else if(q>0){
-        //hyperbolic orbit
-        double sq=sqrt(q);
-        m=(e0*y-asinh(y*sq)/sq)/q;
-    }
-    else{
-        //elliptic orbit
-        double sq=sqrt(-q);
-        m=(e0*y-atan2(y*sq,e0-q*x)/sq)/q;
-    }
-#else
+
     double c=q<0?e0-q*x:sqrt(1+q*yy);
     if(c<0){
         double sq=sqrt(-q);
@@ -105,7 +89,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     else{
         m=y/(1+e0)+y*yy*kep(c);
     }
-#endif
+
     //adjust definition of q to avoid numeric error at e=0
     q/=e0+1;
 }
@@ -134,74 +118,8 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
 
     double x=NAN,y=NAN;
 
-#ifndef USE_NEW_ALGORITHM
     y=3*mp;
-    y=pow(y+sqrt(1+y*y),1/3.);
-    y-=1/y;
-
-    if(abs((3+y*y)*q)<parabolic_threshold){
-        //parabolic orbit
-
-        //solve y
-        double oldy,yy,y4;
-        double olddiff=HUGE_VAL,diff;
-        do{
-            yy=y*y;
-            y4=yy*yy;
-            diff=y*((3+yy)/6+q*(q*(7+5*y4*yy)/112-(5+3*y4)/40))-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
-            oldy=y;
-            y-=diff/((1+yy)/2+q*(q-2+(5*q*yy-6)*y4)/16);
-            olddiff=diff;
-        } while(1);
-
-        y=oldy;
-        yy=y*y;
-        x=(1-yy)/(e0+sqrt(1+q*yy));
-    }
-    else if(q>0){
-        //hyperbolic orbit
-        mp*=sq3;
-
-        //solve e0*sh(ea)-ea==mp
-        double ea=mp<pi?pow(6*mp,1/3.):asinh(mp/e0);
-        double olddiff=HUGE_VAL,diff;
-        do{
-            double shea=sinh(ea);
-            diff=e0*shea-ea-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
-            x=cosh(ea);
-            y=shea;
-            ea-=diff/(e0*x-1);
-            olddiff=diff;
-        } while(1);
-
-        x=(e0-x)/q;
-        y=y/sq;
-    }
-    else{
-        //elliptic orbit
-        mp*=sq3;
-
-        //solve ea-e0*sin(ea)==mp
-        double ea=pow(6*mp,1/3.);
-        double olddiff=HUGE_VAL,diff;
-        do{
-            double sinea=sin(ea);
-            diff=ea-e0*sinea-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
-            x=cos(ea);
-            y=sinea;
-            ea-=diff/(1-e0*x);
-            olddiff=diff;
-        } while(1);
-
-        x=(e0-x)/q;
-        y=y/sq;
-    }
-#else
-    y=3*mp;
-    y=pow(y+sqrt(1+y*y),1/3.);
+    y=cbrt(y+sqrt(1+y*y));
     y-=1/y;
 
     if(abs((3+y*y)*q)<parabolic_threshold){
@@ -230,7 +148,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         mp*=sq3;
 
         //solve e0*sh(ea)-ea==mp
-        double ea=mp<pi?pow(6*mp,1/3.):asinh(mp/e0);
+        double ea=mp<pi?cbrt(6*mp):asinh(mp/e0);
         double olddiff=HUGE_VAL,diff;
         do{
             double c=cosh(ea);
@@ -251,7 +169,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         mp*=sq3;
 
         //solve ea-e0*sin(ea)==mp
-        double ea=pow(6*mp,1/3.);
+        double ea=cbrt(6*mp);
         double olddiff=HUGE_VAL,diff;
         do{
             double c=cos(ea);
@@ -268,7 +186,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
         if(x+q<0)x=(e0-x)/q;
         else x=(1-y*y)/(e0+x);
     }
-#endif
+
     if(msign)y=-y;
 
     double rr=x*x+y*y;
