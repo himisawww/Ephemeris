@@ -147,7 +147,7 @@ struct maccel_2{
 extern __shared__ char sharedMem[];
 void __device__ accel_0(){//deform
 
-    const fast_real c=299792458;
+    const fast_real c=CONSTANT_VALUE_C;
     const fast_real c2=c*c;
 
     int i0=blockIdx.x*dkf.mass_per_block;
@@ -203,8 +203,7 @@ void __device__ accel_0(){//deform
 }
 
 void __device__ accel_1(){//accel
-    const fast_real c=299792458;
-    const fast_real c2=c*c;
+    const fast_real c=CONSTANT_VALUE_C;
 
     int i0=blockIdx.x*dkf.mass_per_block;
     for(int di=0;di<dkf.mass_per_block;++di){
@@ -342,7 +341,7 @@ void __device__ accel_2(){//higher harmonics
 }
 
 void __device__ Cuda_accel(){
-    const fast_real c=299792458;
+    const fast_real c=CONSTANT_VALUE_C;
     const fast_real c2=c*c;
     cooperative_groups::grid_group grid=cooperative_groups::this_grid();
 

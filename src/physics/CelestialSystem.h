@@ -194,20 +194,31 @@ public:
     std::vector<int_t> tidal_childlist;
     fast_mpmat tidal_matrix;
 
+private:
+    //load system from files
+    //   fbase : basic parameters and initial states
+    //    fext : extra parameters
+    //  gppath : path for geopotential models
+    //ringpath : path for ring models
+    bool load(const char *fbase,
+        const char *fext,
+        const char *gppath,
+        const char *ringpath);
+    //Runge-Kutta-12 integrator
+    void RungeKutta12(fast_real dt,int_t n_step);
+    //Runge-Kutta-12 integrator
+    void Cuda_RungeKutta12(fast_real dt,int_t n_step);
     //update time-variables of mass list to epoch t
     void update(fast_real t);
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
+
+public:
     //calculate acceleration and solve for angular velocity
     void accel();
     //same as accel, use GPU
     void Cuda_accel();
-
-    //Runge-Kutta-12 integrator
-    void RungeKutta12(fast_real dt,int_t n_step);
-    //Runge-Kutta-12 integrator
-    void Cuda_RungeKutta12(fast_real dt,int_t n_step);
 
     //integrate ephemerides
     //USE_GPU:   0: CPU Runge Kutta 12
@@ -226,21 +237,8 @@ public:
     //update barycens' GM & rv
     void update_barycens();
 
-    //load system from directory
-    //     dir : directory
-    // fconfig : config file name
-    bool load_dir(std::map<std::string,std::string> &config,const char *dir,const char *fconfig);
-
-    //load system from files
-    //   fbase : basic parameters and initial states
-    //    fext : extra parameters
-    //  gppath : path for geopotential models
-    //ringpath : path for ring models
-    bool load(const char *fbase,
-        const char *fext=nullptr,
-        const char *gppath=nullptr,
-        const char *ringpath=nullptr);
-
+    //load system from config file, optional save to a checkpoint
+    bool load(const char *fconfig,const char *fcheckpoint=nullptr);
     //load system from checkpoint file
     bool load_checkpoint(MFILE *fcp);
     //save system as checkpoint

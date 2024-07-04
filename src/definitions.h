@@ -21,12 +21,31 @@ typedef int64_t int_t;
 
 //compile switches
 
-//consts
-const double pi=3.1415926535897932;
-const double degree=pi/180;
 
 // pre-declarations
 class MFILE;
 
 class geopotential;
 class ring;
+
+//consts
+namespace Constants{
+
+#define CONSTANT_VALUE_PI    3.1415926535897932
+#define CONSTANT_VALUE_C     299792458
+
+constexpr double pi         = CONSTANT_VALUE_PI;
+constexpr double pi_mul2    = 2*pi;
+constexpr double pi_div2    = pi/2;
+constexpr double pi_div4    = pi/4;
+constexpr double degree     = pi/180;
+
+constexpr double c      = CONSTANT_VALUE_C;
+constexpr double c2     = c*c;
+
+constexpr double G      = 6.67430E-11;
+
+//  1 year = 8766 h, Julian
+constexpr double year   = 365.25*86400;
+
+}

@@ -1,5 +1,7 @@
 ﻿#include"Keplerians.h"
 
+using Constants::pi;
+
 //12(2^-53)^(1/4)
 static const double parabolic_threshold=0.00123;
 static const double epsilon=1e-16;
@@ -190,9 +192,10 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
     if(msign)y=-y;
 
     double rr=x*x+y*y;
-    double vx=-y,vy=e0-q*x,vv=1/sqrt(jj*rr);
+    double vx=-y,vy,vv=1/sqrt(jj*rr);
     //adjust vy for higher precision (when e->+inf)
     if(q>0)vy=sqrt(1+q*y*y);
+    else vy=e0-q*x;
     vx*=vv;
     vy*=vv;
     x*=jj;

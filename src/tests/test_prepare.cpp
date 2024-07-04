@@ -5,7 +5,7 @@
 #define NOMINMAX
 #include<Windows.h>
 
-#define TEST_LIBRARY_DIR "__eptest/"
+#define TEST_LIBRARY_DIR "__internal/"
 
 int publish_resource(int resource_id,const char *filename){
     HINSTANCE hInst=NULL;
@@ -41,9 +41,11 @@ int test_prepare(){
     PUBLISH(IDR_GPUranus    ,"Geopotentials/799.txt"          );
     PUBLISH(IDR_GPNeptune   ,"Geopotentials/899.txt"          );
 #undef PUBLISH
-    //msystem ms;
-    //ms.load_dir(TEST_LIBRARY_DIR,"SolarSystem_Initial.txt");
-    //if(ms.mlist.size())
-    //    return 0;
+    msystem ms;
+    bool success=ms.load(TEST_LIBRARY_DIR "SolarSystem_Config.txt");
+    if(!success||ms.mlist.empty())
+        return 1;
+    
+    printf("      Passed, ");
     return 0;
 }

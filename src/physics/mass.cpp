@@ -91,8 +91,8 @@ void msystem::deform(){
 void msystem::accel(){
     int_t mn=mlist.size();
 
-    const fast_real c=299792458;
-    const fast_real c2=c*c;
+    using Constants::c;
+    using Constants::c2;
 
     //prepare
     for(int_t i=0;i<mn;++i){

@@ -1,15 +1,28 @@
 #include"physics/CelestialSystem.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"utils/memio.h"
-
+#include"utils/zipio.h"
+#include"configs.h"
 
 #define MAX_LINESIZE 1024
 #define MAX_PATHSIZE 260
 
 const char *default_path=".";
 
-bool msystem::load_dir(std::map<std::string,std::string> &config,const char *dir,const char *fconfig){
+bool sanity(double dt){
+    return dt>0&&dt!=INFINITY;
+}
+
+bool msystem::load(const char *fconfig,const char *fcheckpoint){
+    const std::string sip=fconfig;
+    size_t spos=1+sip.find_last_of("/\\");
+    std::map<std::string,std::string> config;
+    std::string dirstr(spos?sip.substr(0,spos):".\\");
+    std::string fconfigstr(sip.substr(spos));
+
+    const char *dir=dirstr.c_str();
+    fconfig=fconfigstr.c_str();
+
     if(!dir||!*dir)dir=default_path;
     if(!fconfig||!*fconfig)return false;
     if(strlen(dir)+strlen(fconfig)+1>=MAX_PATHSIZE){
@@ -154,6 +167,59 @@ bool msystem::load_dir(std::map<std::string,std::string> &config,const char *dir
         LOAD_CONFIG("Combined_Period_Max_Child",Period_max_child);
     }
 #undef LOAD_CONFIG
+
+    if(!mlist.size())
+        return false;
+
+    //check config
+    if(!sanity(delta_t)||!sanity(data_cadence)||!sanity(max_ephm_length)||!sanity(combined_delta_t)){
+        fprintf(stderr,"Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
+        return false;
+    }
+
+    printf("Loaded %lld bodies from initial %s.\n",mlist.size(),sip.c_str());
+    if(fcheckpoint&&*fcheckpoint){
+        ozippack zp(fcheckpoint);
+        if(!zp){
+            fprintf(stderr,"Cannot open output file. Is its directory exist?\n");
+            return false;
+        }
+        zp.resize(1);
+        MFILE &mf=zp[0];
+        save_checkpoint(&mf);
+        mf.set_name(Configs::SaveNameCheckpoint);
+
+        std::string
+            &fbase=config["Initial"],
+            &fext=config["Extra"],
+            &gppath=config["Geopotentials"],
+            &ringpath=config["Rings"];
+        std::string initdir=std::string(Configs::SaveNameInitialDirectory)+"/";
+        zp.push_back(initdir,{});
+
+        zp.push_back(initdir+fconfig,MFILE(dirstr+fconfig));
+        zp.push_back(initdir+fbase,MFILE(dirstr+fbase));
+        if(fext.size())
+            zp.push_back(initdir+fext,MFILE(dirstr+fext));
+        if(gppath.size())
+            zp.push_back(initdir+gppath+"/",{});
+        if(ringpath.size())
+            zp.push_back(initdir+ringpath+"/",{});
+        for(const auto &m:mlist){
+            if(m.gpmodel){
+                zp.push_back(
+                    initdir+gppath+"/"+(const char *)&m.sid+".txt",
+                    MFILE(dirstr+gppath+"\\"+(const char *)&m.sid+".txt"));
+            }
+            if(m.ringmodel){
+                zp.push_back(
+                    initdir+ringpath+"/"+(const char *)&m.sid+".txt",
+                    MFILE(dirstr+ringpath+"\\"+(const char *)&m.sid+".txt"));
+            }
+        }
+        printf("Saving checkpoint %s\n",fcheckpoint);
+    }
+    
     return true;
 }
 
@@ -287,6 +353,8 @@ bool msystem::load(
         }
 
         if(n==26){
+            using Constants::pi;
+            using Constants::degree;
             z=vec((90-dec)*degree,ra*degree);
             x=vec(90*degree,(ra+90)*degree);
             x+=rotation_matrix(z,W*degree)%x;
@@ -302,8 +370,8 @@ bool msystem::load(
         m.w=w;
         m.A=3*m.inertia/2;
         m.R2=m.R*m.R;
-        const double c=299792458;
-        const double G=6.67430E-11;
+        using Constants::c;
+        using Constants::G;
         m.rR2_4Mc=m.recpt*m.R2/(4*m.GM*c/G);
         m.C_static=fast_mpmat(
             fast_mpvec(3*c22+j2/2,3*s22,3*c21/2),

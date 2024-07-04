@@ -1,6 +1,8 @@
 #include"random.h"
 #include<random>
 
+using Constants::pi_mul2;
+
 static thread_local std::mt19937_64 g;
 
 //Re-init with a given seed
@@ -19,17 +21,16 @@ double randomreal(){
 }
 //a random real from normal distribution
 double randomnormal(){
-    const double dpi=6.2831853071795864;
-    return sqrt(-2*log(randomreal()))*cos(dpi*randomreal());
+    return sqrt(-2*log(randomreal()))*cos(pi_mul2*randomreal());
 }
 
 vec randomdirection(){
-    double cost=randomreal()*2-1,sint=sqrt(1-cost*cost),phi=2*pi*randomreal();
+    double cost=randomreal()*2-1,sint=sqrt(1-cost*cost),phi=pi_mul2*randomreal();
     return vec(cos(phi)*sint,sin(phi)*sint,cost);
 }
 mat randommatrix(){
     vec rd=randomdirection();
     mat res(rd.perpunit(),0,rd);
-    res.rotz(2*pi*randomreal());
+    res.rotz(pi_mul2*randomreal());
     return res;
 }

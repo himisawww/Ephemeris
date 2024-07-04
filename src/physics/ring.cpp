@@ -29,6 +29,8 @@ ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real di
         return nullptr;
     }
 
+    using Constants::pi;
+
     bool failed=false;
     char rname[MAX_LINESIZE];
     std::vector<disk> disks;

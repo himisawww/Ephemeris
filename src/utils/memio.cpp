@@ -14,6 +14,20 @@ bool file_exist(const std::string &path){
 
 static std::map<std::string,std::vector<MFILE::byte_t>> mem_library;
 static bool s_publish_invalid_ofile=false;
+static std::string filepath_normalize(const std::string &fpath){
+    std::string result;
+    result.reserve(fpath.size());
+    for(const char c:fpath){
+        if(c=='/'||c=='\\'){
+            if(!result.empty()&&result.back()=='/')
+                continue;
+            result.push_back('/');
+        }
+        else
+            result.push_back(c);
+    }
+    return result;
+}
 
 bool MFILE::set_wcache_onfail(bool do_publish){
     bool ret=s_publish_invalid_ofile;
@@ -52,7 +66,7 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     bool is_read_=is_read();
     bool is_cache_=is_cache();
     if(is_read_){
-        auto it=mem_library.find(_fname);
+        auto it=mem_library.find(filepath_normalize(_fname));
         if(it!=mem_library.end()){
             const auto &pmem=it->second;
             idata=pmem.data();
@@ -268,10 +282,16 @@ std::string MFILE::readline(){
     return result;
 }
 bool MFILE::publish(const std::string &fname){
-    if(state!=MFILE_STATE::WRITE_CACHE)return false;
-    reset(size());
+    if(state==MFILE_STATE::WRITE_CACHE)
+        reset(size());
+    else if(state==MFILE_STATE::READ_CACHE){
+        load_data();
+        offset=0;
+    }
+    else
+        return false;
     if(fname.size()){
-        auto &pmem=mem_library[fname];
+        auto &pmem=mem_library[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
         cached_data.clear();

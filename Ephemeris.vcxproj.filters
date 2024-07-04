@@ -157,6 +157,9 @@
     <ClInclude Include="src\math\interp.h">
       <Filter>math</Filter>
     </ClInclude>
+    <ClInclude Include="src\configs.h">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">

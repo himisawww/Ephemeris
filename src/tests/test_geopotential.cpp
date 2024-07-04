@@ -5,6 +5,8 @@
 
 #define TEST_MEMPATH "__gptest.gp"
 
+using Constants::pi;
+
 // test parameter
 #define TEST_JVAL 0.1919810
 #define TEST_CVAL 0.114
@@ -73,7 +75,6 @@ public:
 };
 
 int test_geopotential(){
-	double start_time=CalcTime();
 	fast_real max_rerr(0);
 	//test every components
 	for(int_t n=2;n<=8;++n)for(int_t m=0;m<=n;++m)for(int_t cs=0;cs<=1;++cs){
@@ -127,6 +128,6 @@ int test_geopotential(){
 		}
 	}
 
-	printf("Passed(%f), Done in %fs",max_rerr/TEST_EPSILON,CalcTime()-start_time);
+	printf("\n      Passed(%f), ",max_rerr/TEST_EPSILON);
     return 0;
 }

@@ -21,7 +21,6 @@ double test_rv_reproduce(const vec &r,const vec &v){
 }
 
 int test_kepler(){
-    double start_time=CalcTime();
     {
         double vn=1e50;
         do{
@@ -44,7 +43,7 @@ int test_kepler(){
                 test_rv_reproduce(r,dv+s2*r);
                 test_rv_reproduce(r,dv-s2*r);
                 vec vp=r.perpunit();
-                vp+=rotation_matrix(r,randomreal()*(2*pi))%vp;
+                vp+=rotation_matrix(r,randomreal()*Constants::pi_mul2)%vp;
                 vp+=dv;
                 test_rv_reproduce(r,vp+r);
                 //test appe
@@ -63,6 +62,6 @@ int test_kepler(){
         return 1;
     }
 
-    printf("Passed(%f), Done in %fs",max_relative_error/TEST_EPSILON,CalcTime()-start_time);
+    printf("\n      Passed(%f), ",max_relative_error/TEST_EPSILON);
     return 0;
 }

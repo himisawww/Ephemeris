@@ -115,8 +115,9 @@ public:
     size_t write(const void *buffer,size_t e_size,size_t e_count);
     std::string readline();
 
-    // (WRITE_CACHE)
-    //  convert *this to READ_CACHE
+    // (WRITE_CACHE/READ_CACHE)
+    //  convert *this to READ_CACHE, load_data to local cache,
+    //      and set offset to 0
     //  if(fname):
     //      put cache to a memory library with a file name;
     //      no writing to disk;

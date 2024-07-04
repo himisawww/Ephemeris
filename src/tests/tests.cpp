@@ -36,6 +36,7 @@ tests.push_back({T,S,L})
     for(int_t i=0;i<N;++i){
         test_t &t=tests[i];
         printf("\n[%lld/%lld] Testing %s...",i+1,N,t.description);
+        double start_time=CalcTime();
         int result=t.test();
         if(result){
             fprintf(stderr,
@@ -51,6 +52,8 @@ tests.push_back({T,S,L})
                 t.description,t.long_description,result,seed);
             return result;
         }
+        else
+            printf("Done in %fs",CalcTime()-start_time);
     }
     printf("\nAll Tests Passed.\n");
     return 0;

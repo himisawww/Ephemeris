@@ -478,7 +478,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             }
 
             //fix rotations
-            if(mi.w.norm()*std::abs(dt_long)>2*pi/ROTATION_STEP_LIMIT){
+            if(mi.w.norm()*std::abs(dt_long)>2*Constants::pi/ROTATION_STEP_LIMIT){
                 fast_mpvec zl=mi.s.z*mi.GL;
                 fast_real l=fast_mpvec(mi.GL).norm();
                 if(l>0){

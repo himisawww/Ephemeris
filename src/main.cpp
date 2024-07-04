@@ -6,33 +6,33 @@
 #include"utils/wcs_convert.h"
 #include"utils/calctime.h"
 #include"tests/tests.h"
+#include"configs.h"
 
-const int n_zipheaders=4;
-const char *checkpoint="checkpoint.dat";
-const char *readme="readme.txt";
-const char *structure="structure.json";
-const char *timestamps="timestamps.dat";
-const char *data_suffix=".dat";
-const char *initialdir="system_initial";
-const char *version="v0.2.0.beta";
-const char author[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
+namespace Configs{
+
+const int ExportHeaderCount=4;
+const char *SaveNameCheckpoint="checkpoint.dat";
+const char *SaveNameReadme="readme.txt";
+const char *SaveNameStructure="structure.json";
+const char *SaveNameTimestamps="timestamps.dat";
+const char *SaveDataExtension=".dat";
+const char *SaveNameInitialDirectory="system_initial";
+const char *VersionString="v0.2.0.beta";
+const char AuthorName[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
+
+}
 
 std::mutex io_mutex;
 
 const char *ip;
 const char *op;
 
-const double year_seconds=8766*3600;
-//  1 year = 8766 h
 double t_years;
 //  1: only do forward integration
 // -1: only do backward integration
 //  0: do both, default
 int fix_dir=0;
 
-bool sanity(double dt){
-    return dt>0&&dt!=INFINITY;
-}
 
 void print_string(MFILE *mf,int_t level,const std::string &str){
     if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
@@ -97,6 +97,8 @@ void print_structure(const msystem &ms,MFILE *mf,int_t root=-1,int_t level=0){
 }
 
 int de_worker(int dir){
+    using namespace Configs;
+
     msystem ms;
     std::string sop=op;
     std::string ickpt=sop+".0.zip";
@@ -122,7 +124,7 @@ int de_worker(int dir){
         //ickpt exists
         izippack zp(ickpt);
         for(const auto &zf:zp){
-            if(zf.name()==checkpoint){
+            if(zf.name()==SaveNameCheckpoint){
                 MFILE mf;
                 zf.dumpfile(mf);
                 ms.load_checkpoint(&mf);
@@ -132,67 +134,17 @@ int de_worker(int dir){
         printf("Loaded %lld bodies from checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
     }
     else if(ip){
-        std::string sip=ip;
-        size_t spos=1+sip.find_last_of("/\\");
-        std::map<std::string,std::string> config;
-        std::string dirstr(spos?sip.substr(0,spos):".\\");
-        std::string fconfig(sip.substr(spos));
-        ms.load_dir(config,dirstr.c_str(),fconfig.c_str());
-        if(ms.mlist.size()){
-            ozippack zp(ickpt);
-            if(!zp){
-                fprintf(stderr,"Cannot open output file. Is its directory exist?\nThe program will exit.\n");
-                exit(-1);
-            }
-            zp.resize(1);
-            MFILE &mf=zp[0];
-            ms.save_checkpoint(&mf);
-            mf.set_name(checkpoint);
+        ms.load(ip,ickpt.c_str());
+    }
 
-            std::string
-                &fbase      =config["Initial"],
-                &fext       =config["Extra"],
-                &gppath     =config["Geopotentials"],
-                &ringpath   =config["Rings"];
-            std::string initdir=std::string(initialdir)+"/";
-            zp.push_back(initdir,{});
-
-            zp.push_back(initdir+fconfig,MFILE(dirstr+fconfig));
-            zp.push_back(initdir+fbase,MFILE(dirstr+fbase));
-            if(fext.size())
-                zp.push_back(initdir+fext,MFILE(dirstr+fext));
-            if(gppath.size())
-                zp.push_back(initdir+gppath+"/",{});
-            if(ringpath.size())
-                zp.push_back(initdir+ringpath+"/",{});
-            for(const auto &m:ms.mlist){
-                if(m.gpmodel){
-                    zp.push_back(
-                        initdir+gppath+"/"+(const char*)&m.sid+".txt",
-                        MFILE(dirstr+gppath+"\\"+(const char*)&m.sid+".txt"));
-                }
-                if(m.ringmodel){
-                    zp.push_back(
-                        initdir+ringpath+"/"+(const char*)&m.sid+".txt",
-                        MFILE(dirstr+ringpath+"\\"+(const char*)&m.sid+".txt"));
-                }
-            }
-            printf("Loaded %lld bodies from initial %s.\nSaving checkpoint %s\n",ms.mlist.size(),sip.c_str(),ickpt.c_str());
-        }
+    if(!ms.mlist.size()){
+        fprintf(stderr,
+            "Failed to Load System.\n"
+            "The program will exit.\n");
+        exit(-1);
     }
 
     io_mutex.unlock();
-    
-    if(!ms.mlist.size()){
-        fprintf(stderr,"Failed to Load System.\n");
-        return -1;
-    }
-
-    //check config
-    if(!sanity(ms.delta_t)||!sanity(ms.data_cadence)||!sanity(ms.max_ephm_length)||!sanity(ms.combined_delta_t)){
-        fprintf(stderr,"Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
-        return -2;
-    }
 
     bool use_cpu     =ms.integrator==int_t(msystem::     CPU_RK12);
     bool use_gpu     =ms.integrator==int_t(msystem::     GPU_RK12);
@@ -219,7 +171,7 @@ int de_worker(int dir){
     
     dt*=dir;
 
-    int_t isize=t_years*year_seconds/ms.data_cadence;
+    int_t isize=t_years*Constants::year/ms.data_cadence;
     int_t iunit=ms.max_ephm_length/ms.data_cadence;
 
     const int_t min_iunit=4096;
@@ -242,13 +194,13 @@ int de_worker(int dir){
         //prepare mem files to save
         int_t mn=ms.mlist.size();
         int_t max_dp_perfile=1+iunit;
-        std::vector<MFILE> zms(n_zipheaders+mn);
+        std::vector<MFILE> zms(ExportHeaderCount+mn);
         MFILE &mf_ckpt=zms[0];
         MFILE &mf_readme=zms[1];
         MFILE &mf_struct=zms[2];
         MFILE &mf_time=zms[3];
         mf_time.reserve(max_dp_perfile*sizeof(int_t));
-        MFILE *mf_mlist=&zms[n_zipheaders];
+        MFILE *mf_mlist=&zms[ExportHeaderCount];
         for(int_t mi=0;mi<mn;++mi){
             MFILE &mf=mf_mlist[mi];
             mf.reserve(max_dp_perfile*(5*sizeof(vec)));
@@ -272,7 +224,7 @@ int de_worker(int dir){
                 static double oldt=-INFINITY;
                 static int_t skip_count=0,skip_size=1;
                 if(++skip_count>=skip_size||i==iunit){
-                    double yr=mst_eph/year_seconds;
+                    double yr=mst_eph/Constants::year;
                     double t=CalcTime();
                     printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
                     int_t new_skip_size=std::round(skip_size/(t-oldt));
@@ -316,22 +268,22 @@ int de_worker(int dir){
             "      Data Format:   < r(m), v(m/s), w(rad/s), x_axis(direction), z_axis(direction): vec3{double x,y,z;} >\n\n"
             "  Object List (index & sid):  \n"
             ,
-            version,author, mn, t_eph_start,t_eph_end, (t_eph_end-t_eph_start)/iunit
+            VersionString,AuthorName, mn, t_eph_start,t_eph_end, (t_eph_end-t_eph_start)/iunit
             );
 
         print_structure(ms,&mf_struct);
         
-        mf_ckpt.set_name(checkpoint);
-        mf_readme.set_name(readme);
-        mf_struct.set_name(structure);
-        mf_time.set_name(timestamps);
+        mf_ckpt.set_name(SaveNameCheckpoint);
+        mf_readme.set_name(SaveNameReadme);
+        mf_struct.set_name(SaveNameStructure);
+        mf_time.set_name(SaveNameTimestamps);
         for(int_t mi=0;mi<mn;++mi){
             MFILE &mf=mf_mlist[mi];
             std::string sid((char*)&ms.mlist[mi].sid);
             fprintf(&mf_readme,
                 "%12lld : %s\n",mi,sid.c_str()
             );
-            mf.set_name(sid+data_suffix);
+            mf.set_name(sid+SaveDataExtension);
         }
 
         //save .zip
@@ -358,7 +310,7 @@ int de_worker(int dir){
 int main_fun(int argc,const char **argv){
 
     printf("%s%s\n%s",
-        "Ephemeris Integrator ",version,
+        "Ephemeris Integrator ",Configs::VersionString,
         "Github: https://github.com/himisawww/Ephemeris \n\n");
 
     do{
@@ -439,14 +391,14 @@ int convert_format(const char *path){
             izippack zp(zckpt);
             MFILE mf_time;
             std::vector<MFILE> mf_mlist;
-            int_t mi=-n_zipheaders;
+            int_t mi=-Configs::ExportHeaderCount;
             for(const auto &zf:zp){
                 std::string zfn=zf.name();
                 if(mi>=0){
                     mf_mlist.resize(mi+1);
                     zf.dumpfile(mf_mlist[mi]);
                 }
-                else if(zfn==timestamps){
+                else if(zfn==Configs::SaveNameTimestamps){
                     zf.dumpfile(mf_time);
                 }
                 ++mi;

@@ -28,3 +28,11 @@ double bspline_basis_chebyshev_coef(int_t d,int_t k,int_t j);
     faster but loses relative accuracy when x is near boundaries of [-d,1).
 */
 double bspline_basis_chebyshev(int_t d,double x);
+
+/*
+    Fit T data[mn+1][N_Channel] with n+d d-th-degree bspline basis functions.
+    Coefficients will be stored to T result[n+d][N_Channel].
+    need n>=1 && d>0 && n+d<=mn+1
+*/
+template<typename T,size_t N_Channel>
+bool interp_bspline(T *result,const int_t d,const int_t n,const T *data,const int_t mn);

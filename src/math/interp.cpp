@@ -1,6 +1,7 @@
 #pragma once
 #include"interp.h"
 #include<algorithm>
+#include<vector>
 
 template<typename T,int_t d>
 class _bsp_coef_eval{
@@ -139,4 +140,82 @@ double bspline_basis(int_t d,double x){
             b[j]=((i-j+x)*b[j-1]+(1+j-x)*b[j])/i;
     }
     return b[k];
+}
+
+template<typename T,size_t N_Channel>
+bool interp_bspline(T *result,const int_t d,const int_t n,const T *data,const int_t mn){
+    static_assert(N_Channel>0,"Number of Channels should be positive.");
+    if(n<1||d<1||!(n+d<=mn+1))return false;
+
+    //(l,u)=(d,d) diagonal ordered form of matrix
+    std::vector<double> mb((n+d)*(2*d+1),double(0));
+
+#define mat(i,j)        mb[(i)+d*(2*(j)+1)]
+#define all_channels    int_t ich=0;ich<N_Channel;++ich
+#define index(i)        (i)*N_Channel+ich
+    T *y=result;
+
+    for(int_t i=0;i<n+d;++i){
+        int_t jmin=std::max(int_t(0),mn*(i-d)+n)/n;
+        int_t jmax=std::min(mn,(mn*(i+1)-1)/n);
+        const double rmn=double(1)/mn;
+        double w=0;
+        for(int_t j=jmin;j<=jmax;++j){
+            double b=bspline_basis_chebyshev(d,j*n*rmn-i);
+            int_t kmin=j*n/mn;
+            int_t kmax=(j*n+mn-1)/mn+d-1;
+            for(int_t k=kmin;k<=kmax;++k)
+                mat(i,k)+=bspline_basis_chebyshev(d,j*n*rmn-k)*b;
+            for(all_channels)
+                y[index(i)]+=data[index(j)]*b;
+            w+=b;
+        }
+        //normalize by w
+        w=1/w;
+        int_t kmin=std::max(int_t(0),i-d);
+        int_t kmax=std::min(n+d-1,i+d);
+        for(int_t k=kmin;k<=kmax;++k)
+            mat(i,k)*=w;
+        for(all_channels)
+            y[index(i)]*=w;
+    }
+
+    //banded solver
+    for(int_t i=0;i<n+d;++i){
+        int_t jmin=std::max(int_t(0),i-d);
+        int_t jmax=std::min(n+d-1,i+d);
+        for(int_t j=jmin;j<i;++j){
+            double sum=0;
+            for(int_t k=std::max(int_t(0),i-d);k<j;++k)
+                sum+=mat(i,k)*mat(k,j);
+            mat(i,j)-=sum;
+            mat(i,j)/=mat(j,j);
+        }
+        for(int_t j=i;j<=jmax;++j){
+            double sum=0;
+            for(int_t k=std::max(int_t(0),j-d);k<i;++k)
+                sum+=mat(i,k)*mat(k,j);
+            mat(i,j)-=sum;
+        }
+        for(int_t k=std::max(int_t(0),i-d);k<i;++k){
+            for(all_channels)
+                y[index(i)]-=mat(i,k)*y[index(k)];
+        }
+    }
+    for(int_t i=n+d-1;i>=0;--i){
+        int_t jmax=std::min(n+d-1,i+d);
+        for(int_t j=i+1;j<=jmax;++j){
+            for(all_channels)
+                y[index(i)]-=mat(i,j)*y[index(j)];
+        }
+        double w=1/mat(i,i);
+        for(all_channels)
+            y[index(i)]*=w;
+    }
+
+#undef index
+#undef all_channels
+#undef mat
+
+    return true;
 }
