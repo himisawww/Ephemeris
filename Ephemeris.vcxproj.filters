@@ -93,12 +93,18 @@
     <ClCompile Include="src\math\interp.cpp">
       <Filter>math</Filter>
     </ClCompile>
+    <ClCompile Include="src\modules\ephemeris_generator.cpp">
+      <Filter>modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\configs.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
       <Filter>physics</Filter>
     </None>
-    <None Include="src\physics\disk_approx.impl">
+    <None Include="src\physics\ring.impl">
       <Filter>physics</Filter>
     </None>
     <None Include="src\integrators\RungeKutta.impl">
@@ -142,10 +148,10 @@
     <ClInclude Include="src\math\Keplerians.h">
       <Filter>math</Filter>
     </ClInclude>
-    <ClInclude Include="src\physics\mass.h">
+    <ClInclude Include="src\physics\mass.impl">
       <Filter>physics</Filter>
     </ClInclude>
-    <ClInclude Include="src\physics\CelestialSystem.h">
+    <ClInclude Include="src\physics\mass.h">
       <Filter>physics</Filter>
     </ClInclude>
     <ClInclude Include="resource.h">
@@ -159,6 +165,9 @@
     </ClInclude>
     <ClInclude Include="src\configs.h">
       <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\modules\ephemeris_generator.h">
+      <Filter>modules</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

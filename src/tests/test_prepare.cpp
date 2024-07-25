@@ -1,4 +1,4 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"utils/memio.h"
 #include"tests/tests.h"
 #include"../resource.h"
@@ -23,6 +23,11 @@ int publish_resource(int resource_id,const char *filename){
     return 0;
 }
 
+static msystem ms;
+const msystem &get_test_msystem(){
+    return ms;
+}
+
 int test_prepare(){
 
 #define PUBLISH(IDR,PATH) do{                            \
@@ -41,9 +46,8 @@ int test_prepare(){
     PUBLISH(IDR_GPUranus    ,"Geopotentials/799.txt"          );
     PUBLISH(IDR_GPNeptune   ,"Geopotentials/899.txt"          );
 #undef PUBLISH
-    msystem ms;
     bool success=ms.load(TEST_LIBRARY_DIR "SolarSystem_Config.txt");
-    if(!success||ms.mlist.empty())
+    if(!success)
         return 1;
     
     printf("      Passed, ");

@@ -1,8 +1,8 @@
 #define INLINE __device__
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"physics/mass.h"
+#include"physics/mass.impl"
 #include<stdlib.h>
 #include<algorithm>
 #include<cuda_runtime.h>
@@ -142,7 +142,7 @@ struct maccel_2{
 };
 
 #include"physics/geopotential.impl"
-#include"physics/disk_approx.impl"
+#include"physics/ring.impl"
 
 extern __shared__ char sharedMem[];
 void __device__ accel_0(){//deform

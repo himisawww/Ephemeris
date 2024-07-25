@@ -1,4 +1,4 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"tests/tests.h"
 #include"math/random.h"
 #include"utils/calctime.h"

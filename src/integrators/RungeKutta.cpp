@@ -1,2 +1,2 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"RungeKutta.impl"

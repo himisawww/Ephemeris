@@ -164,11 +164,13 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\configs.cpp" />
     <ClCompile Include="src\integrators\mass_combined.cpp" />
     <ClCompile Include="src\integrators\RungeKutta.cpp" />
     <ClCompile Include="src\math\interp.cpp" />
     <ClCompile Include="src\math\Keplerians.cpp" />
     <ClCompile Include="src\math\random.cpp" />
+    <ClCompile Include="src\modules\ephemeris_generator.cpp" />
     <ClCompile Include="src\modules\mass_loader.cpp" />
     <ClCompile Include="src\physics\barycen_analyzer.cpp" />
     <ClCompile Include="src\physics\geopotential.cpp" />
@@ -188,7 +190,7 @@
     </ClCompile>
     <ClCompile Include="src\utils\zipio.cpp" />
     <None Include="src\integrators\RungeKutta.impl" />
-    <None Include="src\physics\disk_approx.impl" />
+    <None Include="src\physics\ring.impl" />
     <None Include="src\physics\geopotential.impl" />
   </ItemGroup>
   <ItemGroup>
@@ -200,9 +202,10 @@
     <ClInclude Include="src\math\Keplerians.h" />
     <ClInclude Include="src\math\random.h" />
     <ClInclude Include="src\math\vec_t.h" />
-    <ClInclude Include="src\physics\CelestialSystem.h" />
-    <ClInclude Include="src\physics\geopotential.h" />
+    <ClInclude Include="src\modules\ephemeris_generator.h" />
     <ClInclude Include="src\physics\mass.h" />
+    <ClInclude Include="src\physics\geopotential.h" />
+    <ClInclude Include="src\physics\mass.impl" />
     <ClInclude Include="src\physics\ring.h" />
     <ClInclude Include="src\Tests\tests.h" />
     <ClInclude Include="src\utils\calctime.h" />

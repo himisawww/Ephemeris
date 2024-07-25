@@ -1,0 +1,155 @@
+#define DAMPED_TIDAL_DEFORMATION_MATRIX(M)       \
+fast_mpvec r=mj.r-mi.r;                          \
+fast_mpvec v=mj.v-mi.v;                          \
+fast_real rr2=1/(r%r);                           \
+fast_real rr=sqrt(rr2);                          \
+fast_real tp_dphi=rr*mj.GM;                      \
+M.phi-=tp_dphi;                                  \
+fast_real tp_dg=rr2*tp_dphi;                     \
+M.naccel+=tp_dg*r;                               \
+                                                 \
+fast_real fmj=-3*tp_dg;                          \
+fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
+fast_real dw2=dw%dw,dw1=sqrt(dw2),               \
+    dwt=dw1*mi.tide_delay*mj.tide_delay_factor;  \
+fast_real                                        \
+ecwt2=1+4*dwt*dwt,                               \
+secwt2=sqrt(ecwt2),                              \
+x0=sqrt((1+secwt2)/(2*ecwt2)),                   \
+y0=dwt*sqrt(2/(ecwt2*(1+secwt2))),               \
+z02=dwt*dwt*(2/(ecwt2+secwt2));                  \
+fast_mpvec                                       \
+dr=r*x0+dw*r*(y0/dw1);                           \
+M.C_potential+=(                                 \
+    fast_mpmat(fast_real(1)/3-z02)               \
+    -fast_mpmat(dr*rr2,dr)                       \
+    +fast_mpmat(dw*(z02/dw2),dw)                 \
+    )*(fmj*mi.k2);
+
+#define DAMPED_TIDAL_DEFORMATION_MATRIX_NDELAY(M)\
+fast_mpvec r=mj.r-mi.r;                          \
+fast_mpvec v=mj.v-mi.v;                          \
+fast_real rr2=1/(r%r);                           \
+fast_real rr=sqrt(rr2);                          \
+fast_real tp_dphi=rr*mj.GM;                      \
+M.phi-=tp_dphi;                                  \
+fast_real tp_dg=rr2*tp_dphi;                     \
+M.naccel+=tp_dg*r;                               \
+                                                 \
+fast_real fmj=-3*tp_dg;                          \
+fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
+fast_real dw2=dw%dw,dw1=sqrt(dw2);               \
+M.C_potential+=(                                 \
+    fast_mpmat(fast_real(1)/3)                   \
+    -fast_mpmat(r*rr2,r)                         \
+    )*(fmj*mi.k2);
+
+#define DAMPED_TIDAL_DEFORMATION_MATRIX_NK2(M)\
+fast_mpvec r=mj.r-mi.r;                       \
+fast_mpvec v=mj.v-mi.v;                       \
+fast_real rr2=1/(r%r);                        \
+fast_real rr=sqrt(rr2);                       \
+fast_real tp_dphi=rr*mj.GM;                   \
+fast_real tp_dg=rr2*tp_dphi;                  \
+M.phi-=tp_dphi;                               \
+M.naccel+=tp_dg*r;
+
+#define UPDATE_HARMONICS                                               \
+fast_real w2=mi.w%mi.w;                                                \
+mi.C_potential+=fast_mpmat(w2*mi.k2r/3)-fast_mpmat(mi.w*mi.k2r,mi.w);  \
+mi.C_potential*=mi.R*mi.R2/(2*mi.GM);                                  \
+                                                                       \
+fast_mpmat fmis(mi.s);                                                 \
+fast_mpmat mc(mi.C_static);                                            \
+mc.x.x+=mi.exJ2/2;                                                     \
+mc.y.y+=mi.exJ2/2;                                                     \
+mc.z.z-=mi.exJ2;                                                       \
+mc=fmis.toworld(mc);                                                   \
+mi.C_potential+=mc;                                                    \
+mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+
+#define UPDATE_ANGULAR_VELOCITY                        \
+fast_mpvec oldw=mi.w;                                  \
+mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));              \
+should_break=((mi.w-oldw).norm()<1e-9*oldw.norm());
+
+#define MAX_ANGULAR_VELOCITY_ITER 4
+
+#define PREPARE_RELATIVITY    \
+mi.beta=fast_mpvec(mi.v)/c;   \
+mi.beta2=mi.beta%mi.beta;     \
+mi.phi/=c2;                   \
+mi.naccel/=c2;
+
+#define RELATIVITY(M)                                 \
+fast_mpvec r=mj.r-mi.r;                               \
+fast_real rr2=1/(r%r);                                \
+fast_real rr=sqrt(rr2);                               \
+fast_real rr3=rr*rr2;                                 \
+                                                      \
+fast_real tp_dphi=rr*mj.GM;                           \
+fast_real tp_dg=rr2*tp_dphi;                          \
+fast_real rbj=r%mj.beta;                              \
+fast_real tp_rbjrr2=rbj*rr;                           \
+tp_rbjrr2*=tp_rbjrr2;                                 \
+fast_real delta1=4*mi.phi+mj.phi+mi.beta2+2*mj.beta2  \
+    -4*(mi.beta%mj.beta)+(r%mj.naccel-3*tp_rbjrr2)/2; \
+fast_mpvec b=mj.beta-mi.beta;                         \
+M.gaccel+=7*tp_dphi/2*mj.naccel                       \
+    +tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
+
+#define LENSE_THIRRING(M)                        \
+fast_real rcr32=2*mj.GM/c*rr3;                   \
+fast_mpvec GL=mi.GL;                             \
+fast_mpvec GLb=GL*b;                             \
+M.daccel-=rcr32*(GLb-3*(GLb%r)*rr2*r);           \
+M.dtorque-=rcr32*(GL*(r*b));                     \
+fast_mpvec GLj=mj.GL;                            \
+M.daccel+=(rcr32*(GLj-3*(GLj%r)*rr2*r))*b;
+
+#define RADIATION_PRESSURE(M)            \
+M.daccel+=mj.lum*mi.rR2_4Mc*rr3*r;
+
+#define ROTATIONAL_TIDAL_DEFORMATION                 \
+fast_mpvec Cr=mi.C_potential%r;                      \
+fast_mpvec dg=rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));  \
+mi.daccel+=dg*mj.GM;                                 \
+mj.daccel-=dg*mi.GM;                                 \
+mi.dtorque+=mj.GM*(r*dg);
+
+#define ROTATIONAL_TIDAL_DEFORMATION_NANTI_FORCE(M)             \
+fast_mpvec Cr=mi.C_potential%r;                                 \
+fast_mpvec dg=mj.GM*rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));       \
+M.daccel+=dg;                                                   \
+M.dtorque+=r*dg;                                                \
+                                                                \
+fast_mpvec Cjr=mj.C_potential%r;                                \
+M.daccel+=mj.GM*rr3*rr2*mj.R2*(r%Cjr*5*rr2*r-(Cjr+Cjr));
+
+#define APPLY_NONPOINT_FORCE(M)   \
+mj.daccel+=mi.GM*an;              \
+M.daccel-=mj.GM*an;               \
+M.dtorque-=mj.GM*(r*an);
+
+
+#define FINALIZE_RELATIVITY   \
+mi.phi*=c2;                   \
+mi.naccel*=c2;
+
+//ring has inertia that prevents extra accelerations
+//ring has angular momentum that prevents extra angular accelerations
+//ptorque(parallel to GL) will not change
+//  since this part has nothing to do with the ring
+//dtorque(perpendicular to GL) will decrease
+//  due to ring's angular momentum
+#define RING_CORRECTION                               \
+mass &m=mi;                                           \
+ring &mr=*m.ringmodel;                                \
+m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;   \
+fast_mpvec mGL=m.GL;                                  \
+fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);         \
+fast_mpvec ptorque=m.dtorque;                         \
+ptorque=ptorque%mGL*rmGL2*mGL;                        \
+fast_mpvec dtorque=m.dtorque-ptorque;                 \
+dtorque*=1/(1+rmGL*mr.GL);                            \
+m.dtorque=dtorque+ptorque;

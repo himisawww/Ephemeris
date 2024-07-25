@@ -1,155 +1,262 @@
-#define DAMPED_TIDAL_DEFORMATION_MATRIX(M)       \
-fast_mpvec r=mj.r-mi.r;                          \
-fast_mpvec v=mj.v-mi.v;                          \
-fast_real rr2=1/(r%r);                           \
-fast_real rr=sqrt(rr2);                          \
-fast_real tp_dphi=rr*mj.GM;                      \
-M.phi-=tp_dphi;                                  \
-fast_real tp_dg=rr2*tp_dphi;                     \
-M.naccel+=tp_dg*r;                               \
-                                                 \
-fast_real fmj=-3*tp_dg;                          \
-fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
-fast_real dw2=dw%dw,dw1=sqrt(dw2),               \
-    dwt=dw1*mi.tide_delay*mj.tide_delay_factor;  \
-fast_real                                        \
-ecwt2=1+4*dwt*dwt,                               \
-secwt2=sqrt(ecwt2),                              \
-x0=sqrt((1+secwt2)/(2*ecwt2)),                   \
-y0=dwt*sqrt(2/(ecwt2*(1+secwt2))),               \
-z02=dwt*dwt*(2/(ecwt2+secwt2));                  \
-fast_mpvec                                       \
-dr=r*x0+dw*r*(y0/dw1);                           \
-M.C_potential+=(                                 \
-    fast_mpmat(fast_real(1)/3-z02)               \
-    -fast_mpmat(dr*rr2,dr)                       \
-    +fast_mpmat(dw*(z02/dw2),dw)                 \
-    )*(fmj*mi.k2);
+#pragma once
+#include"definitions.h"
 
-#define DAMPED_TIDAL_DEFORMATION_MATRIX_NDELAY(M)\
-fast_mpvec r=mj.r-mi.r;                          \
-fast_mpvec v=mj.v-mi.v;                          \
-fast_real rr2=1/(r%r);                           \
-fast_real rr=sqrt(rr2);                          \
-fast_real tp_dphi=rr*mj.GM;                      \
-M.phi-=tp_dphi;                                  \
-fast_real tp_dg=rr2*tp_dphi;                     \
-M.naccel+=tp_dg*r;                               \
-                                                 \
-fast_real fmj=-3*tp_dg;                          \
-fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
-fast_real dw2=dw%dw,dw1=sqrt(dw2);               \
-M.C_potential+=(                                 \
-    fast_mpmat(fast_real(1)/3)                   \
-    -fast_mpmat(r*rr2,r)                         \
-    )*(fmj*mi.k2);
+#include<cstdint>
+#include<string>
+#include<vector>
+#include<map>
 
-#define DAMPED_TIDAL_DEFORMATION_MATRIX_NK2(M)\
-fast_mpvec r=mj.r-mi.r;                       \
-fast_mpvec v=mj.v-mi.v;                       \
-fast_real rr2=1/(r%r);                        \
-fast_real rr=sqrt(rr2);                       \
-fast_real tp_dphi=rr*mj.GM;                   \
-fast_real tp_dg=rr2*tp_dphi;                  \
-M.phi-=tp_dphi;                               \
-M.naccel+=tp_dg*r;
+class barycen{
+public:
+    mpvec r,v;
+    real GM;
+    /*
+    *   GMrv_sys is total/mean GMrv counting all children,
+    *   and is used for total momentum of system hosted by barycen.
+    *   GMrv is used for orbital center,
+    *   for barycen, GMrv is total/mean of center binary's GMrv_sys
+    *   for mass, GMrv is actual GMrv of center mass itself.
+    */
+    mpvec r_sys,v_sys;
+    real GM_sys;
 
-#define UPDATE_HARMONICS                                               \
-fast_real w2=mi.w%mi.w;                                                \
-mi.C_potential+=fast_mpmat(w2*mi.k2r/3)-fast_mpmat(mi.w*mi.k2r,mi.w);  \
-mi.C_potential*=mi.R*mi.R2/(2*mi.GM);                                  \
-                                                                       \
-fast_mpmat fmis(mi.s);                                                 \
-fast_mpmat mc(mi.C_static);                                            \
-mc.x.x+=mi.exJ2/2;                                                     \
-mc.y.y+=mi.exJ2/2;                                                     \
-mc.z.z-=mi.exJ2;                                                       \
-mc=fmis.toworld(mc);                                                   \
-mi.C_potential+=mc;                                                    \
-mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+    //index of parent in blist
+    //if no parent, -1
+    int_t pid;
+    //for barycen, index of host and guest in blist
+    //if not barycen, -1
+    int_t hid,gid;
+    //id of barycen which represents the orbital motion
+    //i.e. (recursive-)parent through hosts of binary
+    int_t tid;
+    //for mass, index of mass in mlist
+    //for barycen, index of (recursive-)host mass
+    int_t mid;
+    //indices of direct children barycens in blist
+    std::vector<int_t> children;
 
-#define UPDATE_ANGULAR_VELOCITY                        \
-fast_mpvec oldw=mi.w;                                  \
-mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));              \
-should_break=((mi.w-oldw).norm()<1e-9*oldw.norm());
-
-#define MAX_ANGULAR_VELOCITY_ITER 4
-
-#define PREPARE_RELATIVITY    \
-mi.beta=fast_mpvec(mi.v)/c;   \
-mi.beta2=mi.beta%mi.beta;     \
-mi.phi/=c2;                   \
-mi.naccel/=c2;
-
-#define RELATIVITY(M)                                 \
-fast_mpvec r=mj.r-mi.r;                               \
-fast_real rr2=1/(r%r);                                \
-fast_real rr=sqrt(rr2);                               \
-fast_real rr3=rr*rr2;                                 \
-                                                      \
-fast_real tp_dphi=rr*mj.GM;                           \
-fast_real tp_dg=rr2*tp_dphi;                          \
-fast_real rbj=r%mj.beta;                              \
-fast_real tp_rbjrr2=rbj*rr;                           \
-tp_rbjrr2*=tp_rbjrr2;                                 \
-fast_real delta1=4*mi.phi+mj.phi+mi.beta2+2*mj.beta2  \
-    -4*(mi.beta%mj.beta)+(r%mj.naccel-3*tp_rbjrr2)/2; \
-fast_mpvec b=mj.beta-mi.beta;                         \
-M.gaccel+=7*tp_dphi/2*mj.naccel                       \
-    +tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
-
-#define LENSE_THIRRING(M)                        \
-fast_real rcr32=2*mj.GM/c*rr3;                   \
-fast_mpvec GL=mi.GL;                             \
-fast_mpvec GLb=GL*b;                             \
-M.daccel-=rcr32*(GLb-3*(GLb%r)*rr2*r);           \
-M.dtorque-=rcr32*(GL*(r*b));                     \
-fast_mpvec GLj=mj.GL;                            \
-M.daccel+=(rcr32*(GLj-3*(GLj%r)*rr2*r))*b;
-
-#define RADIATION_PRESSURE(M)            \
-M.daccel+=mj.lum*mi.rR2_4Mc*rr3*r;
-
-#define ROTATIONAL_TIDAL_DEFORMATION                 \
-fast_mpvec Cr=mi.C_potential%r;                      \
-fast_mpvec dg=rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));  \
-mi.daccel+=dg*mj.GM;                                 \
-mj.daccel-=dg*mi.GM;                                 \
-mi.dtorque+=mj.GM*(r*dg);
-
-#define ROTATIONAL_TIDAL_DEFORMATION_NANTI_FORCE(M)             \
-fast_mpvec Cr=mi.C_potential%r;                                 \
-fast_mpvec dg=mj.GM*rr3*rr2*mi.R2*(r%Cr*5*rr2*r-(Cr+Cr));       \
-M.daccel+=dg;                                                   \
-M.dtorque+=r*dg;                                                \
-                                                                \
-fast_mpvec Cjr=mj.C_potential%r;                                \
-M.daccel+=mj.GM*rr3*rr2*mj.R2*(r%Cjr*5*rr2*r-(Cjr+Cjr));
-
-#define APPLY_NONPOINT_FORCE(M)   \
-mj.daccel+=mi.GM*an;              \
-M.daccel-=mj.GM*an;               \
-M.dtorque-=mj.GM*(r*an);
+    barycen();
+};
 
 
-#define FINALIZE_RELATIVITY   \
-mi.phi*=c2;                   \
-mi.naccel*=c2;
+//celestial object
+class mass{
+public:
+    //evolving parameters:
+    //r: position
+    //v: velocity
+    //GL: G * angular momentum / GM
+    mpvec r,v,GL;
+    //s: surface frame
+    mpmat s;
+    //w: angular velocity
+    fast_mpvec w;
 
-//ring has inertia that prevents extra accelerations
-//ring has angular momentum that prevents extra angular accelerations
-//ptorque(parallel to GL) will not change
-//  since this part has nothing to do with the ring
-//dtorque(perpendicular to GL) will decrease
-//  due to ring's angular momentum
-#define RING_CORRECTION                               \
-mass &m=mi;                                           \
-ring &mr=*m.ringmodel;                                \
-m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;   \
-fast_mpvec mGL=m.GL;                                  \
-fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);         \
-fast_mpvec ptorque=m.dtorque;                         \
-ptorque=ptorque%mGL*rmGL2*mGL;                        \
-fast_mpvec dtorque=m.dtorque-ptorque;                 \
-dtorque*=1/(1+rmGL*mr.GL);                            \
-m.dtorque=dtorque+ptorque;
+    //time-variable parameters:
+    //linear calculated from time and rate
+    //GM: gravitational parameter
+    //exJ2: change of J2 since t=0
+    fast_real GM,exJ2;
+
+    //constant parameters:
+    //sid: unique object id, actually is char[8]
+    uint64_t sid;
+    //GM0: GM at epoch 0.
+    //dGM: dGM/dt, mass loss rate, should be <0 for stars
+    //dJ2: dJ2/dt, J2 rate
+    //R: mean radius
+    //inertia: mean moment of inertia factor, default to 0.4
+    //k2: degree 2 tidal love number, default to 0
+    //k2r: degree 2 rotational love number, default to k2
+    //tide_delay: tidal relaxation time scale, default to 0
+    //tide_delay_factor: the tide_delay raised on others by this object
+    //                   will be multiplied by this factor, default to 1
+    //in https://bridge.kamine.cloud/archives/284 ,
+    //{inertia, k2, k2r, tide_delay} are {2A/3,(k-1)kt,k-1,tau}, respectively
+    fast_real GM0,dGM,dJ2,R,inertia,k2,k2r,tide_delay,tide_delay_factor;
+    //lum: luminosity, which causes radiation pressure
+    //recpt: receptance factor of radiation pressure, 1 for total absorb
+    fast_real lum,recpt;
+    //auxiliary constants:
+    //A = 3*inertia/2
+    //R2 = GM*R^2
+    //rR2_4Mc = recpt*R^2/(4*GM*c/G)
+    fast_real A,R2,rR2_4Mc;
+    //static deformation of potential in surface frame
+    fast_mpmat C_static;
+
+    //geopoteintial model:
+    geopotential *gpmodel;
+    //ring model:
+    ring *ringmodel;
+
+    //auxiliary variables:
+    //phi: newtonian gravitational potential
+    //beta2: (v/c)^2
+    fast_real phi,beta2;
+    //naccel: point mass newtonian acceleration
+    //gaccel: point mass gravitoelectric acceleration
+    //daccel: acceleration due to extended body deformation and lense thirring effect
+    //dtorque: G * torque / GM due to extended body deformation and lense thirring effect
+    //beta: v/c
+    fast_mpvec naccel,daccel,dtorque,gaccel,beta;
+    //GI: G * moment of inertia / GM
+    //C_potential = k2 * C + C_static
+    fast_mpmat GI,C_potential;
+
+    //temporary variables used by integrators
+    fast_real Erot;
+    fast_mpvec Egrad;
+    fast_mpvec idaccel,idtorque;
+    //used by msystem::integrate to test if a collision occurred and whether time step is appropriate
+    // and by msystem::combined_integrate to test if a capture occurred
+    fast_real min_distance;
+    fast_real max_influence;
+
+    //calculate deformation matrix(C_potential) and inertia matrix(GI)
+    //calculate Newtonian acceleration(naccel) & potential(phi)
+    void deform_this(const std::vector<mass> &mlist);
+    //calculate deformation matrices(C_potential) and inertia matrices(GI)
+    //calculate Newtonian acceleration(naccel) & potential(phi)
+    static void deform_all(std::vector<mass> &mlist);
+    //resize the mass by a factor
+    //updates all relevant parameters
+    void scale(fast_real factor);
+};
+
+//short mass used in Runge-Kutta-integrators
+struct mass_state{
+    //evolving parameters:
+    //r: position
+    //v: velocity
+    //GL: G * angular momentum / GM
+    mpvec r,v,GL;
+    //s: surface frame
+    mpmat s;
+    //w: angular velocity
+    fast_mpvec w;
+
+    //auxiliary variables:
+    //naccel: point mass acceleration
+    //dtorque: G * torque / GM
+    fast_mpvec naccel,dtorque;
+
+    INLINE mass_state &operator =(const mass &src){
+        r=src.r;
+        v=src.v;
+        GL=src.GL;
+        s=src.s;
+        w=src.w;
+        /*naccel=0;
+        dtorque=0;
+        Prot=0;*/
+        return *this;
+    }
+};
+
+//stellar system
+class msystem{
+public:
+    //  0: use CPU RungeKutta
+    //  1: use GPU RungeKutta
+    //  2: use CPU/GPU Combined RungeKutta
+    enum {
+        CPU_RK12        =   0,
+        GPU_RK12        =   1,
+        COMBINED_RK12   =   2
+    };
+
+    friend class ephemeris_generator;
+private:
+    //relativistic coordinate time
+    real t_eph;
+    //frame time, dt for integration
+    fast_real delta_t;
+
+    int_t integrator;
+
+    //cadence of data_output
+    fast_real data_cadence;
+
+    //max length of a single output file, in seconds
+    fast_real max_ephm_length;
+
+    // if integrator==COMBINED_RK12, following should be specified
+    fast_real combined_delta_t;
+    fast_real GM_max_child,GM_max_parent,GM_max_tiny,Period_max_child;
+
+    //list of barycens
+    std::vector<barycen> blist;
+    //list of masses
+    std::vector<mass> mlist;
+    //index of masses
+    std::map<uint64_t,int_t> midx;
+
+    //tidal corrections
+    int_t tidal_parent;
+    std::vector<int_t> tidal_childlist;
+    fast_mpmat tidal_matrix;
+
+    //loaded components used by masses, will be freed on destruction
+    std::vector<geopotential *> gp_components;
+    std::vector<ring *> ring_components;
+private:
+    //load system from files
+    //   fbase : basic parameters and initial states
+    //    fext : extra parameters
+    //  gppath : path for geopotential models
+    //ringpath : path for ring models
+    bool load(const char *fbase,
+        const char *fext,
+        const char *gppath,
+        const char *ringpath);
+    //Runge-Kutta-12 integrator
+    void RungeKutta12(fast_real dt,int_t n_step);
+    //Runge-Kutta-12 integrator
+    void Cuda_RungeKutta12(fast_real dt,int_t n_step);
+    //update time-variables of mass list to epoch t
+    void update(fast_real t);
+    //calculate deformation matrices(C_potential) and inertia matrices(GI)
+    //calculate Newtonian acceleration(naccel) & potential(phi)
+    void deform();
+
+    //get index of mass from sid, return -1 if not found
+    int_t get_mid(const char *sid);
+    int_t get_mid(uint64_t sid);
+public:
+    //calculate acceleration and solve for angular velocity
+    void accel();
+    //same as accel, use GPU
+    void Cuda_accel();
+
+    //integrate ephemerides
+    //USE_GPU:   0: CPU Runge Kutta 12
+    //           1: GPU Runge Kutta 12
+    void integrate(fast_real dt,int_t n_step,int USE_GPU=0);
+    //integrate ephemerides
+    //for full system with un-parented tiny masses, use (dt*n_combine) as time step
+    //for subsystem with tiny children masses, use dt as time step, always use CPU
+    //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
+    void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
+
+    //analyse position of masses to build barycen list
+    //reconstruct: if true, analyse from scratch;
+    //             if false, update existing structure when necessary, this is faster.
+    bool analyse(bool reconstruct=false);
+    //update barycens' GM & rv
+    void update_barycens();
+
+    //load system from config file, optional save to a checkpoint
+    bool load(const char *fconfig,const char *fcheckpoint=nullptr);
+    //load system from checkpoint file
+    bool load_checkpoint(MFILE *fcp);
+    //save system as checkpoint
+    bool save_checkpoint(MFILE *fcp) const;
+    //print barycenter structure as json file
+    void print_structure(MFILE *mf,int_t root=-1,int_t level=0) const;
+
+    void clear();
+    msystem(){}
+    msystem(msystem &&)=default;
+    ~msystem(){ clear(); }
+};

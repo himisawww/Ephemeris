@@ -1,4 +1,4 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"utils/zipio.h"
@@ -14,6 +14,8 @@ bool sanity(double dt){
 }
 
 bool msystem::load(const char *fconfig,const char *fcheckpoint){
+    bool success=false;
+  do{
     const std::string sip=fconfig;
     size_t spos=1+sip.find_last_of("/\\");
     std::map<std::string,std::string> config;
@@ -24,10 +26,10 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     fconfig=fconfigstr.c_str();
 
     if(!dir||!*dir)dir=default_path;
-    if(!fconfig||!*fconfig)return false;
+    if(!fconfig||!*fconfig)break;
     if(strlen(dir)+strlen(fconfig)+1>=MAX_PATHSIZE){
         fprintf(stderr,"Path too long: %s\\%s\n",dir,fconfig);
-        return false;
+        break;
     }
 
     const char *integrators_list[]={
@@ -61,7 +63,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     MFILE *fin=mopen(fname);
     if(!fin){
         fprintf(stderr,"File Not Exist: %s\n",fname);
-        return false;
+        break;
     }
 
     while(1){
@@ -104,7 +106,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         it->second=sval;
     }
     fclose(fin);
-    if(failed)return false;
+    if(failed)break;
 
     std::string
         &fbase      =config["Initial"],
@@ -116,7 +118,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         fprintf(stderr,
             "Loading %s\n Missing Parameter: Initial\n",
             fname);
-        return false;
+        break;
     }
     
     sprintf(sname,"%s\\",dir);
@@ -125,7 +127,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         fext.size()?(sname+fext).c_str():nullptr,
         gppath.size()?(sname+gppath).c_str():nullptr,
         ringpath.size()?(sname+ringpath).c_str():nullptr
-        ))return false;
+        ))break;
 
     const char *pval;
 
@@ -140,7 +142,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
             fprintf(stderr,
                 "Loading %s\n Invalid Integrator: %s\n",
                 fname,pval);
-            return false;
+            break;
         }
     }
     else fprintf(stderr,
@@ -169,12 +171,12 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
 #undef LOAD_CONFIG
 
     if(!mlist.size())
-        return false;
+        break;
 
     //check config
     if(!sanity(delta_t)||!sanity(data_cadence)||!sanity(max_ephm_length)||!sanity(combined_delta_t)){
         fprintf(stderr,"Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
-        return false;
+        break;
     }
 
     printf("Loaded %lld bodies from initial %s.\n",mlist.size(),sip.c_str());
@@ -182,7 +184,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         ozippack zp(fcheckpoint);
         if(!zp){
             fprintf(stderr,"Cannot open output file. Is its directory exist?\n");
-            return false;
+            break;
         }
         zp.resize(1);
         MFILE &mf=zp[0];
@@ -219,17 +221,17 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         }
         printf("Saving checkpoint %s\n",fcheckpoint);
     }
-    
+    success=true;
+  }while(0);
+    if(!success){
+        clear();
+        return false;
+    }
     return true;
 }
 
-bool msystem::load(
-    const char *fbase,
-    const char *fext,
-    const char *gppath,
-    const char *ringpath){
-
-    //defalt value for solar system
+void msystem::clear(){
+    //default value for solar system
     t_eph=0;
     delta_t=300;//5min
     integrator=int_t(COMBINED_RK12);
@@ -245,6 +247,19 @@ bool msystem::load(
     mlist.clear();
     midx.clear();
     tidal_childlist.clear();
+
+    for(auto *p:gp_components)geopotential::unload(p);
+    gp_components.clear();
+    for(auto *p:ring_components)ring::unload(p);
+    ring_components.clear();
+}
+
+bool msystem::load(
+    const char *fbase,
+    const char *fext,
+    const char *gppath,
+    const char *ringpath){
+    clear();
 
     if(!fbase)return false;
     if(!gppath||!*gppath)gppath=default_path;
@@ -338,6 +353,7 @@ bool msystem::load(
                 failed=true;
                 break;
             }
+            gp_components.push_back(m.gpmodel);
         }
         if(ringmf!=0){
             sprintf(sname,"%s\\%s.txt",ringpath,sid);
@@ -346,7 +362,9 @@ bool msystem::load(
                 failed=true;
                 break;
             }
-            if(m.ringmodel->N==0){
+            if(m.ringmodel->N>0)
+                ring_components.push_back(m.ringmodel);
+            else{
                 ring::unload(m.ringmodel);
                 m.ringmodel=nullptr;
             }
@@ -583,7 +601,7 @@ bool msystem::load_checkpoint(MFILE *fin){
     return !failed;
 }
 
-bool msystem::save_checkpoint(MFILE *fout){
+bool msystem::save_checkpoint(MFILE *fout) const{
 
     mass mwrite;
     const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
@@ -637,4 +655,67 @@ bool msystem::save_checkpoint(MFILE *fout){
     }
 
     return true;
+}
+
+void print_string(MFILE *mf,int_t level,const std::string &str){
+    if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
+        //indent
+        std::string indent(level,' ');
+        fwrite(indent.data(),indent.size(),1,mf);
+    }
+    fwrite(str.data(),str.size(),1,mf);
+}
+void msystem::print_structure(MFILE *mf,int_t root,int_t level) const{
+    const msystem &ms=*this;
+    if(root<0){
+        root=ms.blist.size();
+        do{
+            if(--root<0)return;
+        } while(!(ms.blist[root].pid<0));
+    }
+
+    const barycen& br=ms.blist[root];
+    int_t cn=br.children.size();
+    std::string barycen_name;
+
+    if(br.hid<0){
+        barycen_name=(const char *)&ms.mlist[br.mid].sid;
+        if(cn==0){
+            print_string(mf,level,"\""+barycen_name+"\"");
+            return;
+        }
+        print_string(mf,level,"{\n");
+        print_string(mf,level,"       \"ID\":\""+barycen_name+"\"");
+    }
+    else{
+        barycen_name="Barycenter[";
+        barycen_name+=(const char *)&ms.mlist[ms.blist[br.hid].mid].sid;
+        if(ms.blist[br.hid].hid>=0)barycen_name+=" System";
+        barycen_name+=", ";
+        barycen_name+=(const char *)&ms.mlist[ms.blist[br.gid].mid].sid;
+        if(ms.blist[br.gid].hid>=0)barycen_name+=" System";
+        barycen_name+="]";
+        print_string(mf,level,"{\n");
+        print_string(mf,level,"       \"ID\":\""+barycen_name+"\",\n");
+        print_string(mf,level,"  \"Primary\":");
+        print_structure(mf,br.hid,level+12);
+        print_string(mf,level,",\n");
+        print_string(mf,level,"\"Secondary\":");
+        print_structure(mf,br.gid,level+12);
+    }
+
+    if(cn){
+        print_string(mf,level,",\n");
+        print_string(mf,level," \"Children\":[\n");
+        for(int_t i=0;i<cn;){
+            print_structure(mf,br.children[i],level+16);
+            print_string(mf,level,(++i==cn)+",\n");
+        }
+
+        print_string(mf,level,"            ]\n");
+    }
+    else{
+        print_string(mf,level,"\n");
+    }
+    print_string(mf,level,"}");
 }

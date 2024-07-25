@@ -1,7 +1,7 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"physics/mass.h"
+#include"physics/mass.impl"
 
 void mass::scale(fast_real factor){
 

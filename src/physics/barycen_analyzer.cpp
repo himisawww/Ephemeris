@@ -1,4 +1,4 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include<map>
 
 barycen::barycen(){

@@ -117,4 +117,4 @@ int_t ring::size() const{
 }
 
 #define CONST_TABLE static const
-#include"disk_approx.impl"
+#include"ring.impl"

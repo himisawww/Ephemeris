@@ -1,4 +1,4 @@
-#include"physics/CelestialSystem.h"
+#include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include<map>
