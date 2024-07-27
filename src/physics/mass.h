@@ -79,16 +79,16 @@ public:
     fast_real lum,recpt;
     //auxiliary constants:
     //A = 3*inertia/2
-    //R2 = GM*R^2
+    //R2 = R^2
     //rR2_4Mc = recpt*R^2/(4*GM*c/G)
     fast_real A,R2,rR2_4Mc;
     //static deformation of potential in surface frame
     fast_mpmat C_static;
 
     //geopoteintial model:
-    geopotential *gpmodel;
+    const geopotential *gpmodel;
     //ring model:
-    ring *ringmodel;
+    const ring *ringmodel;
 
     //auxiliary variables:
     //phi: newtonian gravitational potential
@@ -185,6 +185,11 @@ private:
     fast_real combined_delta_t;
     fast_real GM_max_child,GM_max_parent,GM_max_tiny,Period_max_child;
 
+    //tidal corrections
+    int_t tidal_parent;
+    fast_mpmat tidal_matrix;
+    std::vector<int_t> tidal_childlist;
+
     //list of barycens
     std::vector<barycen> blist;
     //list of masses
@@ -192,14 +197,9 @@ private:
     //index of masses
     std::map<uint64_t,int_t> midx;
 
-    //tidal corrections
-    int_t tidal_parent;
-    std::vector<int_t> tidal_childlist;
-    fast_mpmat tidal_matrix;
-
     //loaded components used by masses, will be freed on destruction
-    std::vector<geopotential *> gp_components;
-    std::vector<ring *> ring_components;
+    std::vector<const geopotential *> gp_components;
+    std::vector<const ring *> ring_components;
 private:
     //load system from files
     //   fbase : basic parameters and initial states
@@ -220,9 +220,6 @@ private:
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
 
-    //get index of mass from sid, return -1 if not found
-    int_t get_mid(const char *sid);
-    int_t get_mid(uint64_t sid);
 public:
     //calculate acceleration and solve for angular velocity
     void accel();
@@ -255,8 +252,32 @@ public:
     //print barycenter structure as json file
     void print_structure(MFILE *mf,int_t root=-1,int_t level=0) const;
 
+    void build_mid();
+    //get index of mass from sid, return -1 if not found
+    int_t get_mid(const char *ssid) const;
+    int_t get_mid(uint64_t sid) const;
+
+    void reset_params();
+    void copy_params(const msystem &);
     void clear();
+    bool push_back(const mass &m);
+
+    msystem &operator =(const msystem &other);
+
     msystem(){}
     msystem(msystem &&)=default;
+    msystem(const msystem &other){ *this=other; }
     ~msystem(){ clear(); }
+
+    auto begin() const{ return mlist.begin(); }
+    auto end() const{ return mlist.end(); }
+    auto size() const{ return mlist.size(); }
+    const mass &operator [](int_t mid) const{ return mlist[mid]; }
+    const mass &operator [](const char *ssid) const;
+
+    //functions modifying mass of the system; once called,
+    //  accel() must be called to restore correct internal state of msystem.
+    void scale(int_t mid,fast_real factor);
+    void scale_geopotential(int_t mid,fast_real factor);
+    void scale_ring(int_t mid,fast_real factor);
 };

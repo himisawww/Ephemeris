@@ -101,7 +101,7 @@ int test_geopotential(){
 		fprintf(&gpmf,"%lld\t%lld\n",n,m?n:0);
 		fprintf(&gpmf,"%lld\t%lld\t%.16le\t%.16le\n",n,m,c,s);
 		gpmf.publish(TEST_MEMPATH);
-		geopotential *gp=geopotential::load(TEST_MEMPATH,REFERENCE_RADIUS_FACTOR,2);
+		const geopotential *gp=geopotential::load(TEST_MEMPATH,REFERENCE_RADIUS_FACTOR,2);
 		if(!gp)return 2;
 		fast_real rn=TEST_RADIUS;
 		for(int_t ir=0;ir<TEST_N;++ir){

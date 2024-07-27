@@ -230,7 +230,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     return true;
 }
 
-void msystem::clear(){
+void msystem::reset_params(){
     //default value for solar system
     t_eph=0;
     delta_t=300;//5min
@@ -242,7 +242,9 @@ void msystem::clear(){
     GM_max_child=1E13;
     GM_max_tiny=14E11;
     Period_max_child=0;
+}
 
+void msystem::clear(){
     blist.clear();
     mlist.clear();
     midx.clear();
@@ -259,6 +261,7 @@ bool msystem::load(
     const char *fext,
     const char *gppath,
     const char *ringpath){
+    reset_params();
     clear();
 
     if(!fbase)return false;
@@ -357,7 +360,7 @@ bool msystem::load(
         }
         if(ringmf!=0){
             sprintf(sname,"%s\\%s.txt",ringpath,sid);
-            m.ringmodel=ring::load(sname,m.GM,m.R2,ringmf);
+            m.ringmodel=ring::load(sname,m.GM,m.R,ringmf);
             if(!m.ringmodel){
                 failed=true;
                 break;
@@ -512,10 +515,7 @@ struct barycen_ids{
 };
 
 bool msystem::load_checkpoint(MFILE *fin){
-    blist.clear();
-    mlist.clear();
-    midx.clear();
-    tidal_childlist.clear();
+    clear();
     
     mass mwrite;
     const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
@@ -576,19 +576,25 @@ bool msystem::load_checkpoint(MFILE *fin){
             }
             if(m.gpmodel){
                 size_t gps=(size_t)m.gpmodel;
-                m.gpmodel=(geopotential*)malloc(gps);
-                if(1!=fread(m.gpmodel,gps,1,fin)){
+                geopotential *gpmodel=(geopotential*)malloc(gps);
+                gp_components.push_back(gpmodel);
+                if(1!=fread(gpmodel,gps,1,fin)){
+                    m.gpmodel=nullptr;
                     failed=true;
                     break;
                 }
+                m.gpmodel=gpmodel;
             }
             if(m.ringmodel){
                 size_t rms=(size_t)m.ringmodel;
-                m.ringmodel=(ring*)malloc(rms);
-                if(1!=fread(m.ringmodel,rms,1,fin)){
+                ring *ringmodel=(ring*)malloc(rms);
+                ring_components.push_back(ringmodel);
+                if(1!=fread(ringmodel,rms,1,fin)){
+                    m.ringmodel=nullptr;
                     failed=true;
                     break;
                 }
+                m.ringmodel=ringmodel;
             }
         }
         if(failed)break;
@@ -598,7 +604,11 @@ bool msystem::load_checkpoint(MFILE *fin){
         update_barycens();
     } while(false);
 
-    return !failed;
+    if(failed){
+        clear();
+        return false;
+    }
+    return true;
 }
 
 bool msystem::save_checkpoint(MFILE *fout) const{
@@ -718,4 +728,95 @@ void msystem::print_structure(MFILE *mf,int_t root,int_t level) const{
         print_string(mf,level,"\n");
     }
     print_string(mf,level,"}");
+}
+
+void msystem::build_mid(){
+    midx.clear();
+    size_t mn=mlist.size();
+    for(size_t i=0;i<mn;++i){
+        const mass &mi=mlist[i];
+        midx.insert({mi.sid,i});
+    }
+}
+int_t msystem::get_mid(const char *ssid) const{
+    size_t slen=strlen(ssid);
+    uint64_t isid=0;
+    const size_t maxslen=sizeof(isid)-1;
+    if(slen>maxslen)return -1;
+    memcpy(&isid,ssid,slen);
+    return get_mid(isid);
+}
+int_t msystem::get_mid(uint64_t sid) const{
+    auto it=midx.find(sid);
+
+    do{
+        if(it==midx.end())break;
+        size_t result=it->second;
+        if(result>=mlist.size())break;
+        if(mlist[result].sid!=sid)break;
+        //correct
+        return result;
+    } while(0);
+
+    return -1;
+}
+const mass &msystem::operator [](const char *ssid) const{
+    return mlist[get_mid(ssid)];
+}
+
+void msystem::copy_params(const msystem &other){
+#define copy_member(_m) _m=other._m
+    copy_member(t_eph);
+    copy_member(delta_t);
+    copy_member(integrator);
+    copy_member(data_cadence);
+    copy_member(max_ephm_length);
+    copy_member(combined_delta_t);
+    copy_member(GM_max_child);
+    copy_member(GM_max_parent);
+    copy_member(GM_max_tiny);
+    copy_member(Period_max_child);
+}
+msystem &msystem::operator =(const msystem &other){
+    copy_params(other);
+    clear();
+    copy_member(tidal_parent);
+    copy_member(tidal_matrix);
+    copy_member(tidal_childlist);
+    copy_member(blist);
+    copy_member(mlist);
+#undef copy_member
+    build_mid();
+    for(mass &m:mlist){
+        if(m.gpmodel)
+            gp_components.push_back(m.gpmodel=geopotential::copy(m.gpmodel));
+        if(m.ringmodel)
+            ring_components.push_back(m.ringmodel=ring::copy(m.ringmodel));
+    }
+    return *this;
+}
+bool msystem::push_back(const mass &msrc){
+    auto result=midx.insert({msrc.sid,mlist.size()});
+    if(!result.second)return false;
+    mlist.push_back(msrc);
+    mass &m=mlist.back();
+    if(m.gpmodel)
+        gp_components.push_back(m.gpmodel=geopotential::copy(m.gpmodel));
+    if(m.ringmodel)
+        ring_components.push_back(m.ringmodel=ring::copy(m.ringmodel));
+    return true;
+}
+
+void msystem::scale(int_t mid,fast_real factor){
+    mlist[mid].scale(factor);
+}
+void msystem::scale_geopotential(int_t mid,fast_real factor){
+    auto &pmodel=mlist[mid].gpmodel;
+    if(pmodel)
+        gp_components.push_back(pmodel=geopotential::copy(pmodel,factor));
+}
+void msystem::scale_ring(int_t mid,fast_real factor){
+    auto &pmodel=mlist[mid].ringmodel;
+    if(pmodel)
+        ring_components.push_back(pmodel=ring::copy(pmodel,factor));
 }

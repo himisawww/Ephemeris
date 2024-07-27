@@ -17,7 +17,7 @@ int main_fun(int argc,const char **argv){
         "Github: https://github.com/himisawww/Ephemeris \n\n");
 
     do{
-        if(argc==2&&strcmp(argv[1],"RUN_TEST")==0)return test_fun();
+        if(argc==2&&strcmp(argv[1],"RUN_TEST")==0)return test_all();
 
         if(argc<3||argc>4)break;
 

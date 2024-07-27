@@ -27,6 +27,18 @@ static msystem ms;
 const msystem &get_test_msystem(){
     return ms;
 }
+msystem get_test_subsystem(std::vector<const char *> sids){
+    msystem msdst;
+    msdst.copy_params(ms);
+    for(const char *ssid:sids){
+        int_t mid=ms.get_mid(ssid);
+        if(mid<0)continue;
+        msdst.push_back(ms[mid]);
+    }
+    msdst.accel();
+    msdst.analyse();
+    return msdst;
+}
 
 int test_prepare(){
 

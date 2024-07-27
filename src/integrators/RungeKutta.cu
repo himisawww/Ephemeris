@@ -20,9 +20,9 @@
 std::mutex cuda_mutex;
 
 //geopotential data, mlist[first].gpmodel==second
-typedef std::vector<std::pair<int_t,geopotential*>> gpdata_t;
+typedef std::vector<std::pair<int_t,const geopotential*>> gpdata_t;
 //ring data, mlist[first].ringmodel==second
-typedef std::vector<std::pair<int_t,ring*>> ringdata_t;
+typedef std::vector<std::pair<int_t,const ring*>> ringdata_t;
 
 #if 0
 #define mycudaMalloc cudaMalloc
@@ -283,7 +283,7 @@ void __device__ accel_2(){//higher harmonics
                         fast_mpvec migl=mi.GL;
                         fast_mpmat fgls(migl.perpunit(),0,migl/migl.norm());
                         fast_mpvec lr=fgls.tolocal(r);
-                        an+=fgls.toworld(mi.ringmodel->cuda_sum(lr));
+                        an+=fgls.toworld(mi.ringmodel->cuda_sum(mi.R,lr));
                     }
 
                     APPLY_NONPOINT_FORCE(tpmi[0]);

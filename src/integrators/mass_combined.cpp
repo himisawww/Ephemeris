@@ -210,7 +210,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                 mci.gpmodel=nullptr;
                 
                 if(mci.ringmodel){
-                    ring &mr=*mci.ringmodel;
+                    const ring &mr=*mci.ringmodel;
                     mci.ringmodel=nullptr;
                     fast_real rGM=mr.GM_ratio;
                     rGM/=1-rGM;
@@ -329,9 +329,11 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         }
 
         Sc.t_eph=t_eph;
+        Sc.build_mid();
         Sc.accel();
 
         Sx.t_eph=t_eph;
+        Sx.build_mid();
         Sx.accel();
 
         for(auto &sns:Sn){
@@ -351,6 +353,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                 }
             }
             sn.t_eph=t_eph;
+            sn.build_mid();
             sn.accel();
         }
 

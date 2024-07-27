@@ -9,7 +9,7 @@ struct test_t{
     const char *long_description;
 };
 
-int test_fun(uint64_t seed){
+int test_all(uint64_t seed){
     std::vector<test_t> tests;
     printf("Starting tests...");
 #define DECLARE_TEST(T,S,L) \
@@ -30,6 +30,9 @@ tests.push_back({T,S,L})
     DECLARE_TEST(test_kepler,       "Keplerians",
         "Test convertion between state vectors and orbital keplerian\n"
         "   parameters.\n"
+    );
+    DECLARE_TEST(test_conservation, "Conservation",
+        "Test conservation of momentum and angular momentum.\n"
     );
 
     int_t N=tests.size();

@@ -144,12 +144,12 @@ mi.naccel*=c2;
 //  due to ring's angular momentum
 #define RING_CORRECTION                               \
 mass &m=mi;                                           \
-ring &mr=*m.ringmodel;                                \
+const ring &mr=*m.ringmodel;                          \
 m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;   \
 fast_mpvec mGL=m.GL;                                  \
 fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);         \
 fast_mpvec ptorque=m.dtorque;                         \
 ptorque=ptorque%mGL*rmGL2*mGL;                        \
 fast_mpvec dtorque=m.dtorque-ptorque;                 \
-dtorque*=1/(1+rmGL*mr.GL);                            \
+dtorque*=1/(1+rmGL*mr.GL_R2*m.R2);                    \
 m.dtorque=dtorque+ptorque;

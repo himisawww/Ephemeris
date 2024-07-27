@@ -99,6 +99,9 @@
     <ClCompile Include="src\configs.cpp">
       <Filter>sources</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\test_conservation.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

@@ -19,15 +19,6 @@ void mass::scale(fast_real factor){
 
     lum*=f2;        //luminosity scales with surface
     recpt*=factor;  //receptance scales to not influence acceleration
-
-    if(ringmodel){
-        ringmodel->GL*=f2;
-        for(int_t i=0;i<ringmodel->N;++i){
-            ringmodel->c_table[i].Gs/=f2;
-            ringmodel->c_table[i].R*=factor;
-            ringmodel->c_table[i].H*=factor;
-        }
-    }
 }
 
 void msystem::update(fast_real t){
@@ -153,7 +144,7 @@ void msystem::accel(){
                 fast_mpvec migl=mi.GL;
                 fast_mpmat fgls(migl.perpunit(),0,migl/migl.norm());
                 fast_mpvec lr=fgls.tolocal(r);
-                fast_mpvec an=fgls.toworld(mi.ringmodel->sum(lr));
+                fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
                 APPLY_NONPOINT_FORCE(mi);
             }
         }
@@ -180,42 +171,6 @@ void msystem::accel(){
             RING_CORRECTION;
         }
     }
-}
-
-int_t msystem::get_mid(const char *sid){
-    size_t slen=strlen(sid);
-    uint64_t isid=0;
-    const size_t maxslen=sizeof(isid)-1;
-    if(slen>maxslen)return -1;
-    memcpy(&isid,sid,slen);
-    return get_mid(isid);
-}
-int_t msystem::get_mid(uint64_t sid){
-    auto it=midx.find(sid);
-
-    do{
-        if(it==midx.end())break;
-        size_t result=it->second;
-        if(result>=mlist.size())break;
-        if(mlist[result].sid!=sid)break;
-        //correct
-        return result;
-    } while(0);
-
-    //not correct, reconstruct midx
-    midx.clear();
-    size_t mn=mlist.size();
-    for(size_t i=0;i<mn;++i){
-        const mass &mi=mlist[i];
-        midx.insert({mi.sid,i});
-    }
-
-    it=midx.find(sid);
-
-    if(it==midx.end())
-        return -1;
-
-    return it->second;
 }
 
 void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){

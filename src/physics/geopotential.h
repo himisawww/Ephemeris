@@ -10,13 +10,16 @@ class geopotential{
 public:
 
     geopotential()=delete;
+    geopotential(geopotential &&)=delete;
     //ref_radius_factor:
     // treat the coefficients as their reference radius is R*ref_radius_factor,
     // degree-n coefficients will be multiplied by ref_radius_factor^n,
     // default to 1, geopotential is disabled when equal to 0.
     //N_start: starting degree of harmonics
-    static geopotential *load(const char *file,fast_real ref_radius_factor=1,int_t N_start=3);
-    static void unload(geopotential *);
+    static const geopotential *load(const char *file,fast_real ref_radius_factor=1,int_t N_start=3);
+    static void unload(const geopotential *);
+    //multiplier: scale the intensity of original geopotential proportionally
+    static const geopotential *copy(const geopotential *,fast_real multiplier=1);
     //sizeof this structure
     int_t size() const;
     //R: radius of the Extended Body

@@ -5,7 +5,7 @@
 
 #include"geopotential.impl"
 
-geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,int_t N_start){
+const geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,int_t N_start){
     std::string linebuf;
     MFILE *fin=mopen(file);
     if(!fin){
@@ -125,11 +125,23 @@ geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,in
     return ret;
 }
 
-void geopotential::unload(geopotential *gp){
-    free(gp);
+void geopotential::unload(const geopotential *gp){
+    free((void*)gp);
 }
 
 int_t geopotential::size() const{
     return sizeof(geopotential)+sizeof(fast_real)*Precompute_Table_size(Nz);
 }
 
+const geopotential *geopotential::copy(const geopotential *gp,fast_real multiplier){
+    if(!gp)return nullptr;
+    size_t gpsize=gp->size();
+    geopotential *ret=(geopotential *)malloc(gpsize);
+    memcpy(ret,gp,gpsize);
+    if(multiplier!=1){
+        size_t n=Precompute_Table_size(ret->Nz);
+        for(int_t i=0;i<n;++i)
+            ret->c_table[i]*=multiplier;
+    }
+    return ret;
+}

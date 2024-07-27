@@ -21,7 +21,7 @@ void adddisk(std::vector<disk> &disks,fast_real Gs,fast_real R,fast_real H){
     disks.push_back({Gs,R,H});
 }
 
-ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real direction_mass_factor){
+const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_real direction_mass_factor){
     std::string linebuf;
     MFILE *fin=mopen(file);
     if(!fin){
@@ -80,8 +80,9 @@ ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real di
     ret->GM_ratio=0;
     ret->A=0;
     ret->J2=0;
-    ret->GL=0;
+    ret->GL_R2=0;
 
+    fast_real ref_R2=ref_R*ref_R;
     fast_real ref_GMR2=ref_GM*ref_R2;
 
     for(int_t i=0;i<N;++i){
@@ -92,28 +93,43 @@ ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R2,fast_real di
         ret->GM_ratio+=GM;
         ret->A+=GM*(6*R2+H2)/(12*ref_GMR2);
         ret->J2+=GM*(3*R2-H2)/(12*ref_GMR2);
-        ret->GL+=4*GM*sqrt(ref_GM*d.R)/(5*ref_GM);
-        //since host GM&R not known for now
-        //GL is now G * angular momentum / sqrt(host GM)
-        //and J2, A are not normalized by (host GM*R^2)
+        ret->GL_R2+=4*GM*sqrt(ref_GM*d.R)/(5*ref_GMR2);
 
-        ret->c_table[i].Gs=d.Gs/ref_GM;
-        ret->c_table[i].R=d.R;
-        ret->c_table[i].H=d.H;
+        ret->c_table[i].GsR2=d.Gs/ref_GM*ref_R2;
+        ret->c_table[i].R_R=d.R/ref_R;
+        ret->c_table[i].H_R=d.H/ref_R;
     }
 
     ret->GM_ratio=1/(1+ref_GM/ret->GM_ratio);
     //retrograde ring, is this possible?
-    if(direction_mass_factor<0)ret->GL*=-1;
+    if(direction_mass_factor<0)ret->GL_R2*=-1;
     return ret;
 }
 
-void ring::unload(ring *rp){
-    free(rp);
+void ring::unload(const ring *rp){
+    free((void*)rp);
 }
 
 int_t ring::size() const{
     return sizeof(ring)+3*sizeof(fast_real)*N;
+}
+
+const ring *ring::copy(const ring *rp,fast_real multiplier){
+    if(!rp)return nullptr;
+    size_t rpsize=rp->size();
+    ring *ret=(ring *)malloc(rpsize);
+    memcpy(ret,rp,rpsize);
+    if(multiplier!=1){
+        fast_real host_ratio=1-ret->GM_ratio;
+        fast_real new_ratio=ret->GM_ratio*multiplier;
+        ret->GM_ratio=new_ratio/(host_ratio+new_ratio);
+        ret->A*=multiplier;
+        ret->J2*=multiplier;
+        ret->GL_R2*=multiplier;
+        for(int_t i=0;i<ret->N;++i)
+            ret->c_table[i].GsR2*=multiplier;
+    }
+    return ret;
 }
 
 #define CONST_TABLE static const
