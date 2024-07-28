@@ -2,6 +2,7 @@
 #include"utils/memio.h"
 #include"physics/geopotential.h"
 #include"utils/calctime.h"
+#include"modules/logger.h"
 
 #define TEST_MEMPATH "__gptest.gp"
 
@@ -121,13 +122,13 @@ int test_geopotential(){
 		geopotential::unload(gp);
 
 		if(!(max_rerr<TEST_EPSILON)){
-			fprintf(stderr,
+			LogError(
 				"\nMax Rel. Error %.16le Too Large at n=%lld, m=%lld",
 				max_rerr,n,m);
 			return 1;
 		}
 	}
 
-	printf("\n      Passed(%f), ",max_rerr/TEST_EPSILON);
+	LogInfo("\n      Passed(%f), ",max_rerr/TEST_EPSILON);
     return 0;
 }

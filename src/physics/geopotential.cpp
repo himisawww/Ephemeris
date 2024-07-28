@@ -2,14 +2,14 @@
 #include<string>
 #include<cstdio>
 #include"utils/memio.h"
-
+#include"modules/logger.h"
 #include"geopotential.impl"
 
 const geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,int_t N_start){
     std::string linebuf;
     MFILE *fin=mopen(file);
     if(!fin){
-        fprintf(stderr,"%s : Error opening harmonics model\n",file);
+        LogError("%s : Error opening harmonics model\n",file);
         return nullptr;
     }
     int_t Nz=-1,Nt;
@@ -21,19 +21,19 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
         const char *chbuf=linebuf.c_str();
         if(Nz<0){
             if(2!=sscanf(chbuf,"%lld%lld",&Nz,&Nt)){
-                fprintf(stderr,"%s : Error reading max numbers of zonal/tesseral degrees\n",file);
+                LogError("%s : Error reading max numbers of zonal/tesseral degrees\n",file);
                 break;
             }
             if(Nt<0)Nt=0;
             if(Nz<Nt)Nz=Nt;
             if(Nz>Max_N){
-                fprintf(stderr,"%s : Geopotential degree[%lld] is too high, truncated to supported maximum[%lld].\n",
+                LogWarning("%s : Geopotential degree[%lld] is too high, truncated to supported maximum[%lld].\n",
                     file,Nz,Max_N);
                 Nz=Max_N;
                 if(Nt>Max_N)Nt=Max_N;
             }
             if(Nz<N_start){
-                fprintf(stderr,"%s : Geopotential degree[%lld] is too low. Ignored.\n",
+                LogWarning("%s : Geopotential degree[%lld] is too low. Ignored.\n",
                     file,Nz);
                 break;
             }
@@ -49,7 +49,7 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
         fast_real Cnm=0,Snm=0;
         int_t nr=sscanf(chbuf,"%lld%lld%lf%lf",&n,&m,&Cnm,&Snm);
         if(nr<3||n<2||m<0||m>n||nr==3&&m!=0||m==0&&Snm!=0){
-            fprintf(stderr,"%s : %s :\n"
+            LogError("%s : %s :\n"
                 "\tshould in format of \n"
                 "\tdegree(n>=2)  order(m==0)     Jn   [0]\n"
                 "\t\tor\n"
@@ -85,7 +85,7 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
         }
         Nzmax=std::max(Nzmax,n);
         if(isdup){
-            fprintf(stderr,"%s : %s :\n"
+            LogWarning("%s : %s :\n"
                 "Duplicated terms will be superposed. Is this intentional?\n",
                 file,chbuf);
         }
@@ -94,28 +94,28 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
     if(!ret)return nullptr;
 
     if(lskip)
-        fprintf(stderr,
+        LogWarning(
             "%s : Ignored [%lld] lines with degree < [%lld].\n"
             "\tNote: 2nd degree harmonics are handled separately in this program.\n",
             file,lskip,N_start);
     if(hskip)
-        fprintf(stderr,"%s : Ignored [%lld] lines with degree higher than maximum\n",
+        LogWarning("%s : Ignored [%lld] lines with degree higher than maximum\n",
             file,hskip);
 
     if(!Nzmax){
-        fprintf(stderr,"%s : No valid geopotential terms. Ignored.\n",file);
+        LogWarning("%s : No valid geopotential terms. Ignored.\n",file);
         free(ret);
         ret=nullptr;
     }
     else{
         if(Nzmax<Nz){
-            fprintf(stderr,
+            LogWarning(
                 "%s : Maximum degree of zonal terms less than specified [%lld < %lld].\n",
                 file,Nzmax,Nz);
             ret->Nz=Nzmax;
         }
         if(Ntmax<Nt){
-            fprintf(stderr,
+            LogWarning(
                 "%s : Maximum degree of tesseral terms less than specified [%lld < %lld].\n",
                 file,Ntmax,Nt);
             ret->Nt=Ntmax;

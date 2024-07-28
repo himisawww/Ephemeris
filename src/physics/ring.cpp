@@ -2,6 +2,7 @@
 #include<vector>
 #include<string>
 #include"utils/memio.h"
+#include"modules/logger.h"
 
 #define MAX_LINESIZE 1024
 
@@ -25,7 +26,7 @@ const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_re
     std::string linebuf;
     MFILE *fin=mopen(file);
     if(!fin){
-        fprintf(stderr,"%s : Error opening ring model\n",file);
+        LogError("%s : Error opening ring model\n",file);
         return nullptr;
     }
 
@@ -37,7 +38,7 @@ const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_re
     while((linebuf=readline(fin)).size()){
         const char *chbuf=linebuf.c_str();
         if(linebuf.size()>=MAX_LINESIZE){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Too Long: %s\n",
                 file,chbuf);
             failed=true;
@@ -51,7 +52,7 @@ const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_re
             );
 
         if(n!=5){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Length Error: %s\n",
                 file,chbuf);
             failed=true;

@@ -2,6 +2,7 @@
 #include"utils/zipio.h"
 #include"configs.h"
 #include"utils/calctime.h"
+#include"modules/logger.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -40,14 +41,14 @@ int ephemeris_generator::make_ephemeris(int dir){
                 break;
             }
         }
-        printf("Loaded %lld bodies from checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
+        LogInfo("Loaded %lld bodies from checkpoint %s\n",ms.mlist.size(),ickpt.c_str());
     }
     else if(ip){
         ms.load(ip,ickpt.c_str());
     }
 
     if(!ms.mlist.size()){
-        fprintf(stderr,
+        LogCritical(
             "Failed to Load System.\n"
             "The program will exit.\n");
         exit(-1);
@@ -72,7 +73,7 @@ int ephemeris_generator::make_ephemeris(int dir){
     }
 
     if(dt!=std::round(dt)){
-        fprintf(stderr,
+        LogError(
             "Non-integer Delta_t(%fs):\n    This may cause round-off errors on timestamps and is disallowed.\n",
             dt);
         return -3;
@@ -85,11 +86,11 @@ int ephemeris_generator::make_ephemeris(int dir){
 
     const int_t min_iunit=4096;
     if(isize<1){
-        fprintf(stderr,"Nothing to do.\n");
+        LogWarning("Nothing to do.\n");
         return 0;
     }
     if(iunit<min_iunit){
-        fprintf(stderr,
+        LogWarning(
             "Too less Data Points per File(%lld):\n    Changed to %lld.\n",
             iunit,min_iunit);
         iunit=min_iunit;
@@ -135,7 +136,7 @@ int ephemeris_generator::make_ephemeris(int dir){
                 if(++skip_count>=skip_size||i==iunit){
                     double yr=mst_eph/Constants::year;
                     double t=CalcTime();
-                    printf(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
+                    LogInfo(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
                     int_t new_skip_size=std::round(skip_size/(t-oldt));
                     if(new_skip_size<=0)new_skip_size=1;
                     if(new_skip_size>2*skip_size)new_skip_size=2*skip_size;
@@ -207,7 +208,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         {
             ozippack zp(zckpt);
             zp.swap(zms);
-            printf("\nSaving ephemeris & checkpoint %s\n",zckpt.c_str());
+            LogInfo("\nSaving ephemeris & checkpoint %s\n",zckpt.c_str());
         }
         io_mutex.unlock();
         

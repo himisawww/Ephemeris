@@ -5,6 +5,7 @@
 #include"utils/zipio.h"
 #include"tests/tests.h"
 #include"configs.h"
+#include"modules/logger.h"
 
 int de_worker(ephemeris_generator *egen,int dir){
     return egen->make_ephemeris(dir);
@@ -12,7 +13,7 @@ int de_worker(ephemeris_generator *egen,int dir){
 
 int main_fun(int argc,const char **argv){
 
-    printf("%s%s\n%s",
+    LogAnnouncement("%s%s\n%s",
         "Ephemeris Integrator ",Configs::VersionString,
         "Github: https://github.com/himisawww/Ephemeris \n\n");
 
@@ -56,7 +57,7 @@ int main_fun(int argc,const char **argv){
         return 0;
     } while(0);
 
-    printf("%s",
+    LogAnnouncement("%s",
         "command line usage:\n\n"
         "   exe_name [[ip]] [op] [[[dir]]t] \n\n"
         "   ip: full path to configuration file (initial values & parameters\n"

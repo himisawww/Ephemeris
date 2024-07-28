@@ -3,6 +3,7 @@
 #include"physics/ring.h"
 #include"utils/zipio.h"
 #include"configs.h"
+#include"modules/logger.h"
 
 #define MAX_LINESIZE 1024
 #define MAX_PATHSIZE 260
@@ -28,7 +29,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     if(!dir||!*dir)dir=default_path;
     if(!fconfig||!*fconfig)break;
     if(strlen(dir)+strlen(fconfig)+1>=MAX_PATHSIZE){
-        fprintf(stderr,"Path too long: %s\\%s\n",dir,fconfig);
+        LogError("Path too long: %s\\%s\n",dir,fconfig);
         break;
     }
 
@@ -62,7 +63,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     bool failed=false;
     MFILE *fin=mopen(fname);
     if(!fin){
-        fprintf(stderr,"File Not Exist: %s\n",fname);
+        LogError("File Not Exist: %s\n",fname);
         break;
     }
 
@@ -70,7 +71,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         std::string chbuf=readline(fin);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Too Long: %s\n",
                 fname,chbuf.c_str());
             failed=true;
@@ -79,7 +80,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
 
         int n=sscanf(chbuf.c_str(),"%s%s",sname,sval);
         if(n!=2){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Length Error: %s\n",
                 fname,chbuf.c_str());
             failed=true;
@@ -88,7 +89,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
 
         auto it=config.find(sname);
         if(it==config.end()){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Unknown Parameter: %s\n",
                 fname,sname);
             failed=true;
@@ -96,7 +97,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         }
 
         if(it->second.size()){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Duplicate Parameter: %s\n",
                 fname,sname);
             failed=true;
@@ -115,7 +116,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         &ringpath   =config["Rings"];
 
     if(!fbase.size()){
-        fprintf(stderr,
+        LogError(
             "Loading %s\n Missing Parameter: Initial\n",
             fname);
         break;
@@ -139,20 +140,20 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
             if(0==strcmp(pval,integrators_list[i]))integrator=i;
         }
         if(integrator<0){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Invalid Integrator: %s\n",
                 fname,pval);
             break;
         }
     }
-    else fprintf(stderr,
+    else LogWarning(
         "Warning: Using Default Integrator: %s\n",
         integrators_list[integrator]);
 
 #define LOAD_CONFIG(NAME,PARAM) do{                \
     pval=config[NAME].c_str();                     \
     if(*pval)PARAM=atof(pval);                     \
-    else fprintf(stderr,                           \
+    else LogWarning(                               \
         "Warning: Using Default " NAME ": %e\n",   \
         double(PARAM));                     }while(0)
 
@@ -175,15 +176,15 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
 
     //check config
     if(!sanity(delta_t)||!sanity(data_cadence)||!sanity(max_ephm_length)||!sanity(combined_delta_t)){
-        fprintf(stderr,"Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
+        LogError("Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
         break;
     }
 
-    printf("Loaded %lld bodies from initial %s.\n",mlist.size(),sip.c_str());
+    LogInfo("Loaded %lld bodies from initial %s.\n",mlist.size(),sip.c_str());
     if(fcheckpoint&&*fcheckpoint){
         ozippack zp(fcheckpoint);
         if(!zp){
-            fprintf(stderr,"Cannot open output file. Is its directory exist?\n");
+            LogError("Cannot open output file. Is its directory exist?\n");
             break;
         }
         zp.resize(1);
@@ -219,7 +220,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
                     MFILE(dirstr+ringpath+"\\"+(const char *)&m.sid+".txt"));
             }
         }
-        printf("Saving checkpoint %s\n",fcheckpoint);
+        LogInfo("Saving checkpoint %s\n",fcheckpoint);
     }
     success=true;
   }while(0);
@@ -268,18 +269,18 @@ bool msystem::load(
     if(!gppath||!*gppath)gppath=default_path;
     if(!ringpath||!*ringpath)ringpath=default_path;
     if(strlen(gppath)>MAX_PATHSIZE){
-        fprintf(stderr,"Geopotentials Path too long: %s\n",gppath);
+        LogError("Geopotentials Path too long: %s\n",gppath);
         return false;
     }
     if(strlen(ringpath)>MAX_PATHSIZE){
-        fprintf(stderr,"Rings Path too long: %s\n",ringpath);
+        LogError("Rings Path too long: %s\n",ringpath);
         return false;
     }
 
     bool failed=false;
     MFILE *fin=mopen(fbase);
     if(!fin){
-        fprintf(stderr,"File Not Exist: %s\n",fbase);
+        LogError("File Not Exist: %s\n",fbase);
         return false;
     }
     char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
@@ -287,7 +288,7 @@ bool msystem::load(
         std::string chbuf=readline(fin);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Too Long: %s\n",
                 fbase,chbuf.c_str());
             failed=true;
@@ -315,7 +316,7 @@ bool msystem::load(
             &x.x,&x.y,&x.z,&z.x,&z.y,&z.z,&w.x,&w.y,&w.z
         );
         if(!(n==35||n==26)){
-            fprintf(stderr,
+            LogError(
                 "Loading %s\n Line Length Error: %s\n",
                 fbase,chbuf.c_str());
             failed=true;
@@ -325,7 +326,7 @@ bool msystem::load(
         m.sid=0;
         size_t sidlen=strlen(sid);
         if(sidlen>=8){
-            fprintf(stderr,"Loading %s\n sid Too Long: len(%s) >= 8\n",
+            LogError("Loading %s\n sid Too Long: len(%s) >= 8\n",
                 fbase,sid);
             failed=true;
             break;
@@ -333,7 +334,7 @@ bool msystem::load(
         memcpy(&m.sid,sid,sidlen);
 
         if(!midx.insert({m.sid,mlist.size()}).second){
-            fprintf(stderr,"Loading %s\n Duplicate sid: %s\n",
+            LogError("Loading %s\n Duplicate sid: %s\n",
                 fbase,sid);
             failed=true;
             break;
@@ -413,14 +414,14 @@ bool msystem::load(
     if(fext){
         MFILE *finex=mopen(fext);
         if(!finex){
-            fprintf(stderr,"File Not Exist: %s\n",fext);
+            LogError("File Not Exist: %s\n",fext);
             return false;
         }
         while(1){
             std::string chbuf=readline(finex);
             if(chbuf.size()==0)break;
             if(chbuf.size()>=MAX_LINESIZE){
-                fprintf(stderr,
+                LogError(
                     "Loading %s\n Line Too Long: %s\n",
                     fext,chbuf.c_str());
                 failed=true;
@@ -433,7 +434,7 @@ bool msystem::load(
             );
 
             if(n!=3){
-                fprintf(stderr,
+                LogError(
                     "Loading %s\n Line Length Error: %s\n",
                     fext,chbuf.c_str());
                 failed=true;
@@ -442,7 +443,7 @@ bool msystem::load(
 
             int_t mid=get_mid(sid);
             if(mid<0){
-                fprintf(stderr,
+                LogWarning(
                     "Loading %s\n Ignorning %s of None-Existing sid %s\n",
                     fext,sname,sid);
                 continue;
@@ -461,7 +462,7 @@ bool msystem::load(
                 m.dJ2=param;
             }
             else {
-                fprintf(stderr,
+                LogError(
                     "Loading %s\n Unknown Parameter: %s\n",
                     fext,sname);
                 failed=true;
@@ -531,7 +532,7 @@ bool msystem::load_checkpoint(MFILE *fin){
         }
         if(h.version!=Version_Number
          ||h.masssize!=masssize){
-            fprintf(stderr,
+            LogError(
                 "Error: The version of checkpoint file is inconsistent with the program.\n"
                 "Please use the same version as produced this checkpoint to continue.\n");
             failed=true;
@@ -765,6 +766,7 @@ const mass &msystem::operator [](const char *ssid) const{
 }
 
 void msystem::copy_params(const msystem &other){
+    if(this==&other)return;
 #define copy_member(_m) _m=other._m
     copy_member(t_eph);
     copy_member(delta_t);
@@ -778,6 +780,7 @@ void msystem::copy_params(const msystem &other){
     copy_member(Period_max_child);
 }
 msystem &msystem::operator =(const msystem &other){
+    if(this==&other)return *this;
     copy_params(other);
     clear();
     copy_member(tidal_parent);
@@ -811,9 +814,18 @@ void msystem::scale(int_t mid,fast_real factor){
     mlist[mid].scale(factor);
 }
 void msystem::scale_geopotential(int_t mid,fast_real factor){
-    auto &pmodel=mlist[mid].gpmodel;
+    mass &mi=mlist[mid];
+    auto &pmodel=mi.gpmodel;
     if(pmodel)
         gp_components.push_back(pmodel=geopotential::copy(pmodel,factor));
+    mi.C_potential*=factor;
+    mi.C_static*=factor;
+    mi.k2*=factor;
+    mi.k2r*=factor;
+    mi.exJ2*=factor;
+    mi.dJ2*=factor;
+    mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+    mi.GL=mi.GI%mi.w;
 }
 void msystem::scale_ring(int_t mid,fast_real factor){
     auto &pmodel=mlist[mid].ringmodel;

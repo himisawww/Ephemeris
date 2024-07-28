@@ -1,6 +1,7 @@
 #include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
+#include"modules/logger.h"
 #include<map>
 #include<thread>
 #include<random>
@@ -498,7 +499,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
     }
 
     if(analyse()){
-        fprintf(stderr,
+        LogInfo(
             "\nInfo: At Ephemeris Time: %lld s\n"
             "   System orbital structure is updated by combined_integrator.\n",
             int_t(t_eph.hi)+int_t(t_eph.lo));

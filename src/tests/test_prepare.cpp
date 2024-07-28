@@ -2,6 +2,7 @@
 #include"utils/memio.h"
 #include"tests/tests.h"
 #include"../resource.h"
+#include"modules/logger.h"
 #define NOMINMAX
 #include<Windows.h>
 
@@ -62,6 +63,6 @@ int test_prepare(){
     if(!success)
         return 1;
     
-    printf("      Passed, ");
+    LogInfo("      Passed, ");
     return 0;
 }

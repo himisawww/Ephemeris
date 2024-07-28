@@ -2,6 +2,7 @@
 #include"tests/tests.h"
 #include"math/random.h"
 #include"utils/calctime.h"
+#include"modules/logger.h"
 
 struct test_t{
     int (*test)();
@@ -11,7 +12,7 @@ struct test_t{
 
 int test_all(uint64_t seed){
     std::vector<test_t> tests;
-    printf("Starting tests...");
+    LogInfo("Starting tests...");
 #define DECLARE_TEST(T,S,L) \
 int T();                    \
 tests.push_back({T,S,L})
@@ -22,7 +23,7 @@ tests.push_back({T,S,L})
     DECLARE_TEST(test_prepare,      "Preparing",
         "Preparing resources (initials and params of celestial bodies)\n"
         "   for testing procedures.\n"
-        );
+    );
     DECLARE_TEST(test_geopotential, "Geopotential",
         "Make sure the implementation of geopotential model is correct\n"
         "   by direct comparing to (Associated-) Legendre Polynomials.\n"
@@ -31,6 +32,9 @@ tests.push_back({T,S,L})
         "Test convertion between state vectors and orbital keplerian\n"
         "   parameters.\n"
     );
+    DECLARE_TEST(test_order,        "IntegratorOrder",
+        "Test order of RungeKutta-12 integrator.\n"
+    );
     DECLARE_TEST(test_conservation, "Conservation",
         "Test conservation of momentum and angular momentum.\n"
     );
@@ -38,11 +42,11 @@ tests.push_back({T,S,L})
     int_t N=tests.size();
     for(int_t i=0;i<N;++i){
         test_t &t=tests[i];
-        printf("\n[%lld/%lld] Testing %s...",i+1,N,t.description);
+        LogInfo("\n[%lld/%lld] Testing %s...",i+1,N,t.description);
         double start_time=CalcTime();
         int result=t.test();
         if(result){
-            fprintf(stderr,
+            LogError(
                 "\n"
                 "\n***********************   Test Failed!   ***********************\n"
                 "\n   TEST NAME: %s"
@@ -56,8 +60,8 @@ tests.push_back({T,S,L})
             return result;
         }
         else
-            printf("Done in %fs",CalcTime()-start_time);
+            LogInfo("Done in %fs",CalcTime()-start_time);
     }
-    printf("\nAll Tests Passed.\n");
+    LogInfo("\nAll Tests Passed.\n");
     return 0;
 }

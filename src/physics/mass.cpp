@@ -2,6 +2,7 @@
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"physics/mass.impl"
+#include"modules/logger.h"
 
 void mass::scale(fast_real factor){
 
@@ -192,7 +193,7 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
     for(auto &m:mlist){
         m.min_distance=1/m.min_distance;
         if(m.R>m.min_distance){
-            fprintf(stderr,
+            LogError(
                 "\n\n************************************************************************\n"
                 "Catastrophy: At Ephemeris Time: %lld s\n"
                 "   Collision of Celestial Bodies Detected !!!\n"
@@ -204,7 +205,7 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
                int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,m.min_distance,m.R);
         }
         if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
-            fprintf(stderr,
+            LogWarning(
                 "\n\n************************************************************************\n"
                 "Warning: At Ephemeris Time: %lld s\n"
                 "   Time step is too large for accurate integration of <%s>.\n"

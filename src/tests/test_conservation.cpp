@@ -1,6 +1,7 @@
 #include"tests/tests.h"
 #include"physics/ring.h"
 #include"physics/geopotential.h"
+#include"modules/logger.h"
 
 #define TEST_EPSILON_CONSERVATION       1e-12
 #define TEST_EPSILON_RING_CORRECTION    1e-8
@@ -94,7 +95,7 @@ int test_conservation(){
         difference.translational.norm()/max_momentum.translational.norm(),
         difference.angular.norm()/max_momentum.angular.norm());
     if(!(max_conserv_err<TEST_EPSILON_CONSERVATION)){
-        fprintf(stderr,
+        LogError(
             "\nMax Relative Difference of Momentum %.16le Too Large",
             max_conserv_err);
         return 2;
@@ -104,12 +105,12 @@ int test_conservation(){
         difference.translational_noring.norm()/max_momentum.translational.norm(),
         difference.angular_noring.norm()/max_momentum.angular.norm());
     if(!(max_conserv_err_ring_factor<TEST_EPSILON_RING_CORRECTION)){
-        fprintf(stderr,
+        LogError(
             "\nMax Ring Correction Factor %.16le Too Large",
             max_conserv_err_ring_factor);
         return 3;
     }
 
-    printf("\n      Passed(%f), ",max_conserv_err/TEST_EPSILON_CONSERVATION);
+    LogInfo("\n      Passed(%f), ",max_conserv_err/TEST_EPSILON_CONSERVATION);
     return 0;
 }

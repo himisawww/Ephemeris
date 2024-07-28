@@ -119,7 +119,7 @@ public:
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     static void deform_all(std::vector<mass> &mlist);
-    //resize the mass by a factor
+    //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
 };

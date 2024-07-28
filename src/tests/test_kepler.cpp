@@ -1,8 +1,9 @@
+#include<cstdio>
+#include<algorithm>
 #include"math/Keplerians.h"
 #include"math/random.h"
 #include"utils/calctime.h"
-#include<cstdio>
-#include<algorithm>
+#include"modules/logger.h"
 
 static double max_relative_error=0;
 // max allowed relative error
@@ -56,12 +57,12 @@ int test_kepler(){
     }
 
     if(!(max_relative_error<TEST_EPSILON)){
-        fprintf(stderr,
+        LogError(
             "\nMax Rel. Error %.16le Too Large",
             max_relative_error);
         return 1;
     }
 
-    printf("\n      Passed(%f), ",max_relative_error/TEST_EPSILON);
+    LogInfo("\n      Passed(%f), ",max_relative_error/TEST_EPSILON);
     return 0;
 }

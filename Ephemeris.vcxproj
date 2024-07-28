@@ -171,6 +171,7 @@
     <ClCompile Include="src\math\Keplerians.cpp" />
     <ClCompile Include="src\math\random.cpp" />
     <ClCompile Include="src\modules\ephemeris_generator.cpp" />
+    <ClCompile Include="src\modules\logger.cpp" />
     <ClCompile Include="src\modules\mass_loader.cpp" />
     <ClCompile Include="src\physics\barycen_analyzer.cpp" />
     <ClCompile Include="src\physics\geopotential.cpp" />
@@ -178,6 +179,7 @@
     <ClCompile Include="src\physics\ring.cpp" />
     <ClCompile Include="src\Tests\tests.cpp" />
     <ClCompile Include="src\tests\test_conservation.cpp" />
+    <ClCompile Include="src\tests\test_order.cpp" />
     <ClCompile Include="src\tests\test_kepler.cpp" />
     <ClCompile Include="src\tests\test_prepare.cpp" />
     <ClCompile Include="src\Tests\test_geopotential.cpp" />
@@ -204,6 +206,7 @@
     <ClInclude Include="src\math\random.h" />
     <ClInclude Include="src\math\vec_t.h" />
     <ClInclude Include="src\modules\ephemeris_generator.h" />
+    <ClInclude Include="src\modules\logger.h" />
     <ClInclude Include="src\physics\mass.h" />
     <ClInclude Include="src\physics\geopotential.h" />
     <ClInclude Include="src\physics\mass.impl" />
