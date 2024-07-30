@@ -1,8 +1,9 @@
 #pragma once
 #include<cstdint>
+#include<cstdarg>
+#include<cstdio>
 #include<string>
 #include<vector>
-#include<cstdio>
 
 /* usage:
     
@@ -33,6 +34,8 @@ MFILE *mopen(const std::string &_fname,MFILE_STATE _state=MFILE_STATE::READ_FILE
 
 size_t fread(void *buffer,size_t e_size,size_t e_count,MFILE *mem);
 size_t fwrite(const void *buffer,size_t e_size,size_t e_count,MFILE *mem);
+std::string vstrprintf(const char *format,va_list _arg_list);
+std::string strprintf(const char *format,...);
 int fprintf(MFILE *mem,const char *format,...);
 int fseek(MFILE *_Stream,int64_t _Offset,int _Origin);
 int64_t ftell(MFILE *_Stream);

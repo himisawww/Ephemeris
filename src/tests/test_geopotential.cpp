@@ -2,7 +2,7 @@
 #include"utils/memio.h"
 #include"physics/geopotential.h"
 #include"utils/calctime.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 #define TEST_MEMPATH "__gptest.gp"
 

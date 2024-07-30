@@ -1,7 +1,7 @@
 #include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 #include<map>
 #include<thread>
 #include<random>

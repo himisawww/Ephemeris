@@ -2,7 +2,7 @@
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"physics/mass.impl"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 void mass::scale(fast_real factor){
 

@@ -184,7 +184,7 @@ template<typename T>
 class mat_t{
 public:
     vec_t<T> x,y,z;
-    INLINE mat_t():x(1,0,0),y(0,1,0),z(0,0,1){}
+    INLINE mat_t(){}
     INLINE mat_t(const T &a):x(a,0,0),y(0,a,0),z(0,0,a){}
     INLINE mat_t(const vec_t<T> &a,const vec_t<T> &b):x(a*b.x),y(a*b.y),z(a*b.z){}
     INLINE mat_t(const vec_t<T> &x0,const vec_t<T> &y0,const vec_t<T> &z0):x(x0),y(y0),z(z0){}

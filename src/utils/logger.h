@@ -1,4 +1,4 @@
-#include"utils/memio.h"
+#include"memio.h"
 
 //like enum class, but can be used as uint8_t without static_cast
 class LogTo{
@@ -54,7 +54,7 @@ public:
     //return old levels for restore_log_levels
     LogLevelSettings restore_log_levels(LogLevelSettings _all_levels);
 
-    int logformat(LogLevel lv,const char *format,...);
+    size_t logformat(LogLevel lv,const char *format,...);
 };
 
 extern Logger global_logger;

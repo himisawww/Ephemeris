@@ -2,7 +2,7 @@
 #include"utils/zipio.h"
 #include"configs.h"
 #include"utils/calctime.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -23,10 +23,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         std::string zckpt;
 
         do{
-            zckpt.resize(sop.size()+30);
-            zckpt.resize(
-                sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
-            );
+            zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
             if(!file_exist(zckpt))break;
             ickpt.swap(zckpt);
             ++cur_index;
@@ -198,10 +195,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         //save .zip
         std::string zckpt;
-        zckpt.resize(sop.size()+30);
-        zckpt.resize(
-            sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak)
-        );
+        zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
 
         io_mutex.lock();

@@ -1,5 +1,4 @@
 #include"memio.h"
-#include<cstdarg>
 #include<map>
 #include"wcs_convert.h"
 
@@ -309,11 +308,36 @@ std::string readline(MFILE *mem){
     return mem->readline();
 }
 int fprintf(MFILE *mem,const char *format,...){
-    const int max_size=4096;
-    char buffer[max_size];
     va_list args;
     va_start(args,format);
-    int ret=vsnprintf(buffer,max_size,format,args);
+    std::string result=vstrprintf(format,args);
     va_end(args);
-    return fwrite(buffer,1,ret,mem);
+    return fwrite(result.data(),1,result.size(),mem);
+}
+std::string vstrprintf(const char *format,va_list _arg_list){
+    char buffer[4096];
+    size_t max_size=sizeof(buffer);
+    va_list vcopy;
+    va_copy(vcopy,_arg_list);
+    int ret=vsnprintf(buffer,max_size,format,_arg_list);
+    std::string result;
+    if(ret>=0){
+        size_t req_size=size_t(ret)+1;
+        if(req_size>max_size){
+            result.resize(req_size);
+            int ret2=vsnprintf(result.data(),req_size,format,vcopy);
+            if(ret2!=ret)result.clear();
+            result.resize(ret);
+        }
+        else result=buffer;
+    }
+    va_end(vcopy);
+    return result;
+}
+std::string strprintf(const char *format,...){
+    va_list args;
+    va_start(args,format);
+    std::string result=vstrprintf(format,args);
+    va_end(args);
+    return result;
 }

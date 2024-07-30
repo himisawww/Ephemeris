@@ -5,7 +5,7 @@
 #include"utils/zipio.h"
 #include"tests/tests.h"
 #include"configs.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 int de_worker(ephemeris_generator *egen,int dir){
     return egen->make_ephemeris(dir);
@@ -89,10 +89,7 @@ int convert_format(const char *path){
         size_t cur_index=1;
         MFILE *fout=mopen(sop+"."+fwdbak,MFILE_STATE::WRITE_FILE);
         do{
-            zckpt.resize(sop.size()+30);
-            zckpt.resize(
-                sprintf(zckpt.data(),"%s.%llu.%s.zip",sop.data(),cur_index,fwdbak)
-            );
+            zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
             if(!file_exist(zckpt))break;
 
             izippack zp(zckpt);

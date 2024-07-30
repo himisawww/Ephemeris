@@ -2,7 +2,7 @@
 #include"utils/memio.h"
 #include"tests/tests.h"
 #include"../resource.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 #define NOMINMAX
 #include<Windows.h>
 

@@ -105,8 +105,8 @@
     <ClCompile Include="src\tests\test_order.cpp">
       <Filter>tests</Filter>
     </ClCompile>
-    <ClCompile Include="src\modules\logger.cpp">
-      <Filter>modules</Filter>
+    <ClCompile Include="src\utils\logger.cpp">
+      <Filter>utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -178,8 +178,8 @@
     <ClInclude Include="src\modules\ephemeris_generator.h">
       <Filter>modules</Filter>
     </ClInclude>
-    <ClInclude Include="src\modules\logger.h">
-      <Filter>modules</Filter>
+    <ClInclude Include="src\utils\logger.h">
+      <Filter>utils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,7 @@
 #include"tests/tests.h"
 #include"physics/ring.h"
 #include"physics/geopotential.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 #define TEST_EPSILON_CONSERVATION       1e-12
 #define TEST_EPSILON_RING_CORRECTION    1e-8

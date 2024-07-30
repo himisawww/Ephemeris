@@ -2,7 +2,7 @@
 #include<string>
 #include<cstdio>
 #include"utils/memio.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 #include"geopotential.impl"
 
 const geopotential *geopotential::load(const char *file,fast_real ref_radius_factor,int_t N_start){

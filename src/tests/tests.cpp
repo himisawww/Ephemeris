@@ -2,7 +2,7 @@
 #include"tests/tests.h"
 #include"math/random.h"
 #include"utils/calctime.h"
-#include"modules/logger.h"
+#include"utils/logger.h"
 
 struct test_t{
     int (*test)();
