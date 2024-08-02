@@ -108,6 +108,9 @@
     <ClCompile Include="src\utils\logger.cpp">
       <Filter>utils</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\test_integrator.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

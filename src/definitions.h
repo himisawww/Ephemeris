@@ -49,3 +49,25 @@ constexpr double G      = 6.67430E-11;
 constexpr double year   = 365.25*86400;
 
 }
+
+// return nan if one of parameters is nan
+template<typename T>
+const T &checked_max(const T &a,const T &b){
+    if(b!=b)return b;
+    if(a!=a)return a;
+    return (a<b?b:a);
+}
+template<typename T>
+const T &checked_min(const T &a,const T &b){
+    if(b!=b)return b;
+    if(a!=a)return a;
+    return (b<a?b:a);
+}
+template<typename T>
+void checked_maximize(T &a,const T &b){
+    a=(b<a?a:b);
+}
+template<typename T>
+void checked_minimize(T &a,const T &b){
+    a=(a<b?a:b);
+}

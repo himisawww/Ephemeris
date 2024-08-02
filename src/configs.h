@@ -1,5 +1,9 @@
+#include"definitions.h"
 
 namespace Configs{
+
+extern const int_t CheckPointMagic;
+extern const int_t CheckPointVersion;
 
 extern const int ExportHeaderCount;
 extern const char *SaveNameCheckpoint;

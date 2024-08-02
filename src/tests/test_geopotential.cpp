@@ -114,10 +114,10 @@ int test_geopotential(){
 				r*=rn;
 				fast_mpvec gtest=gp->sum(REFERENCE_RADIUS,r);
 				fast_mpvec gref=gpref.sum(REFERENCE_RADIUS*REFERENCE_RADIUS_FACTOR,r);
-				max_norm=std::max(max_norm,gtest.norm());
-				max_diff=std::max(max_diff,(gtest-gref).norm());
+				checked_maximize(max_norm,gtest.norm());
+				checked_maximize(max_diff,(gtest-gref).norm());
 			}
-			max_rerr=std::max(max_rerr,max_diff/max_norm);
+			checked_maximize(max_rerr,max_diff/max_norm);
 		}
 		geopotential::unload(gp);
 

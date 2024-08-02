@@ -502,7 +502,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         LogInfo(
             "\nInfo: At Ephemeris Time: %lld s\n"
             "   System orbital structure is updated by combined_integrator.\n",
-            int_t(t_eph.hi)+int_t(t_eph.lo));
+            ephemeris_time());
     }
 
     return;

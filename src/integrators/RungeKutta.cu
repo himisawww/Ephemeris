@@ -15,7 +15,8 @@
 #define CUDA_CORES 1920
 #define MAXBLOCKS (1920/32)
 
-#define cuda_max(a,b) ((a)>(b)?(a):(b))
+#define cuda_max(a,b) ((a)<(b)?(b):(a))
+#define cuda_maximize(a,b) (a)=cuda_max(b,a)
 
 std::mutex cuda_mutex;
 
@@ -221,8 +222,8 @@ void __device__ accel_1(){//accel
                 if(j<dkf.nmass&&i!=j){
                     mass &mj=dkf.dmlist[j];
                     RELATIVITY(tpmi[0]);
-                    tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,rr);
-                    tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tp_dg);
+                    cuda_maximize(tpmi[0].min_distance,rr);
+                    cuda_maximize(tpmi[0].max_influence,tp_dg);
                     //to avoid reduce cross thread block, re-calculate daccel instead of using anti-force
                     ROTATIONAL_TIDAL_DEFORMATION_NANTI_FORCE(tpmi[0]);
                     LENSE_THIRRING(tpmi[0]);
@@ -238,8 +239,8 @@ void __device__ accel_1(){//accel
                     tpmi[0].gaccel+=tpmi[wing].gaccel;
                     tpmi[0].daccel+=tpmi[wing].daccel;
                     tpmi[0].dtorque+=tpmi[wing].dtorque;
-                    tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,tpmi[wing].min_distance);
-                    tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tpmi[wing].max_influence);
+                    cuda_maximize(tpmi[0].min_distance,tpmi[wing].min_distance);
+                    cuda_maximize(tpmi[0].max_influence,tpmi[wing].max_influence);
                 }
             }
             __syncthreads();
@@ -247,10 +248,10 @@ void __device__ accel_1(){//accel
                 mi.gaccel=tpmi[0].gaccel+tpmi[1].gaccel;
                 mi.daccel=tpmi[0].daccel+tpmi[1].daccel;
                 mi.dtorque=tpmi[0].dtorque+tpmi[1].dtorque;
-                tpmi[0].min_distance=cuda_max(tpmi[0].min_distance,tpmi[1].min_distance);
-                mi.min_distance=cuda_max(mi.min_distance,tpmi[0].min_distance);
-                tpmi[0].max_influence=cuda_max(tpmi[0].max_influence,tpmi[1].max_influence);
-                mi.max_influence=cuda_max(mi.max_influence,tpmi[0].max_influence);
+                cuda_maximize(tpmi[0].min_distance,tpmi[1].min_distance);
+                cuda_maximize(mi.min_distance,tpmi[0].min_distance);
+                cuda_maximize(tpmi[0].max_influence,tpmi[1].max_influence);
+                cuda_maximize(mi.max_influence,tpmi[0].max_influence);
             }
             __syncthreads();
         }
@@ -407,7 +408,7 @@ void msystem::Cuda_accel(){
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
     //Cuda_Kernel<<<kf.nblocks,kf.nthreads>>>();
     cudaLaunchCooperativeKernel(
-        (void*)Cuda_RungeKutta_Kernel,
+        (void*)Cuda_accel_Kernel,
         dim3(kf.nblocks),
         dim3(kf.nthreads),
         nullptr,

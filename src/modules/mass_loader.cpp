@@ -174,9 +174,14 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     if(!mlist.size())
         break;
 
+    if(int_t(t_eph.hi)!=t_eph.hi||t_eph.lo!=0){
+        LogError("TDB (Initial Ephemeris Time, seconds) should be an integer.");
+        break;
+    }
+
     //check config
     if(!sanity(delta_t)||!sanity(data_cadence)||!sanity(max_ephm_length)||!sanity(combined_delta_t)){
-        LogError("Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finity positive real numbers.\n");
+        LogError("Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finite positive real numbers.\n");
         break;
     }
 
@@ -493,10 +498,8 @@ bool msystem::load(
     return true;
 }
 
-static const int_t CheckPoint_Magic=0x53484c486d687045;
-static const int_t Version_Number=2;
-//contents in mass is irrelevant after this parameter
-#define Mass_Auxiliary_Head Erot
+using Configs::CheckPointMagic;
+using Configs::CheckPointVersion;
 
 struct fcp_header{
     int_t magic;//0x53484c486d687045
@@ -519,18 +522,18 @@ bool msystem::load_checkpoint(MFILE *fin){
     clear();
     
     mass mwrite;
-    const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
+    const size_t masssize=(char*)&(mwrite.*mass_temporary_variables)-(char*)&mwrite;
 
     fcp_header h;
 
     bool failed=false;
     do{
         if(1!=fread(&h,sizeof(h),1,fin)
-         ||h.magic!=CheckPoint_Magic){
+         ||h.magic!=CheckPointMagic){
             failed=true;
             break;
         }
-        if(h.version!=Version_Number
+        if(h.version!=CheckPointVersion
          ||h.masssize!=masssize){
             LogError(
                 "Error: The version of checkpoint file is inconsistent with the program.\n"
@@ -615,11 +618,11 @@ bool msystem::load_checkpoint(MFILE *fin){
 bool msystem::save_checkpoint(MFILE *fout) const{
 
     mass mwrite;
-    const size_t masssize=(char*)&mwrite.Mass_Auxiliary_Head-(char*)&mwrite;
+    const size_t masssize=(char*)&(mwrite.*mass_temporary_variables)-(char*)&mwrite;
     
     fcp_header h;
-    h.magic=CheckPoint_Magic;
-    h.version=Version_Number;
+    h.magic=CheckPointMagic;
+    h.version=CheckPointVersion;
     h.t_eph=t_eph;
     h.delta_t=delta_t;
     h.integrator=integrator;

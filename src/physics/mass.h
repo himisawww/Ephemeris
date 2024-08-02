@@ -115,14 +115,14 @@ public:
 
     //calculate deformation matrix(C_potential) and inertia matrix(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
-    void deform_this(const std::vector<mass> &mlist);
-    //calculate deformation matrices(C_potential) and inertia matrices(GI)
-    //calculate Newtonian acceleration(naccel) & potential(phi)
-    static void deform_all(std::vector<mass> &mlist);
+    void deform_by(const std::vector<mass> &mlist);
     //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
 };
+
+constexpr auto mass_auxiliary_variables=&mass::phi;
+constexpr auto mass_temporary_variables=&mass::Erot;
 
 //short mass used in Runge-Kutta-integrators
 struct mass_state{
@@ -225,6 +225,8 @@ public:
     void accel();
     //same as accel, use GPU
     void Cuda_accel();
+    //reset all the parameters calculated by accel() to a initial state
+    void clear_accel();
 
     //integrate ephemerides
     //USE_GPU:   0: CPU Runge Kutta 12
@@ -280,4 +282,7 @@ public:
     void scale(int_t mid,fast_real factor);
     void scale_geopotential(int_t mid,fast_real factor);
     void scale_ring(int_t mid,fast_real factor);
+
+    // t_eph should always be integers
+    int_t ephemeris_time() const;
 };

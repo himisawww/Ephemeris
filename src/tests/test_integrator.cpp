@@ -1,0 +1,96 @@
+#include"tests/tests.h"
+#include"utils/logger.h"
+#include"utils/calctime.h"
+
+#define TEST_DELTA_T        300
+#define TEST_COMBINED_T     28800
+#define TEST_TOTAL_T        86400
+
+typedef fast_real msystem_err_t[5];
+
+static constexpr msystem_err_t
+    ref_cgpu_err     ={ 1e-6,   1e-8,   1e-16,  1e-13,  1e-14   },
+    ref_combined_err ={ 1e-5,   1e-8,   1e-11,  1e-07,  1e-07   },
+    ref_cutoff_err   ={ 1e-3,   1e-7,   1e-12,  1e-07,  1e-07   };
+
+static fast_real msystem_compare(const msystem_err_t &ref_err,const msystem &ms1,const msystem &ms2){
+    msystem_err_t merr={0};
+    const size_t msize=ms1.size();
+    if(msize!=ms2.size()||ms1.ephemeris_time()!=ms2.ephemeris_time())
+        return NAN;
+    for(size_t i=0;i<msize;++i){
+        const mass &m1=ms1[i];
+        const mass &m2=ms2[i];
+        checked_maximize(merr[0],fast_mpvec(m1.r-m2.r).norm());
+        checked_maximize(merr[1],fast_mpvec(m1.v-m2.v).norm());
+        checked_maximize(merr[2],fast_mpvec(m1.w-m2.w).norm());
+        checked_maximize(merr[3],fast_mpvec(m1.s.x-m2.s.x).norm());
+        checked_maximize(merr[4],fast_mpvec(m1.s.z-m2.s.z).norm());
+    }
+    const fast_real errfactor=TEST_TOTAL_T/ms1.ephemeris_time();
+    fast_real ret=0;
+    for(int i=0;i<5;++i)
+        checked_maximize(ret,merr[i]*errfactor/ref_err[i]);
+    return ret;
+}
+
+int test_integrator(){
+    msystem mcombine=get_test_msystem();
+    const size_t n_mass=mcombine.size();
+    msystem mhalfdt=mcombine;
+    msystem mcpu=mcombine;
+    mcpu.clear_accel();
+    mcpu.accel();
+    msystem mgpu=mcombine;
+    mgpu.clear_accel();
+    mgpu.Cuda_accel();
+
+    double scpu=CalcTime();
+    mcpu.integrate(TEST_DELTA_T,1,0);
+    double sgpu=CalcTime();
+    scpu=sgpu-scpu;
+    mgpu.integrate(TEST_DELTA_T,1,1);
+    sgpu=CalcTime()-sgpu;
+
+    //compare cpu and gpu
+    fast_real max_err=msystem_compare(ref_cgpu_err,mcpu,mgpu);
+    if(!(max_err<1)){
+        LogError(
+            "\nMax Reduced Difference between CPU & GPU Integrator %.16le Too Large",
+            max_err);
+        return 1;
+    }
+
+    double sgpu2=CalcTime();
+    mgpu.integrate(TEST_DELTA_T,(TEST_COMBINED_T/TEST_DELTA_T)-1,1);
+    double scombined=CalcTime();
+    sgpu2=sgpu+scombined-sgpu2;
+    mcombine.combined_integrate(TEST_DELTA_T,TEST_COMBINED_T/TEST_DELTA_T,1);
+    scombined=CalcTime()-scombined;
+
+    //compare gpu and combined
+    checked_maximize(max_err,msystem_compare(ref_combined_err,mgpu,mcombine));
+    if(!(max_err<1)){
+        LogError(
+            "\nMax Reduced Difference between C/GPU & Combined Integrator %.16le Too Large",
+            max_err);
+        return 2;
+    }
+
+    mcombine.combined_integrate(TEST_DELTA_T,TEST_COMBINED_T/TEST_DELTA_T,TEST_TOTAL_T/TEST_COMBINED_T-1);
+    mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T);
+
+    //compare combined and halfdt
+    checked_maximize(max_err,msystem_compare(ref_cutoff_err,mcombine,mhalfdt));
+    if(!(max_err<1)){
+        LogError(
+            "\nMax Cutoff Error of Combined Integrator %.16le Too Large",
+            max_err);
+        return 3;
+    }
+
+    sgpu=scpu/sgpu;
+    scombined=sgpu2/scombined;
+    LogInfo("\n      Passed(%f)[%.2f * %.2f = %.2f], ",max_err,sgpu,scombined,sgpu*scombined);
+    return 0;
+}

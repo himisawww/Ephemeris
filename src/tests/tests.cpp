@@ -32,6 +32,9 @@ tests.push_back({T,S,L})
         "Test convertion between state vectors and orbital keplerian\n"
         "   parameters.\n"
     );
+    DECLARE_TEST(test_integrator,   "Integrator",
+        "Test consistency and convergency of integrators.\n"
+    );
     DECLARE_TEST(test_order,        "IntegratorOrder",
         "Test order of RungeKutta-12 integrator.\n"
     );

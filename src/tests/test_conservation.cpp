@@ -37,11 +37,11 @@ int test_conservation(){
         }
         void maximize(const momentum &other){
             for(int_t i=0;i<12;++i)
-                data[i]=std::max(data[i],other.data[i]);
+                checked_maximize(data[i],other.data[i]);
         }
         void minimize(const momentum &other){
             for(int_t i=0;i<12;++i)
-                data[i]=std::min(data[i],other.data[i]);
+                checked_minimize(data[i],other.data[i]);
         }
     };
 
@@ -91,7 +91,7 @@ int test_conservation(){
     momentum difference;
     for(int_t i=0;i<12;++i)
         difference.data[i]=max_momentum.data[i]-min_momentum.data[i];
-    fast_real max_conserv_err=std::max(
+    fast_real max_conserv_err=checked_max(
         difference.translational.norm()/max_momentum.translational.norm(),
         difference.angular.norm()/max_momentum.angular.norm());
     if(!(max_conserv_err<TEST_EPSILON_CONSERVATION)){
@@ -101,7 +101,7 @@ int test_conservation(){
         return 2;
     }
 
-    fast_real max_conserv_err_ring_factor=max_conserv_err/std::max(
+    fast_real max_conserv_err_ring_factor=max_conserv_err/checked_max(
         difference.translational_noring.norm()/max_momentum.translational.norm(),
         difference.angular_noring.norm()/max_momentum.angular.norm());
     if(!(max_conserv_err_ring_factor<TEST_EPSILON_RING_CORRECTION)){

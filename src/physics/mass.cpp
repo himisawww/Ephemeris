@@ -44,7 +44,7 @@ void msystem::update(fast_real t){
 
     }
 }
-void mass::deform_this(const std::vector<mass> &mlist){
+void mass::deform_by(const std::vector<mass> &mlist){
     int_t mn=mlist.size();
     mass &mi=*this;
 
@@ -70,15 +70,12 @@ void mass::deform_this(const std::vector<mass> &mlist){
     }
     UPDATE_HARMONICS;
 }
-void mass::deform_all(std::vector<mass> &mlist){
+void msystem::deform(){
     int_t mn=mlist.size();
     for(int_t i=0;i<mn;++i){
         mass &mi=mlist[i];
-        mi.deform_this(mlist);
+        mi.deform_by(mlist);
     }
-}
-void msystem::deform(){
-    mass::deform_all(mlist);
 }
 void msystem::accel(){
     int_t mn=mlist.size();
@@ -92,7 +89,7 @@ void msystem::accel(){
 
         int_t max_iter=MAX_ANGULAR_VELOCITY_ITER;
         do{
-            mi.deform_this(mlist);
+            mi.deform_by(mlist);
             bool should_break;
             UPDATE_ANGULAR_VELOCITY;
             if(should_break)break;
@@ -111,8 +108,8 @@ void msystem::accel(){
         for(int_t j=0;j<mn;++j)if(i!=j){
             mass &mj=mlist[j];
             RELATIVITY(mi);
-            mi.min_distance=std::max(mi.min_distance,rr);
-            mi.max_influence=std::max(mi.max_influence,tp_dg);
+            checked_maximize(mi.min_distance,rr);
+            checked_maximize(mi.max_influence,tp_dg);
             ROTATIONAL_TIDAL_DEFORMATION;
             LENSE_THIRRING(mi);
             RADIATION_PRESSURE(mi);
@@ -202,7 +199,7 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
                 "   Note the program is not designed to handle body collisions.\n"
                 "   Ephemeris further than this may be unreliable.\n"
                 "************************************************************************\n\n",
-               int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,m.min_distance,m.R);
+                ephemeris_time(),(char*)&m.sid,m.min_distance,m.R);
         }
         if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
             LogWarning(
@@ -212,9 +209,21 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
                 "       %.16e s >  %.16le s\n"
                 "   Ephemeris further than this may be inaccurate.\n"
                 "************************************************************************\n\n",
-                int_t(t_eph.hi)+int_t(t_eph.lo),(char*)&m.sid,dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
+                ephemeris_time(),(char*)&m.sid,dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
         }
     }
 
     t_eph+=dt*n_step;
+}
+
+void msystem::clear_accel(){
+    for(mass &m:mlist){
+        char *pstart=(char*)&(m.*mass_auxiliary_variables);
+        char *pend=(char*)&m+sizeof(m);
+        memset(pstart,-1,pend-pstart);
+    }
+}
+
+int_t msystem::ephemeris_time() const{
+    return int_t(t_eph.hi)+int_t(t_eph.lo);
 }

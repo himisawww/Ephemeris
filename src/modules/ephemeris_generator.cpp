@@ -8,15 +8,20 @@ std::mutex ephemeris_generator::io_mutex;
 
 int ephemeris_generator::make_ephemeris(int dir){
     using namespace Configs;
+    constexpr int FAILED_FLAG=0xff;
 
     msystem ms;
     std::string sop=op;
     std::string ickpt=sop+".0.zip";
     const char *fwdbak=dir>0?"fwd":"bak";
     size_t cur_index=1;
+    bool success=false;
 
     //loading process
     io_mutex.lock();
+  do{
+    if(fix_dir==FAILED_FLAG)
+        break;
 
     if(file_exist(ickpt)){
         // load file from ckpt
@@ -48,10 +53,16 @@ int ephemeris_generator::make_ephemeris(int dir){
         LogCritical(
             "Failed to Load System.\n"
             "The program will exit.\n");
-        exit(-1);
+        fix_dir=FAILED_FLAG;
+        break;
     }
 
+    success=true;
+  } while(0);
     io_mutex.unlock();
+
+    if(!success)
+        return -1;
 
     bool use_cpu     =ms.integrator==int_t(msystem::     CPU_RK12);
     bool use_gpu     =ms.integrator==int_t(msystem::     GPU_RK12);
@@ -113,7 +124,7 @@ int ephemeris_generator::make_ephemeris(int dir){
             mf.reserve(max_dp_perfile*(5*sizeof(vec)));
         }
 
-        int_t t_eph_start=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+        int_t t_eph_start=ms.ephemeris_time();
 
         //ephemeris integration
         for(int_t i=0;i<=iunit;++i){
@@ -123,7 +134,7 @@ int ephemeris_generator::make_ephemeris(int dir){
            else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1);
             }
 
-            int_t mst_eph=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+            int_t mst_eph=ms.ephemeris_time();
             
             io_mutex.lock();
             if(fix_dir||dir>0){
@@ -159,7 +170,7 @@ int ephemeris_generator::make_ephemeris(int dir){
             }
         }
 
-        int_t t_eph_end=int_t(ms.t_eph.hi)+int_t(ms.t_eph.lo);
+        int_t t_eph_end=ms.ephemeris_time();
 
         //prepare checkpoint/readme/structure files
         ms.save_checkpoint(&mf_ckpt);

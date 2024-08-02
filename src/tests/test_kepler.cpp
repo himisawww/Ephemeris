@@ -15,9 +15,9 @@ double test_rv_reproduce(const vec &r,const vec &v){
     ephem_orb k(0,r,v);
     k.rv(0,nr,nv);
     double rn=r.norm();
-    double vref=std::max(1/std::sqrt(rn),v.norm());
-    double rerr=std::max((nr-r).norm()/rn,(nv-v).norm()/vref);
-    max_relative_error=std::max(max_relative_error,rerr);
+    double vref=checked_max(1/std::sqrt(rn),v.norm());
+    double rerr=checked_max((nr-r).norm()/rn,(nv-v).norm()/vref);
+    checked_maximize(max_relative_error,rerr);
     return rerr;
 }
 
