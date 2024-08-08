@@ -2,8 +2,8 @@
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"utils/logger.h"
+#include"utils/threadpool.h"
 #include<map>
-#include<thread>
 #include<random>
 
 /*
@@ -121,9 +121,19 @@ void thread_work(msystem *ms,fast_real dt,int_t n_combine){
     ms->integrate(dt,n_combine);
 }
 
-void thread_works(const std::vector<msystem*> *pm,const std::vector<size_t> *widx,fast_real dt,int_t n_combine){
-    for(const auto idx:(*widx))
-        (*pm)[idx]->integrate(dt,n_combine);
+struct thread_works{
+    const std::vector<msystem*> *pm;
+    const std::vector<std::vector<size_t>> *widxs;
+    fast_real dt;
+    int_t n_combine;
+};
+
+void do_thread_works(void *pworks,size_t thread_id){
+    const thread_works &w=*(const thread_works*)pworks;
+    const auto &idxs=(*w.widxs)[thread_id];
+    const auto &mss=*w.pm;
+    for(const auto idx:idxs)
+        mss[idx]->integrate(w.dt,w.n_combine);
 }
 
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU){
@@ -398,19 +408,19 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         n_threads=(cost+max_cost-1)/max_cost;
         distribute(distributed,costs,n_threads);
 
-        std::vector<std::thread> threads;
-        threads.reserve(n_threads);
-        for(int_t i=0;i<n_threads;++i){
-            threads.push_back(std::thread(thread_works,&msys,&distributed[i],dt,n_combine));
-        }
+        thread_local ThreadPool thread_pool;
+        thread_works tasks;
+        tasks.pm=&msys;
+        tasks.widxs=&distributed;
+        tasks.dt=dt;
+        tasks.n_combine=n_combine;
+        thread_pool.distribute_tasks(n_threads,do_thread_works,&tasks);
 
         Sx.integrate(dt_long,1,0);
 
         Sc.integrate(dt_long,1,USE_GPU);
 
-        for(auto &th:threads){
-            th.join();
-        }
+        thread_pool.wait_for_all();
 #endif
 #endif
         //finalize

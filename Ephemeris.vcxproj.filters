@@ -111,6 +111,9 @@
     <ClCompile Include="src\tests\test_integrator.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\utils\threadpool.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
@@ -182,6 +185,9 @@
       <Filter>modules</Filter>
     </ClInclude>
     <ClInclude Include="src\utils\logger.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\threadpool.h">
       <Filter>utils</Filter>
     </ClInclude>
   </ItemGroup>
