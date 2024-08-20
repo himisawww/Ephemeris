@@ -3,17 +3,24 @@
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"physics/mass.impl"
+#include"utils/logger.h"
 #include<stdlib.h>
 #include<algorithm>
 #include<cuda_runtime.h>
 #include<cooperative_groups.h>
 #include<mutex>
 
+//Maximum CUDA_CORES usage, can be adjusted according to physical cuda cores of GPU device.
+//  Note, however, adjusting this can affect resulting ephemeris,
+//      since the force superposition are rearranged, and some floating-point additions are reordered.
+//  This impact should be on the order of floating-point round-off error,
+//      but the difference can build up over time, and lead to a drastically differenent ephemeris.
+#define CUDA_CORES 1920
+
 #define CUDA_IMPL
 
 #define WARP_SIZE 32
-#define CUDA_CORES 1920
-#define MAXBLOCKS (1920/32)
+#define MAXBLOCKS (CUDA_CORES/WARP_SIZE)
 
 #define cuda_max(a,b) ((a)<(b)?(b):(a))
 #define cuda_maximize(a,b) (a)=cuda_max(b,a)
@@ -372,6 +379,18 @@ void __device__ Cuda_accel(){
 
 #include"RungeKutta.impl"
 
+static void Cuda_OnError(cudaError_t cudaerr){
+    if(cudaerr==cudaSuccess)return;
+    LogCritical(
+        "\n\nCritical Error : [Cuda] %s\n\n"
+        "    Try set CUDA_CORES to a less number, or get a better GPU.\n"
+        "       (now CUDA_CORES = %d, defined in %s)\n"
+        "    If you believe this is a bug, please contact author via github.\n"
+        "    The program will now exit.\n"
+        ,cudaGetErrorString(cudaerr),CUDA_CORES,__FILE__);
+    exit(-1);
+}
+
 void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     if(n_step<=0)return;
     gpdata_t mgp;
@@ -382,7 +401,7 @@ void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     kf.t_eph=t_eph;
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
     //Cuda_Kernel<<<kf.nblocks,kf.nthreads>>>();
-    cudaLaunchCooperativeKernel(
+    cudaError_t cudaerr=cudaLaunchCooperativeKernel(
         (void*)Cuda_RungeKutta_Kernel,
         dim3(kf.nblocks),
         dim3(kf.nthreads),
@@ -392,6 +411,7 @@ void msystem::Cuda_RungeKutta12(fast_real dt,int_t n_step){
     cudaDeviceSynchronize();
     kf.save(mlist,mgp,mrg);
     cuda_mutex.unlock();
+    if(cudaerr!=cudaSuccess)Cuda_OnError(cudaerr);
 }
 
 void __global__ Cuda_accel_Kernel(){
@@ -407,7 +427,7 @@ void msystem::Cuda_accel(){
     kf.t_eph=t_eph;
     cudaMemcpyToSymbol(dkf,&kf,sizeof(kf));
     //Cuda_Kernel<<<kf.nblocks,kf.nthreads>>>();
-    cudaLaunchCooperativeKernel(
+    cudaError_t cudaerr=cudaLaunchCooperativeKernel(
         (void*)Cuda_accel_Kernel,
         dim3(kf.nblocks),
         dim3(kf.nthreads),
@@ -417,4 +437,5 @@ void msystem::Cuda_accel(){
     cudaDeviceSynchronize();
     kf.save(mlist,mgp,mrg);
     cuda_mutex.unlock();
+    if(cudaerr!=cudaSuccess)Cuda_OnError(cudaerr);
 }

@@ -102,7 +102,7 @@ public:
     void load_data();
     // (WRITE_CACHE/READ_CACHE) get data
     const byte_t *data() const{ return state==MFILE_STATE::READ_CACHE?idata:cached_data.data(); }
-    const size_t size() const{ return state==MFILE_STATE::READ_CACHE?isize:cached_data.size(); }
+    size_t size() const{ return state==MFILE_STATE::READ_CACHE?isize:cached_data.size(); }
 
     bool is_valid() const;
     bool is_read() const;
