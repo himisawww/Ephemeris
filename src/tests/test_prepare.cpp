@@ -37,7 +37,7 @@ msystem get_test_subsystem(std::vector<const char *> sids){
         msdst.push_back(ms[mid]);
     }
     msdst.accel();
-    msdst.analyse();
+    msdst.analyse(true);
     return msdst;
 }
 

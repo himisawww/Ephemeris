@@ -251,6 +251,7 @@ void msystem::reset_params(){
 }
 
 void msystem::clear(){
+    t_barycen=NAN;
     blist.clear();
     mlist.clear();
     midx.clear();
@@ -493,7 +494,7 @@ bool msystem::load(
     accel();
 
     //analyse orbit structure
-    analyse();
+    analyse(true);
 
     return true;
 }
@@ -603,9 +604,6 @@ bool msystem::load_checkpoint(MFILE *fin){
         }
         if(failed)break;
 
-        //Calculate initial accel
-        //accel();
-        update_barycens();
     } while(false);
 
     if(failed){
@@ -789,6 +787,7 @@ msystem &msystem::operator =(const msystem &other){
     copy_member(tidal_parent);
     copy_member(tidal_matrix);
     copy_member(tidal_childlist);
+    copy_member(t_barycen);
     copy_member(blist);
     copy_member(mlist);
 #undef copy_member

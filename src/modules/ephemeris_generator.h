@@ -1,6 +1,17 @@
 #pragma once
-#include"physics/mass.h"
 #include<mutex>
+#include"physics/mass.h"
+#include"utils/memio.h"
+
+class ephemeris_collector{
+private:
+    msystem &ms;
+    std::vector<barycen> blist;
+public:
+    ephemeris_collector(msystem &_ms);
+    void update_barycens();
+    void extract(std::vector<MFILE> &ephm_files,bool force);
+};
 
 class ephemeris_generator{
     static std::mutex io_mutex;

@@ -126,17 +126,30 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         int_t t_eph_start=ms.ephemeris_time();
 
+        bool barycen_updated=false;
+        ephemeris_collector ephc(ms);
         //ephemeris integration
         for(int_t i=0;i<=iunit;++i){
             if(i>0){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
            else if(use_gpu     )ms.integrate         (dt,          jsize,1);
            else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1);
+                barycen_updated=ms.analyse();
             }
+
+            ephc.update_barycens();
+            if(i==iunit)
+                ephc.extract(zms,true);
+            else if(barycen_updated)
+                ephc.extract(zms,false);
 
             int_t mst_eph=ms.ephemeris_time();
             
             io_mutex.lock();
+            if(barycen_updated)LogInfo(
+                "\nInfo: At Ephemeris Time: %lld s\n"
+                "   System orbital structure is updated.\n",
+                mst_eph);
             if(fix_dir||dir>0){
                 static double s=CalcTime();
                 static double oldt=-INFINITY;
@@ -220,4 +233,14 @@ int ephemeris_generator::make_ephemeris(int dir){
         time_idx+=iunit;
     }while(time_idx<isize);
     return 0;
+}
+
+ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms),blist(_ms.get_barycens()){
+
+}
+
+
+
+void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
+
 }

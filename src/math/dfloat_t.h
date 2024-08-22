@@ -4,29 +4,6 @@
 #define INLINE inline
 #endif
 
-template<typename T>
-INLINE void twosum(T x,T y,T &r,T &e){
-    r=x+y;
-    T t=r-x;
-    e=(x-(r-t))+(y-t);
-}
-template<typename T>
-INLINE void twosumq(T x,T y,T &r,T &e){
-    r=x+y;
-    e=y-(r-x);
-}
-template<typename T>
-INLINE void twodiff(T x,T y,T &r,T &e){
-    r=x-y;
-    T t=r-x;
-    e=(x-(r-t))-(y+t);
-}
-template<typename T>
-INLINE void twoprod(T x,T y,T &r,T &e){
-    r=x*y;
-    e=fma(x,y,-r);
-}
-
 //minimal implementation of double-float
 template<typename T>
 class dfloat_t{
@@ -41,6 +18,10 @@ public:
     INLINE dfloat_t<T> &operator-=(const dfloat_t<T> &x){ return (*this=*this-x); }
     INLINE dfloat_t<T> &operator*=(const dfloat_t<T> &x){ return (*this=*this*x); }
     INLINE dfloat_t<T> &operator/=(const dfloat_t<T> &x){ return (*this=*this/x); }
+
+    INLINE bool operator> (const dfloat_t<T> &x){ return T(*this-x)> 0; }
+    INLINE bool operator< (const dfloat_t<T> &x){ return T(*this-x)< 0; }
+    INLINE bool operator==(const dfloat_t<T> &x){ return T(*this-x)==0; }
 
     friend INLINE dfloat_t<T> operator+(dfloat_t<T> x,dfloat_t<T> y){
         dfloat_t<T> re;
@@ -88,5 +69,24 @@ public:
         dfloat_t<T> re=sqrt(x.hi);
         re-=(re-x/re)/2;
         return re;
+    }
+
+    static INLINE void twosum(T x,T y,T &r,T &e){
+        r=x+y;
+        T t=r-x;
+        e=(x-(r-t))+(y-t);
+    }
+    static INLINE void twosumq(T x,T y,T &r,T &e){
+        r=x+y;
+        e=y-(r-x);
+    }
+    static INLINE void twodiff(T x,T y,T &r,T &e){
+        r=x-y;
+        T t=r-x;
+        e=(x-(r-t))-(y+t);
+    }
+    static INLINE void twoprod(T x,T y,T &r,T &e){
+        r=x*y;
+        e=std::fma(x,y,-r);
     }
 };

@@ -1,5 +1,6 @@
-#include"physics/mass.h"
 #include<map>
+#include"physics/mass.h"
+#include"modules/ephemeris_generator.h"
 
 barycen::barycen(){
     pid=-1;
@@ -18,6 +19,8 @@ struct bdata{
 bool msystem::analyse(bool reconstruct){
     int_t old_bn=reconstruct?0:blist.size();
     int_t mn=mlist.size();
+    if(old_bn&&t_barycen==t_eph)return false;
+    t_barycen=t_eph;
     std::vector<barycen> bl;
     std::vector<bdata> dl;
     if(old_bn){
@@ -391,7 +394,7 @@ int_t msystem::combine(int method){
     return clist.size();
 }
 */
-void msystem::update_barycens(){
+void ephemeris_collector::update_barycens(){
     std::vector<barycen> &bl=blist;
     int_t bn=bl.size();
 
@@ -403,7 +406,7 @@ void msystem::update_barycens(){
     }
     for(int_t i=0;i<bn;++i)if(bl[i].mid>=0){//is mass
         barycen &bi=bl[i];
-        const mass &mi=mlist[bi.mid];
+        const mass &mi=ms[bi.mid];
         const real mGM=mi.GM;
         const mpvec rGM=mi.r*mGM;
         const mpvec vGM=mi.v*mGM;

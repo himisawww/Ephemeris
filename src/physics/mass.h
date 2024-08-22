@@ -190,6 +190,8 @@ private:
     fast_mpmat tidal_matrix;
     std::vector<int_t> tidal_childlist;
 
+    //t_eph when blist is analysed
+    real t_barycen;
     //list of barycens
     std::vector<barycen> blist;
     //list of masses
@@ -242,8 +244,8 @@ public:
     //reconstruct: if true, analyse from scratch;
     //             if false, update existing structure when necessary, this is faster.
     bool analyse(bool reconstruct=false);
-    //update barycens' GM & rv
-    void update_barycens();
+
+    const std::vector<barycen> &get_barycens() const{ return blist; }
 
     //load system from config file, optional save to a checkpoint
     bool load(const char *fconfig,const char *fcheckpoint=nullptr);

@@ -1,10 +1,9 @@
+#include<map>
+#include<random>
 #include"physics/mass.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
-#include"utils/logger.h"
 #include"utils/threadpool.h"
-#include<map>
-#include<random>
 
 /*
     partition data to n subsets, s.t. sum of each subset are as close as possible to each other
@@ -137,6 +136,7 @@ void do_thread_works(void *pworks,size_t thread_id){
 }
 
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU){
+    analyse();
     int_t bn=blist.size();
     std::map<int_t,int_t> clist;
     std::map<int_t,std::vector<int_t>> cvecs;
@@ -507,13 +507,4 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         if(USE_GPU)Cuda_accel();
         else accel();
     }
-
-    if(analyse()){
-        LogInfo(
-            "\nInfo: At Ephemeris Time: %lld s\n"
-            "   System orbital structure is updated by combined_integrator.\n",
-            ephemeris_time());
-    }
-
-    return;
 }
