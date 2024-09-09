@@ -9,7 +9,19 @@ private:
     std::vector<barycen> blist;
 public:
     ephemeris_collector(msystem &_ms);
+
+    //update state vectors of blist by ms.mlist
     void update_barycens();
+    const std::vector<barycen> &get_barycens() const{ return blist; }
+
+    //convert state vectors in blist as relative to direct parent
+    int_t decompose(int_t bid=-1);
+    //restore state vectors in blist to absolute
+    int_t compose(int_t bid=-1);
+
+    //record state vectors
+    void record();
+
     void extract(std::vector<MFILE> &ephm_files,bool force);
 };
 

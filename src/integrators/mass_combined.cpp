@@ -135,6 +135,15 @@ void do_thread_works(void *pworks,size_t thread_id){
         mss[idx]->integrate(w.dt,w.n_combine);
 }
 
+static thread_local ThreadPool *pthread_pool;
+void msystem::thread_local_pool_alloc(){
+    thread_local ThreadPool thread_pool;
+    pthread_pool=&thread_pool;
+}
+void msystem::thread_local_pool_free(){
+    if(pthread_pool)pthread_pool->resize(0);
+}
+
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU){
     analyse();
     int_t bn=blist.size();
@@ -408,19 +417,25 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         n_threads=(cost+max_cost-1)/max_cost;
         distribute(distributed,costs,n_threads);
 
-        thread_local ThreadPool thread_pool;
         thread_works tasks;
         tasks.pm=&msys;
         tasks.widxs=&distributed;
         tasks.dt=dt;
         tasks.n_combine=n_combine;
-        thread_pool.distribute_tasks(n_threads,do_thread_works,&tasks);
+        std::vector<std::thread> threads;
+        if(pthread_pool)
+            pthread_pool->distribute_tasks(n_threads,do_thread_works,&tasks);
+        else for(int_t i=0;i<n_threads;++i)
+            threads.push_back(std::thread(do_thread_works,&tasks,i));
 
         Sx.integrate(dt_long,1,0);
 
         Sc.integrate(dt_long,1,USE_GPU);
 
-        thread_pool.wait_for_all();
+        if(pthread_pool)
+            pthread_pool->wait_for_all();
+        else for(int_t i=0;i<n_threads;++i)
+            threads[i].join();
 #endif
 #endif
         //finalize

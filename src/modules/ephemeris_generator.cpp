@@ -1,6 +1,7 @@
 #include"ephemeris_generator.h"
-#include"utils/zipio.h"
+#include<queue>
 #include"configs.h"
+#include"utils/zipio.h"
 #include"utils/calctime.h"
 #include"utils/logger.h"
 
@@ -106,6 +107,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
     int_t time_idx=0;
 
+    msystem::thread_local_pool_alloc();
     do{
         if(time_idx+iunit>isize)iunit=isize-time_idx;
 
@@ -137,7 +139,8 @@ int ephemeris_generator::make_ephemeris(int dir){
                 barycen_updated=ms.analyse();
             }
 
-            ephc.update_barycens();
+            ephc.record();
+
             if(i==iunit)
                 ephc.extract(zms,true);
             else if(barycen_updated)
@@ -232,6 +235,8 @@ int ephemeris_generator::make_ephemeris(int dir){
         
         time_idx+=iunit;
     }while(time_idx<isize);
+    msystem::thread_local_pool_free();
+
     return 0;
 }
 
@@ -239,7 +244,120 @@ ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms),blist(_ms.get_bar
 
 }
 
+int_t ephemeris_collector::decompose(int_t bid){
+    if(bid<0){
+        int_t bn=blist.size();
+        int_t rootid=-1;
+        int_t nroot=0;
+        for(int_t i=0;i<bn;++i){
+            if(blist[i].pid<0){
+                rootid=i;
+                ++nroot;
+            }
+        }
+        return nroot==1?decompose(rootid):-1;
+    }
 
+    barycen &b=blist[bid];
+    int_t nret=0;
+    for(const auto cid:b.children)
+        nret+=decompose(cid);
+
+    if(b.gid>=0){
+        nret+=decompose(b.gid);
+        nret+=decompose(b.hid);
+    }
+
+    if(b.pid>=0){
+        barycen &p=blist[b.pid];
+        if(bid==p.hid){
+            b.r=NAN;
+            b.v=NAN;
+        }
+        else if(bid==p.gid){
+            b.r=b.r_sys-blist[p.hid].r_sys;
+            b.v=b.v_sys-blist[p.hid].v_sys;
+        }
+        else{
+            b.r=b.r_sys-p.r;
+            b.v=b.v_sys-p.v;
+        }
+    }
+    else{
+        b.r=b.r_sys;
+        b.v=b.v_sys;
+    }
+
+    b.r_sys=NAN;
+    b.v_sys=NAN;
+
+    return nret+1;
+}
+
+int_t ephemeris_collector::compose(int_t bid){
+    if(bid<0){
+        int_t bn=blist.size();
+        int_t rootid=-1;
+        int_t nroot=0;
+        for(int_t i=0;i<bn;++i){
+            if(blist[i].pid<0){
+                rootid=i;
+                ++nroot;
+            }
+        }
+        return nroot==1?compose(rootid):-1;
+    }
+
+    barycen &b=blist[bid];
+    int_t nret=1;
+
+    if(b.pid<0){
+        b.r_sys=b.r;
+        b.v_sys=b.v;
+    }
+    else{
+        barycen &p=blist[b.pid];
+        if(bid==p.gid){
+            b.r_sys=b.r+blist[p.hid].r_sys;
+            b.v_sys=b.v+blist[p.hid].v_sys;
+        }
+        else if(bid==p.hid){
+            barycen &g=blist[p.gid];
+            real gdm=g.GM_sys/p.GM;
+            b.r_sys=p.r-gdm*g.r;
+            b.v_sys=p.v-gdm*g.v;
+        }
+        else{
+            b.r_sys=b.r+p.r;
+            b.v_sys=b.v+p.v;
+        }
+    }
+
+    mpvec cracc(0),cvacc(0);
+    for(const auto cid:b.children){
+        barycen &c=blist[cid];
+        cracc+=c.r*c.GM_sys;
+        cvacc+=c.v*c.GM_sys;
+    }
+    b.r=b.r_sys-cracc/b.GM_sys;
+    b.v=b.v_sys-cvacc/b.GM_sys;
+
+    if(b.gid>=0){
+        nret+=compose(b.hid);
+        nret+=compose(b.gid);
+    }
+
+    for(const auto cid:b.children)
+        nret+=compose(cid);
+
+    return nret;
+}
+
+void ephemeris_collector::record(){
+    update_barycens();
+    decompose();
+
+}
 
 void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
 

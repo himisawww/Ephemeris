@@ -1,4 +1,5 @@
 #include"tests/tests.h"
+#include<thread>
 #include"utils/logger.h"
 #include"utils/calctime.h"
 
@@ -77,8 +78,14 @@ int test_integrator(){
         return 2;
     }
 
+    std::thread thhalf([&](){
+        msystem::thread_local_pool_alloc();
+        mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T);
+        msystem::thread_local_pool_free();
+        });
+
     mcombine.combined_integrate(TEST_DELTA_T,TEST_COMBINED_T/TEST_DELTA_T,TEST_TOTAL_T/TEST_COMBINED_T-1);
-    mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T);
+    thhalf.join();
 
     //compare combined and halfdt
     checked_maximize(max_err,msystem_compare(ref_cutoff_err,mcombine,mhalfdt));

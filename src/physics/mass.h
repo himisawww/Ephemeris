@@ -240,6 +240,12 @@ public:
     //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
 
+    //if called, subsequent combined_integrate() in the same thread will use thread pools
+    static void thread_local_pool_alloc();
+    //must call this in the same thread if thread_local_pool_alloc is called,
+    //  otherwise, dead wait will occur when join
+    static void thread_local_pool_free();
+
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;
     //             if false, update existing structure when necessary, this is faster.

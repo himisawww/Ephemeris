@@ -20,6 +20,7 @@ bool msystem::analyse(bool reconstruct){
     int_t old_bn=reconstruct?0:blist.size();
     int_t mn=mlist.size();
     if(old_bn&&t_barycen==t_eph)return false;
+    bool update_gm=!(t_barycen==t_barycen);
     t_barycen=t_eph;
     std::vector<barycen> bl;
     std::vector<bdata> dl;
@@ -243,7 +244,19 @@ bool msystem::analyse(bool reconstruct){
         }
     } while(diff);
 
-    if(old_bn)return false;
+    if(old_bn){
+        if(update_gm)for(int_t i=0;i<old_bn;++i){
+            const barycen &bsrc=bl[i];
+            barycen &bdst=blist[i];
+            bdst.r=bsrc.r;
+            bdst.v=bsrc.v;
+            bdst.GM=bsrc.GM;
+            bdst.r_sys=bsrc.r_sys;
+            bdst.v_sys=bsrc.v_sys;
+            bdst.GM_sys=bsrc.GM_sys;
+        }
+        return false;
+    }
 
     //remove deleted barycens
     std::vector<int_t> newindex(bl.size()+1,-1);
@@ -404,7 +417,7 @@ void ephemeris_collector::update_barycens(){
         bl[i].r_sys=0;
         bl[i].v_sys=0;
     }
-    for(int_t i=0;i<bn;++i)if(bl[i].mid>=0){//is mass
+    for(int_t i=0;i<bn;++i)if(bl[i].hid<0){//is mass
         barycen &bi=bl[i];
         const mass &mi=ms[bi.mid];
         const real mGM=mi.GM;
@@ -424,7 +437,7 @@ void ephemeris_collector::update_barycens(){
             bp=bl[bp].pid;
         }
     }
-    for(int_t i=0;i<bn;++i)if(bl[i].mid<0){//is barycen
+    for(int_t i=0;i<bn;++i)if(bl[i].hid>=0){//is barycen
         barycen &bi=bl[i];
         barycen &h=bl[bi.hid];
         barycen &g=bl[bi.gid];
