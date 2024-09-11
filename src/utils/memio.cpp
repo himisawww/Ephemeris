@@ -122,7 +122,7 @@ int MFILE::close(){
         return 0;
     return fclose(fp);
 }
-MFILE::byte_t *MFILE::reset(size_t new_cache_size){
+MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
     close();
     cached_data.resize(new_cache_size);
     state=MFILE_STATE::READ_CACHE;
@@ -130,6 +130,14 @@ MFILE::byte_t *MFILE::reset(size_t new_cache_size){
     isize=new_cache_size;
     offset=0;
     return cached_data.data();
+}
+void MFILE::reset(){
+    close();
+    filename.resize(0);
+    cached_data.resize(0);
+    fp=0;
+    offset=0;
+    state=MFILE_STATE::WRITE_CACHE;
 }
 
 void MFILE::load_data(){
@@ -282,7 +290,7 @@ std::string MFILE::readline(){
 }
 bool MFILE::publish(const std::string &fname){
     if(state==MFILE_STATE::WRITE_CACHE)
-        reset(size());
+        prepare(size());
     else if(state==MFILE_STATE::READ_CACHE){
         load_data();
         offset=0;

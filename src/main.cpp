@@ -79,7 +79,7 @@ int main_fun(int argc,const char **argv){
     return 0;
 }
 
-//convert zips to old data pack
+/*/convert zips to old data pack
 int convert_format(const char *path){
     std::string sop=path;
     for(int dir=1;dir>=-1;dir-=2){
@@ -128,7 +128,7 @@ int convert_format(const char *path){
     }
     return 0;
 }
-
+*/
 int main(int argc,const char **argv){
     return main_fun(argc,argv);
 

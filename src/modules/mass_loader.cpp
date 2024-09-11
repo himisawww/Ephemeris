@@ -519,6 +519,32 @@ struct barycen_ids{
     int_t nch;
 };
 
+bool msystem::load_barycen_structure(MFILE *fin,std::vector<barycen> &blist){
+    bool failed=false;
+    for(auto &b:blist){
+        barycen_ids bids;
+        if(1!=fread(&bids,sizeof(bids),1,fin)){
+            failed=true;
+            break;
+        }
+        b.pid=bids.pid;
+        b.hid=bids.hid;
+        b.gid=bids.gid;
+        b.tid=bids.tid;
+        b.mid=bids.mid;
+        b.children.resize(bids.nch);
+        if(bids.nch!=fread(b.children.data(),sizeof(int_t),bids.nch,fin)){
+            failed=true;
+            break;
+        }
+    }
+    if(failed){
+        blist.clear();
+        return false;
+    }
+    return true;
+}
+
 bool msystem::load_checkpoint(MFILE *fin){
     clear();
     
@@ -555,23 +581,7 @@ bool msystem::load_checkpoint(MFILE *fin){
         GM_max_tiny=h.GM_max_tiny;
         Period_max_child=h.Period_max_child;
 
-        for(auto &b:blist){
-            barycen_ids bids;
-            if(1!=fread(&bids,sizeof(bids),1,fin)){
-                failed=true;
-                break;
-            }
-            b.pid=bids.pid;
-            b.hid=bids.hid;
-            b.gid=bids.gid;
-            b.tid=bids.tid;
-            b.mid=bids.mid;
-            b.children.resize(bids.nch);
-            if(bids.nch!=fread(b.children.data(),sizeof(int_t),bids.nch,fin)){
-                failed=true;
-                break;
-            }
-        }
+        failed=!load_barycen_structure(fin,blist);
         if(failed)break;
         
         for(auto &m:mlist){
@@ -613,6 +623,20 @@ bool msystem::load_checkpoint(MFILE *fin){
     return true;
 }
 
+void msystem::save_barycen_structure(MFILE *fout,const std::vector<barycen> &blist){
+    for(const auto &b:blist){
+        barycen_ids bids;
+        bids.pid=b.pid;
+        bids.hid=b.hid;
+        bids.gid=b.gid;
+        bids.tid=b.tid;
+        bids.mid=b.mid;
+        bids.nch=b.children.size();
+        fwrite(&bids,sizeof(bids),1,fout);
+        fwrite(b.children.data(),sizeof(int_t),bids.nch,fout);
+    }
+}
+
 bool msystem::save_checkpoint(MFILE *fout) const{
 
     mass mwrite;
@@ -637,17 +661,7 @@ bool msystem::save_checkpoint(MFILE *fout) const{
     
     fwrite(&h,sizeof(h),1,fout);
 
-    for(const auto &b:blist){
-        barycen_ids bids;
-        bids.pid=b.pid;
-        bids.hid=b.hid;
-        bids.gid=b.gid;
-        bids.tid=b.tid;
-        bids.mid=b.mid;
-        bids.nch=b.children.size();
-        fwrite(&bids,sizeof(bids),1,fout);
-        fwrite(b.children.data(),sizeof(int_t),bids.nch,fout);
-    }
+    save_barycen_structure(fout,blist);
 
     for(const auto &m:mlist){        
         memcpy(&mwrite,&m,masssize);

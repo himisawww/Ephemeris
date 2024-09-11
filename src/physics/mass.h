@@ -253,6 +253,10 @@ public:
 
     const std::vector<barycen> &get_barycens() const{ return blist; }
 
+    //blist should be resized to correct length by caller
+    static bool load_barycen_structure(MFILE *fin,std::vector<barycen> &blist);
+    static void save_barycen_structure(MFILE *fout,const std::vector<barycen> &blist);
+
     //load system from config file, optional save to a checkpoint
     bool load(const char *fconfig,const char *fcheckpoint=nullptr);
     //load system from checkpoint file

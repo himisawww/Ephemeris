@@ -93,7 +93,9 @@ public:
     int close();
     //resize local cache, set reading cache pointer to it, and set state to READ_CACHE.
     //return address of prepared local cache.
-    byte_t *reset(size_t new_cache_size);
+    byte_t *prepare(size_t new_cache_size);
+    //empty local cache, and set state to WRITE_CACHE
+    void reset();
 
     const std::string &get_name() const{ return filename; }
     void set_name(const std::string &_name){ filename=_name; }

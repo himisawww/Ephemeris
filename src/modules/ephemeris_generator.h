@@ -1,12 +1,35 @@
 #pragma once
-#include<mutex>
 #include"physics/mass.h"
 #include"utils/memio.h"
+#include<mutex>
+#include<set>
+#include<map>
 
 class ephemeris_collector{
+    struct _datapack{
+        int_t tid;
+        int_t t_start;
+        int_t t_end;
+        int_t parent_barycen_id;
+        MFILE data;
+    };
+
+    struct _index_entry{
+        int_t fid;
+        int_t t_start;
+        int_t t_end;
+        uint64_t sid;
+        int_t parent_barycen_id;
+    };
+
 private:
     msystem &ms;
     std::vector<barycen> blist;
+
+    // { { mids of parent barycen, mids of child barycen }, index of pair }
+    std::map<std::pair<std::set<int_t>,std::set<int_t>>,int_t> barycen_ids;
+    std::vector<_datapack> datapacks;
+    int_t t_start;
 public:
     ephemeris_collector(msystem &_ms);
 
@@ -21,6 +44,10 @@ public:
 
     //record state vectors
     void record();
+
+    //rebind ephemeris data with parent barycen
+    //update datapacks::tid & pbarycen
+    void rebind();
 
     void extract(std::vector<MFILE> &ephm_files,bool force);
 };

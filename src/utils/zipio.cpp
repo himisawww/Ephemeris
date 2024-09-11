@@ -92,7 +92,7 @@ std::string izipfile::fullname() const{
 }
 
 void izipfile::dumpfile(MFILE &mf) const{
-	void *dst=mf.reset(size());
+	void *dst=mf.prepare(size());
 	MFILE *fzip=pzip->fzip;
 	fseek(fzip,fileoffset,SEEK_SET);
 	fread(dst,1,filesize,fzip);

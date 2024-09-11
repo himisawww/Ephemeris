@@ -114,17 +114,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         //prepare mem files to save
         int_t mn=ms.mlist.size();
         int_t max_dp_perfile=1+iunit;
-        std::vector<MFILE> zms(ExportHeaderCount+mn);
-        MFILE &mf_ckpt=zms[0];
-        MFILE &mf_readme=zms[1];
-        MFILE &mf_struct=zms[2];
-        MFILE &mf_time=zms[3];
-        mf_time.reserve(max_dp_perfile*sizeof(int_t));
-        MFILE *mf_mlist=&zms[ExportHeaderCount];
-        for(int_t mi=0;mi<mn;++mi){
-            MFILE &mf=mf_mlist[mi];
-            mf.reserve(max_dp_perfile*(5*sizeof(vec)));
-        }
+        std::vector<MFILE> zms(ExportHeaderCount);
 
         int_t t_eph_start=ms.ephemeris_time();
 
@@ -171,22 +161,14 @@ int ephemeris_generator::make_ephemeris(int dir){
                 }
             }
             io_mutex.unlock();
-
-            fwrite(&mst_eph,sizeof(int_t),1,&mf_time);
-
-            for(int_t mi=0;mi<mn;++mi){
-                const mass &m=ms.mlist[mi];
-                MFILE *mfp=&mf_mlist[mi];
-                vec r=m.r,v=m.v,w=m.w,x=m.s.x,z=m.s.z;
-                fwrite(&r,sizeof(vec),1,mfp);
-                fwrite(&v,sizeof(vec),1,mfp);
-                fwrite(&w,sizeof(vec),1,mfp);
-                fwrite(&x,sizeof(vec),1,mfp);
-                fwrite(&z,sizeof(vec),1,mfp);
-            }
         }
 
         int_t t_eph_end=ms.ephemeris_time();
+
+        MFILE &mf_index=zms[0];
+        MFILE &mf_ckpt=zms[1];
+        MFILE &mf_readme=zms[2];
+        MFILE &mf_struct=zms[3];
 
         //prepare checkpoint/readme/structure files
         ms.save_checkpoint(&mf_ckpt);
@@ -207,17 +189,15 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         ms.print_structure(&mf_struct);
         
+        mf_index.set_name(SaveNameIndex);
         mf_ckpt.set_name(SaveNameCheckpoint);
         mf_readme.set_name(SaveNameReadme);
         mf_struct.set_name(SaveNameStructure);
-        mf_time.set_name(SaveNameTimestamps);
+
         for(int_t mi=0;mi<mn;++mi){
-            MFILE &mf=mf_mlist[mi];
-            std::string sid((char*)&ms.mlist[mi].sid);
             fprintf(&mf_readme,
-                "%12lld : %s\n",mi,sid.c_str()
+                "%12lld : %s\n",mi,(char*)&ms[mi].sid
             );
-            mf.set_name(sid+SaveDataExtension);
         }
 
         //save .zip
@@ -240,8 +220,9 @@ int ephemeris_generator::make_ephemeris(int dir){
     return 0;
 }
 
-ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms),blist(_ms.get_barycens()){
-
+ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms){
+    t_start=ms.ephemeris_time();
+    rebind();
 }
 
 int_t ephemeris_collector::decompose(int_t bid){
@@ -353,12 +334,120 @@ int_t ephemeris_collector::compose(int_t bid){
     return nret;
 }
 
+void ephemeris_collector::rebind(){
+    blist=ms.get_barycens();
+    int_t bn=blist.size();
+    if(datapacks.empty()){
+        int_t mn=ms.size();
+        int_t t_eph=ms.ephemeris_time();
+        datapacks.resize(mn);
+        for(_datapack &d:datapacks)
+            d.t_start=t_eph;
+    }
+
+    std::vector<std::vector<int_t>> barycen_mids(bn);
+    for(const barycen &b:blist)if(b.hid<0){
+        datapacks[b.mid].tid=b.tid;
+        int_t bp=b.mid;
+        do{
+            barycen_mids[bp].push_back(b.mid);
+            bp=blist[bp].pid;
+        } while(bp>=0);
+    }
+
+    for(_datapack &d:datapacks){
+        int_t pid=blist[d.tid].pid;
+        if(pid<0){
+            d.parent_barycen_id=-1;
+            continue;
+        }
+        std::set<int_t> pids,tids;
+        barycen &p=blist[pid];
+        if(p.hid<0)pids.insert(p.mid);
+        else{
+            auto &h=barycen_mids[p.hid];
+            auto &g=barycen_mids[p.gid];
+            pids.insert(h.begin(),h.end());
+            pids.insert(g.begin(),g.end());
+        }
+        auto &b=barycen_mids[d.tid];
+        tids.insert(b.begin(),b.end());
+        d.parent_barycen_id=barycen_ids.insert({{pids,tids},(int_t)barycen_ids.size()}).first->second;
+    }
+}
+
 void ephemeris_collector::record(){
     update_barycens();
     decompose();
 
+    int_t mn=ms.size();
+    int_t t_eph=ms.ephemeris_time();
+    for(int_t i=0;i<mn;++i){
+        _datapack &d=datapacks[i];
+        const mass &m=ms[i];
+        const barycen &b=blist[d.tid];
+        d.t_end=t_eph;
+        MFILE *mfp=&d.data;
+        vec r=b.r,v=b.v,w=m.w,x=m.s.x,z=m.s.z;
+        fwrite(&r,sizeof(vec),1,mfp);
+        fwrite(&v,sizeof(vec),1,mfp);
+        fwrite(&w,sizeof(vec),1,mfp);
+        fwrite(&x,sizeof(vec),1,mfp);
+        fwrite(&z,sizeof(vec),1,mfp);
+    }
 }
 
 void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
+    int_t mn=ms.size();
+    std::vector<std::pair<int_t,int_t>> ex_entry;
+    if(!force){
+        std::vector<int_t> polds;
+        polds.reserve(mn);
+        for(int_t i=0;i<mn;++i)
+            polds.push_back(datapacks[i].parent_barycen_id);
+        rebind();
+        for(int_t i=0;i<mn;++i)
+            if(datapacks[i].parent_barycen_id!=polds[i])
+                ex_entry.push_back({i,polds[i]});
+    }
+    else{
+        ex_entry.reserve(mn);
+        for(int_t i=0;i<mn;++i)
+            ex_entry.push_back({i,datapacks[i].parent_barycen_id});
+    }
+    int_t t_eph=ms.ephemeris_time();
+    //avoid realloc && MFILE *invalidate
+    ephm_files.reserve(ephm_files.size()+ex_entry.size());
+    MFILE *findex=&ephm_files[0];
+    for(auto dpid:ex_entry){
+        _datapack &d=datapacks[dpid.first];
+        auto &vdat=d.data;
 
+        _index_entry idat;
+        idat.fid=ephm_files.size();
+        idat.t_start=d.t_start;
+        idat.t_end=d.t_end;
+        idat.sid=ms[dpid.first].sid;
+        idat.parent_barycen_id=dpid.second;
+
+        fwrite(&idat,sizeof(idat),1,findex);
+
+        d.data.set_name(strprintf("%lld.dat",idat.fid));
+        ephm_files.push_back(std::move(d.data));
+        d.data.reset();
+        d.t_start=t_eph;
+    }
+
+    //record blist for [t_start,t_end]
+    _index_entry idat;
+    idat.fid=-1;
+    idat.t_start=t_start;
+    idat.t_end=t_eph;
+    idat.sid=0;
+    idat.parent_barycen_id=blist.size();
+    fwrite(&idat,sizeof(idat),1,findex);
+
+    msystem::save_barycen_structure(findex,blist);
+
+    t_start=t_eph;
 }
