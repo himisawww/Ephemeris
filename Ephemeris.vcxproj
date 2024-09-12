@@ -106,6 +106,7 @@
     <ClCompile Include="src\math\interp.cpp" />
     <ClCompile Include="src\math\Keplerians.cpp" />
     <ClCompile Include="src\math\random.cpp" />
+    <ClCompile Include="src\modules\ephemeris_converter.cpp" />
     <ClCompile Include="src\modules\ephemeris_generator.cpp" />
     <ClCompile Include="src\modules\mass_loader.cpp" />
     <ClCompile Include="src\physics\barycen_analyzer.cpp" />

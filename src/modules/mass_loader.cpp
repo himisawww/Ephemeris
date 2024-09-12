@@ -620,6 +620,8 @@ bool msystem::load_checkpoint(MFILE *fin){
         clear();
         return false;
     }
+
+    build_mid();
     return true;
 }
 

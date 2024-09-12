@@ -50,6 +50,9 @@ public:
     void rebind();
 
     void extract(std::vector<MFILE> &ephm_files,bool force);
+
+    //convert zips to old data pack
+    static int convert_format(const char *path);
 };
 
 class ephemeris_generator{

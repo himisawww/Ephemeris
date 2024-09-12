@@ -15,4 +15,6 @@ extern const char *SaveNameInitialDirectory;
 extern const char *VersionString;
 extern const char AuthorName[];
 
+//deprecated
+extern const char *SaveNameTimestamps;
 }

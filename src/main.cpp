@@ -79,56 +79,7 @@ int main_fun(int argc,const char **argv){
     return 0;
 }
 
-/*/convert zips to old data pack
-int convert_format(const char *path){
-    std::string sop=path;
-    for(int dir=1;dir>=-1;dir-=2){
-        const char *fwdbak=dir>0?"fwd":"bak";
 
-        std::string zckpt;
-        size_t cur_index=1;
-        MFILE *fout=mopen(sop+"."+fwdbak,MFILE_STATE::WRITE_FILE);
-        do{
-            zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
-            if(!file_exist(zckpt))break;
-
-            izippack zp(zckpt);
-            MFILE mf_time;
-            std::vector<MFILE> mf_mlist;
-            int_t mi=-Configs::ExportHeaderCount;
-            for(const auto &zf:zp){
-                std::string zfn=zf.name();
-                if(mi>=0){
-                    mf_mlist.resize(mi+1);
-                    zf.dumpfile(mf_mlist[mi]);
-                }
-                else if(zfn==Configs::SaveNameTimestamps){
-                    zf.dumpfile(mf_time);
-                }
-                ++mi;
-            }
-
-            vec v5[5];
-            int_t it_eph;
-            int_t n_data=0;
-            while(1==fread(&it_eph,sizeof(int_t),1,&mf_time)){
-                double mst_eph=it_eph;
-                bool output=n_data||dir==1&&cur_index==1;
-                if(output)fwrite(&mst_eph,sizeof(double),1,fout);
-                for(auto &mf:mf_mlist){
-                    fread(&v5,sizeof(vec),5,&mf);
-                    if(output)fwrite(&v5,sizeof(vec),5,fout);
-                }
-                ++n_data;
-            }
-
-            ++cur_index;
-        } while(1);
-        fclose(fout);
-    }
-    return 0;
-}
-*/
 int main(int argc,const char **argv){
     return main_fun(argc,argv);
 

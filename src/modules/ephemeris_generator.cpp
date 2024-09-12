@@ -400,12 +400,16 @@ void ephemeris_collector::record(){
 void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     int_t mn=ms.size();
     std::vector<std::pair<int_t,int_t>> ex_entry;
+    const auto *pold_blist=&blist;
+    std::vector<barycen> _old_blist_slot;
     if(!force){
         std::vector<int_t> polds;
         polds.reserve(mn);
         for(int_t i=0;i<mn;++i)
             polds.push_back(datapacks[i].parent_barycen_id);
+        _old_blist_slot.swap(blist);
         rebind();
+        pold_blist=&_old_blist_slot;
         for(int_t i=0;i<mn;++i)
             if(datapacks[i].parent_barycen_id!=polds[i])
                 ex_entry.push_back({i,polds[i]});
@@ -421,21 +425,30 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     MFILE *findex=&ephm_files[0];
     for(auto dpid:ex_entry){
         _datapack &d=datapacks[dpid.first];
-        auto &vdat=d.data;
+        const mass &m=ms[dpid.first];
+        const barycen &b=blist[d.tid];
 
         _index_entry idat;
         idat.fid=ephm_files.size();
         idat.t_start=d.t_start;
         idat.t_end=d.t_end;
-        idat.sid=ms[dpid.first].sid;
+        idat.sid=m.sid;
         idat.parent_barycen_id=dpid.second;
-
         fwrite(&idat,sizeof(idat),1,findex);
 
-        d.data.set_name(strprintf("%lld.dat",idat.fid));
-        ephm_files.push_back(std::move(d.data));
-        d.data.reset();
+        MFILE *mfp=&d.data;
+        mfp->set_name(strprintf("%lld.dat",idat.fid));
+        ephm_files.push_back(std::move(*mfp));
+        mfp->reset();
+
         d.t_start=t_eph;
+        d.t_end=t_eph;
+        vec r=b.r,v=b.v,w=m.w,x=m.s.x,z=m.s.z;
+        fwrite(&r,sizeof(vec),1,mfp);
+        fwrite(&v,sizeof(vec),1,mfp);
+        fwrite(&w,sizeof(vec),1,mfp);
+        fwrite(&x,sizeof(vec),1,mfp);
+        fwrite(&z,sizeof(vec),1,mfp);
     }
 
     //record blist for [t_start,t_end]
@@ -447,7 +460,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     idat.parent_barycen_id=blist.size();
     fwrite(&idat,sizeof(idat),1,findex);
 
-    msystem::save_barycen_structure(findex,blist);
+    msystem::save_barycen_structure(findex,*pold_blist);
 
     t_start=t_eph;
 }
