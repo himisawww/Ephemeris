@@ -6,20 +6,29 @@
 #include<map>
 
 class ephemeris_collector{
-    struct _datapack{
+    struct orbital_datapack_t{
         int_t tid;
         int_t t_start;
         int_t t_end;
         int_t parent_barycen_id;
         MFILE data;
     };
-
-    struct _index_entry{
-        int_t fid;
+    struct rotational_datapack_t{
         int_t t_start;
         int_t t_end;
+        MFILE data;
+    };
+
+    struct index_entry_t{
+        //+: orbital data file, from 1...
+        //-: rotational data file, from -1...
+        //0: barycen structure
+        int_t fid;
+        //for data file: sid of related mass
+        //for barycen structure: vector<barycen>.size
         uint64_t sid;
-        int_t parent_barycen_id;
+        int_t t_start;
+        int_t t_end;
     };
 
 private:
@@ -28,7 +37,8 @@ private:
 
     // { { mids of parent barycen, mids of child barycen }, index of pair }
     std::map<std::pair<std::set<int_t>,std::set<int_t>>,int_t> barycen_ids;
-    std::vector<_datapack> datapacks;
+    std::vector<orbital_datapack_t> orbital_data;
+    std::vector<rotational_datapack_t> rotational_data;
     int_t t_start;
 public:
     ephemeris_collector(msystem &_ms);

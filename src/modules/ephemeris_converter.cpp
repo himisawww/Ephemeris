@@ -48,7 +48,6 @@ int ephemeris_collector::convert_format(const char *path){
             if(mf_mlist.empty())
                 continue;
 
-            ephemeris_collector ephc(ms);
             if(version==0){//index is timestamps
                 vec v5[5];
                 int_t it_eph;
@@ -65,34 +64,38 @@ int ephemeris_collector::convert_format(const char *path){
                 }
             }
             else if(version==1){
+                ephemeris_collector ephc(ms);
                 int_t mn=ms.size();
                 if(!mn){
                     is_broken=true;
                     continue;
                 }
 
-                //{fid, _index_entry of fid.dat}
-                std::map<int_t,_index_entry> indices;
+                //{fid, index_entry_t of fid.dat}
+                std::map<int_t,index_entry_t> indices;
                 //{t_end, blist over [t_start,t_end]}
                 std::map<int_t,std::vector<barycen>> bss;
                 //[mid]={t_end, fid over [t_start,t_end]}
-                std::vector<std::map<int_t,int_t>> ephm_mass(mn);
+                std::vector<std::map<int_t,int_t>> orb_fids(mn);
+                std::vector<int_t> rot_fids(mn);
                 //{fid, fid.dat}
                 std::map<int_t,MFILE*> ephm_files;
                 do{
-                    _index_entry index;
+                    index_entry_t index;
                     if(1!=fread(&index,sizeof(index),1,&mf_index))
                         break;
-                    if(index.fid<0){
+                    if(index.fid==0){
                         auto &blist=bss[dir*index.t_end];
-                        blist.resize(index.parent_barycen_id);
+                        blist.resize(index.sid);
                         msystem::load_barycen_structure(&mf_index,blist);
                     }
                     else
                         indices[index.fid]=index;
                 } while(1);
 
-                typedef vec _data_point[5];
+                typedef vec _orb_t[2];
+                typedef vec _rot_t[3];
+                typedef struct{ _orb_t _orb;_rot_t _rot; } _data_t;
                 int_t t_start,t_end,t_interval=0;
                 for(auto &mf:mf_mlist){
                     int_t fid=atoi(mf.get_name().c_str());
@@ -102,13 +105,13 @@ int ephemeris_collector::convert_format(const char *path){
                         continue;
                     }
                     mf.seek(0,SEEK_END);
-                    int_t fsize=mf.tell()/sizeof(_data_point);
+                    int_t fsize=mf.tell()/(fid>0?sizeof(_orb_t):sizeof(_rot_t));
                     mf.seek(0,SEEK_SET);
                     if(fsize<=1){
                         is_broken=true;
                         continue;
                     }
-                    _index_entry &index=it->second;
+                    index_entry_t &index=it->second;
                     int_t finterval=(index.t_end-index.t_start)/(fsize-1);
                     if(t_interval==0){
                         t_interval=finterval;
@@ -121,7 +124,11 @@ int ephemeris_collector::convert_format(const char *path){
                         }
                         t_end=index.t_end;
                     }
-                    ephm_mass[ms.get_mid(index.sid)][dir*index.t_end]=fid;
+                    int_t mid=ms.get_mid(index.sid);
+                    if(fid>0)
+                        orb_fids[mid][dir*index.t_end]=fid;
+                    else
+                        rot_fids[mid]=fid;
                     ephm_files[fid]=&mf;
                 }
 
@@ -132,7 +139,7 @@ int ephemeris_collector::convert_format(const char *path){
 
                 auto it_barycen=bss.end();
                 std::vector<int_t> tids(mn),bids(mn);
-                std::vector<_data_point> ephm_data(mn);
+                std::vector<_data_t> ephm_data(mn);
                 t_end+=t_interval;
                 for(int_t it_eph=t_start;it_eph!=t_end;it_eph+=t_interval){
                     double mst_eph=it_eph;
@@ -159,31 +166,35 @@ int ephemeris_collector::convert_format(const char *path){
                     }
                     fwrite(&mst_eph,sizeof(double),1,fout);
                     for(int_t i=0;i<mn;++i){
-                        auto it_data=ephm_mass[i].lower_bound(dir*it_eph);
-                        if(it_data==ephm_mass[i].end()){
+                        auto it_data=orb_fids[i].lower_bound(dir*it_eph);
+                        if(it_data==orb_fids[i].end()){
                             is_broken=true;
                             continue;
                         }
-                        _index_entry &index=indices[it_data->second];
-                        MFILE *fdata=ephm_files[index.fid];
-                        _data_point &v5=ephm_data[i];
-                        fdata->seek((it_eph-index.t_start)/t_interval*sizeof(v5),SEEK_SET);
-                        if(1!=fread(v5,sizeof(v5),1,fdata)){
+                        index_entry_t &oindex=indices[it_data->second];
+                        index_entry_t &rindex=indices[rot_fids[i]];
+                        MFILE *fodata=ephm_files[oindex.fid];
+                        MFILE *frdata=ephm_files[rindex.fid];
+                        _data_t &v5=ephm_data[i];
+                        fodata->seek((it_eph-oindex.t_start)/t_interval*sizeof(_orb_t),SEEK_SET);
+                        frdata->seek((it_eph-rindex.t_start)/t_interval*sizeof(_rot_t),SEEK_SET);
+                        if(1!=fread(v5._orb,sizeof(_orb_t),1,fodata)
+                         ||1!=fread(v5._rot,sizeof(_rot_t),1,frdata)){
                             is_broken=true;
                             continue;
                         }
                         barycen &b=ephc.blist[tids[i]];
-                        b.r=v5[0];
-                        b.v=v5[1];
+                        b.r=v5._orb[0];
+                        b.v=v5._orb[1];
                     }
                     ephc.compose();
                     for(int_t i=0;i<mn;++i){
                         barycen &b=ephc.blist[bids[i]];
-                        _data_point &v5=ephm_data[i];
-                        v5[0]=vec(b.r);
-                        v5[1]=vec(b.v);
+                        _data_t &v5=ephm_data[i];
+                        v5._orb[0]=vec(b.r);
+                        v5._orb[1]=vec(b.v);
                     }
-                    fwrite(ephm_data.data(),sizeof(_data_point),mn,fout);
+                    fwrite(ephm_data.data(),sizeof(_data_t),mn,fout);
                 }
             }
 
