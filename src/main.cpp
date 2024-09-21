@@ -81,6 +81,21 @@ int main_fun(int argc,const char **argv){
 
 
 int main(int argc,const char **argv){
+#if 0
+    izippack fzip("F:\\Temp\\ephm\\Ephemeris\\Decomposed\\SolarSystem.1.fwd.zip");
+    for(const izipfile &zf:fzip){
+        int_t id=atoi(zf.name().c_str());
+        if(id==0)
+            continue;
+        MFILE mf;
+        zf.dumpfile(mf);
+        if(id>0)
+            ephemeris_compressor::compress_orbital_data(mf,3600);
+        else
+            ephemeris_compressor::compress_rotational_data(mf,3600);
+    }
+    return 0;
+#endif
     return main_fun(argc,argv);
 
     const char *m_argv[]={

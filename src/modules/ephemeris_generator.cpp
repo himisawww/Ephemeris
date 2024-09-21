@@ -416,6 +416,10 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
             polds.push_back(orbital_data[i].parent_barycen_id);
         _old_blist_slot.swap(blist);
         rebind();
+        //not necessary: when(!force=analyse()) (blist=ms.blist) is updated by analyse()
+        //but make sure
+        update_barycens();
+        decompose();
         pold_blist=&_old_blist_slot;
         for(int_t i=0;i<mn;++i)
             if(orbital_data[i].parent_barycen_id!=polds[i])

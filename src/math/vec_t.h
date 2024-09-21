@@ -47,6 +47,27 @@ public:
     INLINE T norm() const{
         return sqrt(x*x+y*y+z*z);
     }
+    INLINE T normsqr() const{
+        return x*x+y*y+z*z;
+    }
+    //normalize *this by norm()
+    //  *this = (0,0,1) for (0,0,0)
+    //  return norm()
+    INLINE T normalize(){
+        const T r=norm();
+        if(r==0){
+            x=0;
+            y=0;
+            z=1;
+        }
+        else{
+            T rr=1/r;
+            x*=rr;
+            y*=rr;
+            z*=rr;
+        }
+        return r;
+    }
 
     INLINE vec_t<T> &operator =(const T &a){
         x=a;
@@ -105,9 +126,10 @@ public:
         y=_y;
         return *this;
     }
-    //return (1,0,0) for (0,0,*)
-    //return exactly same vectors for multiple calls from exactly same vectors
-    INLINE vec_t<T> perpunit() const{
+    //ascending node: a perpendicular unit vector on xy-plane
+    //  return (1,0,0) for (0,0,*)
+    //  return exactly same vectors for multiple calls from exactly same vectors
+    INLINE vec_t<T> asc_node() const{
         vec_t<T> p(-y,x,0);
         T r=x*x+y*y;
         if(r==0)p.x=1;

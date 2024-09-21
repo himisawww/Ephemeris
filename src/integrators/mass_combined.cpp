@@ -238,7 +238,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                     mci.GM0+=mci.GM*rGM;
 
                     fast_mpvec mgl=mci.GL;
-                    fast_mpmat fgls(mgl.perpunit(),0,mgl/mgl.norm());
+                    fast_mpmat fgls(mgl.asc_node(),0,mgl/mgl.norm());
                     fast_mpmat rh(0);
                     rh.x.x=mr.J2/2;
                     rh.y.y=mr.J2/2;

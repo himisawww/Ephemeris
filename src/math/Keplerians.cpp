@@ -55,7 +55,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     double jjeps=epsilon*epsilon*r0;
     if(jj<jjeps){
         //if jj==0, use finite-pseudo-j to avoid singularity
-        j=r.perpunit();
+        j=r.asc_node();
         j*=sqrt(jjeps);
         jj=j%j;
     }
@@ -63,7 +63,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
     vec e=v*j-r/r0;
     double ee=e%e,e0=sqrt(ee);
     double rjj=1/jj,srjj=sqrt(rjj);
-    vec jx=j.perpunit(),jy=j*jx*srjj;
+    vec jx=j.asc_node(),jy=j*jx*srjj;
     double ex=e%jx,ey=e%jy;
 
     earg=atan2(ey,ex);
@@ -97,7 +97,7 @@ ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
 }
 void ephem_orb::rv(double t,vec &r,vec &v) const{
     double jj=j%j,rjj=1/jj,srjj=sqrt(rjj);
-    vec jx=j.perpunit(),jy=j*jx*srjj;
+    vec jx=j.asc_node(),jy=j*jx*srjj;
 
     //current modified mean anomaly
     double mp=m+(t-this->t)*srjj*rjj;
@@ -215,7 +215,7 @@ ephem_rot::ephem_rot(double t,const mat &s,const vec &_w):t(t),w(_w){
     }
 
     double sww=sqrt(ww),srww=1/sww;
-    mat wm(w.perpunit(),0,w*srww);
+    mat wm(w.asc_node(),0,w*srww);
     vec wz=wm.z;
 
     s.thetaphi(wz,ptheta,pphi);
@@ -235,7 +235,7 @@ ephem_rot::ephem_rot(double t,const mat &s,const vec &_w):t(t),w(_w){
 void ephem_rot::sw(double t,mat &s,vec &w) const{
     w=this->w;
     double sww=sqrt(w%w),srww=1/sww;
-    s=mat(w.perpunit(),0,w*srww);
+    s=mat(w.asc_node(),0,w*srww);
     vec wz=s.z;
     s.roty(-ptheta).rotz(-pphi);
 

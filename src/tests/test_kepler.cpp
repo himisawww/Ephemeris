@@ -43,7 +43,7 @@ int test_kepler(){
                 test_rv_reproduce(r,dv+s2*randomdirection());
                 test_rv_reproduce(r,dv+s2*r);
                 test_rv_reproduce(r,dv-s2*r);
-                vec vp=r.perpunit();
+                vec vp=r.asc_node();
                 vp+=rotation_matrix(r,randomreal()*Constants::pi_mul2)%vp;
                 vp+=dv;
                 test_rv_reproduce(r,vp+r);

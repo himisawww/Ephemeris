@@ -1,9 +1,69 @@
 #pragma once
-#include"physics/mass.h"
-#include"utils/memio.h"
 #include<mutex>
 #include<set>
 #include<map>
+#include"physics/mass.h"
+#include"utils/memio.h"
+#include"math/Keplerians.h"
+
+class ephemeris_compressor{
+public:
+    //compressed data format
+    enum class Format{
+        //orbital
+        STATE_VECTORS,
+        KEPLERIAN_CIRCULAR, //use j, ex,ey, ml
+        KEPLERIAN_RAW,      //use j, q, el, m
+        //rotational
+        POLAR_OFFSET,
+        QUATERNION
+    };
+
+    class keplerian:public ephem_orb{
+    public:
+        //longitude of ascending node + earg
+        double el;
+        //eccentricity vector
+        //e * sincos(el)
+        double ex,ey;
+        //mean longitude
+        //el + mean anomaly
+        double ml;
+
+        keplerian()=default;
+        keplerian(const ephem_orb &other);
+
+        // test if two states are interpolatable
+        static bool interpolatable(bool circular,const keplerian &k1,const keplerian &k2);
+
+        //blend multiple keplerians by weights
+        void blend_initialize(bool circular);
+        void blend_add(bool circular,const keplerian &component,double weight);
+        void blend_finalize(bool circular);
+
+    };
+
+    struct orbital_state_t{
+        vec r,v;
+    };
+    struct rotational_state_t{
+        vec w,x,z;
+    };
+private:
+    static double infer_GM_from_data(orbital_state_t *pdata,int_t N);
+public:
+    //max possible degree of bspline fitting, must be odd
+    //11 is maximum odd number not exceed the degree of RungeKutta integrator
+    //do not change this
+    static constexpr int_t max_bspline_degree=11;
+
+    // mf: contains raw orbital_state_t data
+    // dt: time cadence between data points
+    static void compress_orbital_data(MFILE &mf,double dt);
+    // mf: contains raw rotational_state_t data
+    // dt: time cadence between data points
+    static void compress_rotational_data(MFILE &mf,double dt);
+};
 
 class ephemeris_collector{
     struct orbital_datapack_t{

@@ -117,6 +117,12 @@
     <ClCompile Include="src\modules\ephemeris_converter.cpp">
       <Filter>modules</Filter>
     </ClCompile>
+    <ClCompile Include="src\modules\ephemeris_compressor.cpp">
+      <Filter>modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\math\basic_math.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
@@ -192,6 +198,9 @@
     </ClInclude>
     <ClInclude Include="src\utils\threadpool.h">
       <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\basic_math.h">
+      <Filter>math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

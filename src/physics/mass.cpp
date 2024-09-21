@@ -140,7 +140,7 @@ void msystem::accel(){
             //start ring gravity model
             if(mi.ringmodel){
                 fast_mpvec migl=mi.GL;
-                fast_mpmat fgls(migl.perpunit(),0,migl/migl.norm());
+                fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
                 fast_mpvec lr=fgls.tolocal(r);
                 fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
                 APPLY_NONPOINT_FORCE(mi);

@@ -289,7 +289,7 @@ void __device__ accel_2(){//higher harmonics
                     }
                     if(mi.ringmodel){
                         fast_mpvec migl=mi.GL;
-                        fast_mpmat fgls(migl.perpunit(),0,migl/migl.norm());
+                        fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
                         fast_mpvec lr=fgls.tolocal(r);
                         an+=fgls.toworld(mi.ringmodel->cuda_sum(mi.R,lr));
                     }

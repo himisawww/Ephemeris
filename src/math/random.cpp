@@ -30,7 +30,7 @@ vec randomdirection(){
 }
 mat randommatrix(){
     vec rd=randomdirection();
-    mat res(rd.perpunit(),0,rd);
+    mat res(rd.asc_node(),0,rd);
     res.rotz(pi_mul2*randomreal());
     return res;
 }
