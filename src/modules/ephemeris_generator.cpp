@@ -4,6 +4,7 @@
 #include"utils/zipio.h"
 #include"utils/calctime.h"
 #include"utils/logger.h"
+#include"utils/threadpool.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -107,7 +108,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
     int_t time_idx=0;
 
-    msystem::thread_local_pool_alloc();
+    ThreadPool::thread_local_pool_alloc();
     do{
         if(time_idx+iunit>isize)iunit=isize-time_idx;
 
@@ -217,7 +218,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         
         time_idx+=iunit;
     }while(time_idx<isize);
-    msystem::thread_local_pool_free();
+    ThreadPool::thread_local_pool_free();
 
     return 0;
 }

@@ -2,6 +2,7 @@
 #include<thread>
 #include"utils/logger.h"
 #include"utils/calctime.h"
+#include"utils/threadpool.h"
 
 #define TEST_DELTA_T        300
 #define TEST_COMBINED_T     28800
@@ -79,9 +80,9 @@ int test_integrator(){
     }
 
     std::thread thhalf([&](){
-        msystem::thread_local_pool_alloc();
+        ThreadPool::thread_local_pool_alloc();
         mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T);
-        msystem::thread_local_pool_free();
+        ThreadPool::thread_local_pool_free();
         });
 
     mcombine.combined_integrate(TEST_DELTA_T,TEST_COMBINED_T/TEST_DELTA_T,TEST_TOTAL_T/TEST_COMBINED_T-1);

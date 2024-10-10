@@ -135,14 +135,6 @@ void do_thread_works(void *pworks,size_t thread_id){
         mss[idx]->integrate(w.dt,w.n_combine);
 }
 
-static thread_local ThreadPool *pthread_pool;
-void msystem::thread_local_pool_alloc(){
-    thread_local ThreadPool thread_pool;
-    pthread_pool=&thread_pool;
-}
-void msystem::thread_local_pool_free(){
-    if(pthread_pool)pthread_pool->resize(0);
-}
 
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU){
     analyse();
@@ -422,6 +414,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         tasks.widxs=&distributed;
         tasks.dt=dt;
         tasks.n_combine=n_combine;
+        ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
         std::vector<std::thread> threads;
         if(pthread_pool)
             pthread_pool->distribute_tasks(n_threads,do_thread_works,&tasks);
