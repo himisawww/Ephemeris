@@ -1,4 +1,7 @@
 #pragma once
+#ifndef INLINE
+#define INLINE inline
+#endif
 
 //consts
 namespace Constants{
@@ -24,19 +27,19 @@ constexpr double year=365.25*86400;
 
 // return nan if one of parameters is nan
 template<typename T>
-const T &checked_max(const T &a,const T &b){
+INLINE T checked_max(const T &a,const T &b){
     return (b!=b||a<b)?b:a;
 }
 template<typename T>
-const T &checked_min(const T &a,const T &b){
+INLINE T checked_min(const T &a,const T &b){
     return (b!=b||b<a)?b:a;
 }
 template<typename T>
-void checked_maximize(T &a,const T &b){
+INLINE void checked_maximize(T &a,const T &b){
     a=checked_max(b,a);
 }
 template<typename T>
-void checked_minimize(T &a,const T &b){
+INLINE void checked_minimize(T &a,const T &b){
     a=checked_min(b,a);
 }
 

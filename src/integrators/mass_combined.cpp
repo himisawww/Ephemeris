@@ -116,10 +116,6 @@ void mass_copy(mass &dst,const mass &src){
     dst.w=src.w;
 }
 
-void thread_work(msystem *ms,fast_real dt,int_t n_combine){
-    ms->integrate(dt,n_combine);
-}
-
 struct thread_works{
     const std::vector<msystem*> *pm;
     const std::vector<std::vector<size_t>> *widxs;
@@ -379,21 +375,6 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sns.second.integrate(dt,n_combine,0);
         }
 #else
-#if 0
-        std::vector<std::thread> threads;
-        threads.reserve(Sn.size());
-        for(auto &sns:Sn){
-            threads.push_back(std::thread(thread_work,&sns.second,dt,n_combine));
-        }
-
-        Sx.integrate(dt_long,1,0);
-
-        Sc.integrate(dt_long,1,USE_GPU);
-
-        for(auto &th:threads){
-            th.join();
-        }
-#else
         int_t cost=0,max_cost=0,n_threads;
         std::vector<int_t> costs;
         std::vector<msystem*> msys;
@@ -429,7 +410,6 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             pthread_pool->wait_for_all();
         else for(int_t i=0;i<n_threads;++i)
             threads[i].join();
-#endif
 #endif
         //finalize
 

@@ -15,11 +15,14 @@ static constexpr msystem_err_t
     ref_combined_err ={ 1e-5,   1e-8,   1e-11,  1e-07,  1e-07   },
     ref_cutoff_err   ={ 1e-3,   1e-7,   1e-12,  1e-07,  1e-07   };
 
-static fast_real msystem_compare(const msystem_err_t &ref_err,const msystem &ms1,const msystem &ms2){
+static constexpr fast_real ref_maxrec_err=1e-15;
+
+static fast_real msystem_compare(const msystem_err_t &ref_err,const msystem &ms1,const msystem &ms2,bool comp_maxrecs=false){
     msystem_err_t merr={0};
     const size_t msize=ms1.size();
     if(msize!=ms2.size()||ms1.ephemeris_time()!=ms2.ephemeris_time())
         return NAN;
+    fast_real ret=0;
     for(size_t i=0;i<msize;++i){
         const mass &m1=ms1[i];
         const mass &m2=ms2[i];
@@ -28,9 +31,12 @@ static fast_real msystem_compare(const msystem_err_t &ref_err,const msystem &ms1
         checked_maximize(merr[2],fast_mpvec(m1.w-m2.w).norm());
         checked_maximize(merr[3],fast_mpvec(m1.s.x-m2.s.x).norm());
         checked_maximize(merr[4],fast_mpvec(m1.s.z-m2.s.z).norm());
+        if(!comp_maxrecs)continue;
+        checked_maximize(ret,std::abs(m1.min_distance-m2.min_distance)/checked_min(m1.min_distance,m2.min_distance));
+        checked_maximize(ret,std::abs(m1.max_influence-m2.max_influence)/checked_min(m1.max_influence,m2.max_influence));
     }
+    ret/=ref_maxrec_err;
     const fast_real errfactor=TEST_TOTAL_T/ms1.ephemeris_time();
-    fast_real ret=0;
     for(int i=0;i<5;++i)
         checked_maximize(ret,merr[i]*errfactor/ref_err[i]);
     return ret;
@@ -55,7 +61,7 @@ int test_integrator(){
     sgpu=CalcTime()-sgpu;
 
     //compare cpu and gpu
-    fast_real max_err=msystem_compare(ref_cgpu_err,mcpu,mgpu);
+    fast_real max_err=msystem_compare(ref_cgpu_err,mcpu,mgpu,true);
     if(!(max_err<1)){
         LogError(
             "\nMax Reduced Difference between CPU & GPU Integrator %.16le Too Large",
