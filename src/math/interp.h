@@ -40,6 +40,8 @@ class bspline_fitter{
     std::vector<T> chebyshevs;
     bool is_valid;
 
+    typedef dfloat_t<double> ddouble;
+    typedef dfloat_t<T> dprec_t;
     static_assert(N_Channel>0,"Number of Channels should be positive.");
 
 public:
@@ -52,33 +54,34 @@ public:
     bspline_fitter(int_t _d,int_t _n,const T *source_data,int_t _mn):d(_d),n(_n),mn(_mn){
         is_valid=n>0&&d>0&&mn+1>=n+d;
         if(!is_valid)return;
-        bsplines.resize(N_Channel*(n+d),T(0));
+
+        std::vector<dprec_t> yvec(N_Channel*(n+d),dprec_t(0));
 
         //(l,u)=(d,d) diagonal ordered form of matrix
-        std::vector<double> mb((n+d)*(2*d+1),double(0));
+        std::vector<ddouble> mb((n+d)*(2*d+1),ddouble(0));
 
 #define all_channels    int_t ich=0;ich<N_Channel;++ich
 #define index(i)        (i)*N_Channel+ich
 #define mat(i,j)        mb[(i)+d*(2*(j)+1)]
-        T *y=bsplines.data();
+        dprec_t *y=yvec.data();
 
         for(int_t i=0;i<n+d;++i){
             int_t jmin=std::max(int_t(0),mn*(i-d)+n)/n;
             int_t jmax=std::min(mn,(mn*(i+1)-1)/n);
             const double rmn=double(1)/mn;
-            double w=0;
+            ddouble w=0;
             for(int_t j=jmin;j<=jmax;++j){
-                double b=bspline_basis_chebyshev(d,j*n*rmn-i);
+                ddouble b=bspline_basis_chebyshev(d,j*n*rmn-i);
                 int_t kmin=j*n/mn;
                 int_t kmax=(j*n+mn-1)/mn+d-1;
                 for(int_t k=kmin;k<=kmax;++k)
                     mat(i,k)+=bspline_basis_chebyshev(d,j*n*rmn-k)*b;
                 for(all_channels)
-                    y[index(i)]+=source_data[index(j)]*b;
+                    y[index(i)]+=dprec_t(source_data[index(j)])*b;
                 w+=b;
             }
             //normalize by w
-            w=1/w;
+            w=ddouble(1)/w;
             int_t kmin=std::max(int_t(0),i-d);
             int_t kmax=std::min(n+d-1,i+d);
             for(int_t k=kmin;k<=kmax;++k)
@@ -92,14 +95,14 @@ public:
             int_t jmin=std::max(int_t(0),i-d);
             int_t jmax=std::min(n+d-1,i+d);
             for(int_t j=jmin;j<i;++j){
-                double sum=0;
+                ddouble sum=0;
                 for(int_t k=std::max(int_t(0),i-d);k<j;++k)
                     sum+=mat(i,k)*mat(k,j);
                 mat(i,j)-=sum;
                 mat(i,j)/=mat(j,j);
             }
             for(int_t j=i;j<=jmax;++j){
-                double sum=0;
+                ddouble sum=0;
                 for(int_t k=std::max(int_t(0),j-d);k<i;++k)
                     sum+=mat(i,k)*mat(k,j);
                 mat(i,j)-=sum;
@@ -115,11 +118,16 @@ public:
                 for(all_channels)
                     y[index(i)]-=mat(i,j)*y[index(j)];
             }
-            double w=1/mat(i,i);
+            ddouble w=ddouble(1)/mat(i,i);
             for(all_channels)
                 y[index(i)]*=w;
         }
 
+        bsplines.reserve(N_Channel*(n+d));
+        for(int_t i=0;i<n+d;++i){
+            for(all_channels)
+                bsplines.push_back(T(y[index(i)]));
+        }
 #undef mat
         //must expand for d==1
         //otherwise discrete derivative will lead to errors on edge cases
