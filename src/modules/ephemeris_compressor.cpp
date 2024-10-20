@@ -1,4 +1,6 @@
+#include<queue>
 #include"ephemeris_generator.h"
+#include"math/interp.h"
 #include"utils/logger.h"
 
 #define HALF 0.5
@@ -108,7 +110,7 @@ void kep_t::blend_finalize(bool circular){
     w=0;
 }
 
-double ephemeris_compressor::infer_GM_from_data(orbital_state_t *pdata,int_t N){
+double ephemeris_compressor::infer_GM_from_data(const orbital_state_t *pdata,int_t N){
     std::vector<double> angles(N);
     angles[0]=0;
     for(int_t i=1;i<N;++i){
@@ -126,10 +128,10 @@ double ephemeris_compressor::infer_GM_from_data(orbital_state_t *pdata,int_t N){
         int_t lold=l,rold=r;
         while(r+1<N&&angles[r]-angles[l]<min_angle)++r;
         if(l<r){
-            vec &r0=pdata[l].r;
-            vec &v0=pdata[l].v;
-            vec &r1=pdata[r].r;
-            vec &v1=pdata[r].v;
+            const vec &r0=pdata[l].r;
+            const vec &v0=pdata[l].v;
+            const vec &r1=pdata[r].r;
+            const vec &v1=pdata[r].v;
             vec drn=r0/r0.norm()-r1/r1.norm();
             vec dvj=v0*(r0*v0)-v1*(r1*v1);
             double dweight=drn.normalize();
@@ -159,13 +161,37 @@ static constexpr double midinterp_coefficients[][8]={
 };
 constexpr int_t midinterp_max_wing=sizeof(midinterp_coefficients)/sizeof(midinterp_coefficients[0]);
 
+template<typename T,size_t N_Channel>
+auto compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T &ref,const T &val)){
+    std::map<int_t,std::pair<MFILE,double>> mfmap;
+    std::priority_queue<std::pair<double,int_t>> score_list;
+    const int_t n_min=1;
+    const int_t n_max=(N-d)/2;
+    
+    auto make_fit=[&](int_t n){
+        auto &target=mfmap[n];
+        MFILE &mf=target.first;
+        const size_t bsp_size=N_Channel*sizeof(T)*(n+1);
+        if(mf.size()==bsp_size)return;
+        //interp_bspline<T,N_Channel>((T*)mf.prepare(bsp_size),d,n,pdata,N-1);
+    };
+
+    if(n_max<=n_min)
+        make_fit(n_min);
+    else{
+
+    }
+
+    return std::move(mfmap[score_list.top().second]);
+}
+
 void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     mf.load_data();
     int_t N=mf.size();
-    orbital_state_t *pdata=(orbital_state_t*)mf.prepare(N);
+    const orbital_state_t *pdata=(const orbital_state_t*)mf.prepare(N);
     constexpr int_t state_size=sizeof(orbital_state_t);
     if(N<2*state_size||N%state_size){
-        LogError("compress_orbital_data::invalid file size.");
+        LogError("compress_orbital_data::invalid file size.\n");
         return;
     }
     N/=state_size;
@@ -285,6 +311,54 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
             fiterrs[i]=fiterrs[wing];
             fiterrs[N-1-i]=fiterrs[N-1-wing];
         }
+    }
+
+    fit_err_t max_errs,mean_errs;
+    memset(&max_errs,0,sizeof(fit_err_t));
+    memset(&mean_errs,0,sizeof(fit_err_t));
+    for(int_t i=0;i<N;++i){
+        const auto &ei=fiterrs[i];
+        checked_maximize(max_errs.serr,ei.serr);
+        checked_maximize(max_errs.kcerr,ei.kcerr);
+        checked_maximize(max_errs.krerr,ei.krerr);
+        mean_errs.serr+=ei.serr*ei.serr;
+        mean_errs.kcerr+=ei.kcerr*ei.kcerr;
+        mean_errs.krerr+=ei.krerr*ei.krerr;
+    }
+    mean_errs.serr=std::sqrt(mean_errs.serr/N);
+    mean_errs.kcerr=std::sqrt(mean_errs.kcerr/N);
+    mean_errs.krerr=std::sqrt(mean_errs.krerr/N);
+    checked_minimize(max_errs.serr,3*mean_errs.serr);
+    checked_minimize(max_errs.kcerr,3*mean_errs.kcerr);
+    checked_minimize(max_errs.krerr,3*mean_errs.krerr);
+
+    //try fit state
+    double min_kep_err=filtered_min(max_errs.kcerr,max_errs.krerr);
+    double use_state=max_errs.serr<epsilon_fitting_error?
+        max_errs.serr:filtered_min(max_errs.serr,min_kep_err*(1<<d));
+    double use_kepler=min_kep_err<epsilon_fitting_error?
+        min_kep_err:filtered_min(max_errs.serr,min_kep_err);
+    int choices=0;
+    if(max_errs.serr==use_state){
+        ++choices;
+        //{x,y,z}=vec[1]
+        std::vector<vec> fdata;
+        fdata.reserve(N);
+        for(int_t i=0;i<N;++i)fdata.push_back(pdata[i].r);
+        auto mf=compress_data<vec,1>(fdata.data(),N,d,relative_state_error);
+    }
+    if(max_errs.kcerr==use_kepler){
+        ++choices;
+        //kep=double[6]
+
+    }
+    if(max_errs.krerr==use_kepler){
+        ++choices;
+        //kep=double[6]
+
+    }
+    if(!choices){
+        LogWarning("compress_orbital_data::no available method.\n");
     }
 
     return;

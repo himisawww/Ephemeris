@@ -123,7 +123,41 @@ double bspline_basis_chebyshev(int_t d,double x){
     return s;
 }
 
-double bspline_basis(int_t d,double x){
+double bspline_basis_chebyshev(int_t d,double x,double *pdb){
+    double &ds=*pdb;
+    ds=0;
+    if(d<0||d>_bsp_maxdeg||!(x<1&&x>=-d))
+        return 0;
+    int_t k=-(int_t)std::floor(x);
+    double s=_coef_unchecked(d,k,0);
+    if(d>0){
+        x+=k;
+        double xp=2*x-1;
+        const double c1=_coef_unchecked(d,k,1);
+        s+=c1*xp;
+        ds=c1*2;
+        if(d>1){
+            double x2=2*xp;
+            double tm,t=1,tp=xp;
+            double vm,v=0,vp=2;
+            for(int_t j=2;j<=d;++j){
+                tm=t;
+                vm=v;
+                t=tp;
+                v=vp;
+                tp=x2*t-tm;
+                vp=x2*v+4*t-vm;
+                const double cj=_coef_unchecked(d,k,j);
+                s+=cj*tp;
+                ds+=cj*vp;
+            }
+        }
+    }
+    return s;
+}
+
+double bspline_basis(int_t d,double x,double *pdb){
+    if(pdb)*pdb=0;
     if(d<0||d>_bsp_maxdeg||!(x<1&&x>=-d))
         return 0;
     int_t k=-(int_t)std::floor(x);
@@ -134,88 +168,12 @@ double bspline_basis(int_t d,double x){
     b[0]=1;
     for(int_t i=1;i<=d;++i){
         b[i]=0;
-        int_t jmax=std::max<int_t>(k,i);
+        int_t jmax=std::min<int_t>(k,i);
         int_t jmin=std::max<int_t>(0,k+i-d);
+        if(i==d&&pdb)*pdb=b[k-1]-b[k];
         for(int_t j=jmax;j>=jmin;--j)
             b[j]=((i-j+x)*b[j-1]+(1+j-x)*b[j])/i;
     }
     return b[k];
 }
 
-template<typename T,size_t N_Channel>
-bool interp_bspline(T *result,const int_t d,const int_t n,const T *data,const int_t mn){
-    static_assert(N_Channel>0,"Number of Channels should be positive.");
-    if(n<1||d<1||!(n+d<=mn+1))return false;
-
-    //(l,u)=(d,d) diagonal ordered form of matrix
-    std::vector<double> mb((n+d)*(2*d+1),double(0));
-
-#define mat(i,j)        mb[(i)+d*(2*(j)+1)]
-#define all_channels    int_t ich=0;ich<N_Channel;++ich
-#define index(i)        (i)*N_Channel+ich
-    T *y=result;
-
-    for(int_t i=0;i<n+d;++i){
-        int_t jmin=std::max(int_t(0),mn*(i-d)+n)/n;
-        int_t jmax=std::min(mn,(mn*(i+1)-1)/n);
-        const double rmn=double(1)/mn;
-        double w=0;
-        for(int_t j=jmin;j<=jmax;++j){
-            double b=bspline_basis_chebyshev(d,j*n*rmn-i);
-            int_t kmin=j*n/mn;
-            int_t kmax=(j*n+mn-1)/mn+d-1;
-            for(int_t k=kmin;k<=kmax;++k)
-                mat(i,k)+=bspline_basis_chebyshev(d,j*n*rmn-k)*b;
-            for(all_channels)
-                y[index(i)]+=data[index(j)]*b;
-            w+=b;
-        }
-        //normalize by w
-        w=1/w;
-        int_t kmin=std::max(int_t(0),i-d);
-        int_t kmax=std::min(n+d-1,i+d);
-        for(int_t k=kmin;k<=kmax;++k)
-            mat(i,k)*=w;
-        for(all_channels)
-            y[index(i)]*=w;
-    }
-
-    //banded solver
-    for(int_t i=0;i<n+d;++i){
-        int_t jmin=std::max(int_t(0),i-d);
-        int_t jmax=std::min(n+d-1,i+d);
-        for(int_t j=jmin;j<i;++j){
-            double sum=0;
-            for(int_t k=std::max(int_t(0),i-d);k<j;++k)
-                sum+=mat(i,k)*mat(k,j);
-            mat(i,j)-=sum;
-            mat(i,j)/=mat(j,j);
-        }
-        for(int_t j=i;j<=jmax;++j){
-            double sum=0;
-            for(int_t k=std::max(int_t(0),j-d);k<i;++k)
-                sum+=mat(i,k)*mat(k,j);
-            mat(i,j)-=sum;
-        }
-        for(int_t k=std::max(int_t(0),i-d);k<i;++k){
-            for(all_channels)
-                y[index(i)]-=mat(i,k)*y[index(k)];
-        }
-    }
-    for(int_t i=n+d-1;i>=0;--i){
-        int_t jmax=std::min(n+d-1,i+d);
-        for(int_t j=i+1;j<=jmax;++j){
-            for(all_channels)
-                y[index(i)]-=mat(i,j)*y[index(j)];
-        }
-        double w=1/mat(i,i);
-        for(all_channels)
-            y[index(i)]*=w;
-    }
-
-#undef index
-#undef all_channels
-#undef mat
-
-    return true;
-}

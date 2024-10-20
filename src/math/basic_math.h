@@ -43,5 +43,23 @@ INLINE void checked_minimize(T &a,const T &b){
     a=checked_min(b,a);
 }
 
+// return non-nan if one of parameters is nan
+template<typename T>
+INLINE T filtered_max(const T &a,const T &b){
+    return (a!=a||a<b)?b:a;
+}
+template<typename T>
+INLINE T filtered_min(const T &a,const T &b){
+    return (a!=a||b<a)?b:a;
+}
+template<typename T>
+INLINE void filtered_maximize(T &a,const T &b){
+    a=filtered_max(b,a);
+}
+template<typename T>
+INLINE void filtered_minimize(T &a,const T &b){
+    a=filtered_min(b,a);
+}
+
 // reduce angle to [-pi,pi] by factors of 2pi
 double angle_reduce(double x);

@@ -123,6 +123,9 @@
     <ClCompile Include="src\math\basic_math.cpp">
       <Filter>math</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\test_bspline.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

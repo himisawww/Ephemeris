@@ -41,6 +41,9 @@ tests.push_back({T,S,L})
     DECLARE_TEST(test_conservation, "Conservation",
         "Test conservation of momentum and angular momentum.\n"
     );
+    DECLARE_TEST(test_bspline,      "BSpline",
+        "Use high order bspline basis functions to fit data sequence.\n"
+    );
 
     int_t N=tests.size();
     for(int_t i=0;i<N;++i){

@@ -50,12 +50,14 @@ public:
         vec w,x,z;
     };
 private:
-    static double infer_GM_from_data(orbital_state_t *pdata,int_t N);
+    static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
     //do not change this
     static constexpr int_t max_bspline_degree=11;
+    //criterion below which error is thought mainly due to fp-imprecision, not model.
+    static constexpr double epsilon_fitting_error=1e-12;
 
     // mf: contains raw orbital_state_t data
     // dt: time cadence between data points
