@@ -3,3 +3,5 @@
 /_NOTES/
 /*.aps
 /*.nvsettings
+/.xmake
+/build
