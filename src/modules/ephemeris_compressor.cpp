@@ -162,27 +162,104 @@ static constexpr double midinterp_coefficients[][8]={
 constexpr int_t midinterp_max_wing=sizeof(midinterp_coefficients)/sizeof(midinterp_coefficients[0]);
 
 template<typename T,size_t N_Channel>
-auto compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T &ref,const T &val)){
-    std::map<int_t,std::pair<MFILE,double>> mfmap;
-    std::priority_queue<std::pair<double,int_t>> score_list;
+auto ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val)){
+    struct scored_compress_data{
+        MFILE data;
+        double max_error;
+        double reduced_error;
+        double score;
+        bool operator<(const scored_compress_data &other) const{
+            return score<other.score;
+        }
+    };
+    std::map<int_t,scored_compress_data> mfmap;
     const int_t n_min=1;
-    const int_t n_max=(N-d)/2;
+    const int_t n_max=std::max(n_min,(N-d)/(d+1));
     
     auto make_fit=[&](int_t n){
         auto &target=mfmap[n];
-        MFILE &mf=target.first;
-        const size_t bsp_size=N_Channel*sizeof(T)*(n+1);
-        if(mf.size()==bsp_size)return;
-        //interp_bspline<T,N_Channel>((T*)mf.prepare(bsp_size),d,n,pdata,N-1);
+        MFILE &mf=target.data;
+        const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
+        if(mf.size()==bsp_size)return (scored_compress_data*)nullptr;
+        bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
+        memcpy(mf.prepare(bsp_size),bf.get_fitted_data(),bsp_size);
+        bf.expand();
+        T result[N_Channel];
+        double max_error=0;
+        for(int_t i=0;i<N;++i){
+            bf(double(i),result);
+            double ierror=error_fun(pdata+N_Channel*i,result);
+            checked_maximize(max_error,ierror);
+        }
+        target.max_error=max_error;
+        double score=filtered_min<double>(max_error,INFINITY)+epsilon_fitting_error;
+        target.reduced_error=score;
+        target.score=double(bsp_size)*std::pow(score,compression_optimize_index);
+        //printf("[%lld, %.6e, %.6e]\n",n,score,target.score);
+        return &target;
     };
 
-    if(n_max<=n_min)
-        make_fit(n_min);
-    else{
-
+    std::vector<int_t> n_all(1,-1),i_chs;
+    int_t n=n_max;
+    while(n>n_min){
+        n=std::max(n_min,n*3/4);
+        n_all.push_back(n);
     }
 
-    return std::move(mfmap[score_list.top().second]);
+    scored_compress_data *pmaxfit=make_fit(n_max);
+    const double e0=pmaxfit->reduced_error;
+    const double q0=2*pmaxfit->score;
+    double wdenom=std::cbrt(e0);
+    const double em=std::hypot(e0,wdenom);
+    wdenom=1/std::log1p(1/((e0+em)*wdenom));
+    int_t i_current=0,i_left=0,i_right=n_all.size()-1;
+    int_t step=1,dir=0,n_optimal=n_max;
+
+    for(int_t k=0;k<2;++k){
+        int_t next_dir=dir^k;
+        i_chs.clear();
+        int_t i_next=i_current;
+        do{
+            i_next+=next_dir==0?-1:1;
+            if(i_next<i_left||i_next>i_right)
+                break;
+            if(n_all[i_next]<n_min)
+                continue;
+            i_chs.push_back(i_next);
+        } while(1);
+        if(i_chs.empty())continue;
+        step=dir==next_dir?step*2:std::max<int_t>(1,step/2);
+        step=std::min<int_t>(step,(i_chs.size()+1)/2);
+        dir=next_dir;
+        i_current=i_chs[step-1];
+        int_t &n_chs=n_all[i_current];
+        scored_compress_data *pfit=make_fit(n_chs);
+
+        double e=pfit->reduced_error;
+        double w=wdenom*std::log(e/e0);
+        if(w<0)w=0;
+        else if(!(w<1))w=1;
+        w*=w;
+        double &q=pfit->score;
+        q=std::pow(q,1-w)*std::pow(q0,w);
+        if(q<mfmap[n_optimal].score){
+            n_optimal=n_chs;
+            i_left=i_current;
+            while(i_left>0&&n_all[i_left-1]>=n_min)--i_left;
+            int_t i_max=n_all.size();
+            i_right=i_current;
+            while(i_right+1<i_max&&n_all[i_right+1]>=n_min)++i_right;
+        }
+        else (n_chs<n_optimal?i_right:i_left)=i_current;
+
+        n_chs=-1;
+        k=-1;
+    }
+
+    scored_compress_data &result=mfmap[n_optimal];
+    //printf("%f%%: [%.17e] by %lld\n",result.data.size()/double(N_Channel*sizeof(T)*N)*100,
+    //    result.max_error,mfmap.size());
+    return std::move(result);
 }
 
 void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
@@ -224,8 +301,8 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     }
     bool can_kepler=!ostates.empty();
 
-    auto relative_state_error=[](const vec &r,const vec &rp){
-        return std::sqrt((rp-r).normsqr()/r.normsqr());
+    auto relative_state_error=[](const vec *r,const vec *rp){
+        return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
     };
 
     if(dtest<1){//N==2 here
@@ -244,8 +321,8 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 kmix.rv(+HALF*h,r1,v1);
                 double kfac=1/(circ?-kmix.q:1+kmix.q);
                 const auto perr=circ?&fit_err_t::kcerr:&fit_err_t::krerr;
-                fiterrs[0].*perr=kfac*relative_state_error(pdata[0].r,r0);
-                fiterrs[1].*perr=kfac*relative_state_error(pdata[1].r,r1);
+                fiterrs[0].*perr=kfac*relative_state_error(&pdata[0].r,&r0);
+                fiterrs[1].*perr=kfac*relative_state_error(&pdata[1].r,&r1);
             }
         }
         vec dr=pdata[1].r-pdata[0].r;
@@ -295,7 +372,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 kmix.rv(0,r,v);
                 double kfac=1/(circ?-kmix.q:1+kmix.q);
                 const auto perr=circ?&fit_err_t::kcerr:&fit_err_t::krerr;
-                fiterrs[i].*perr=kfac*relative_state_error(pdata[i].r,r);
+                fiterrs[i].*perr=kfac*relative_state_error(&pdata[i].r,&r);
             }
             r=0;
             v=0;
@@ -304,7 +381,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 r+=wj*(pdata[i+j].r+pdata[i-j].r);
                 v+=wj*(pdata[i+j].v+pdata[i-j].v);
             }
-            fiterrs[i].serr=relative_state_error(pdata[i].r,r);
+            fiterrs[i].serr=relative_state_error(&pdata[i].r,&r);
         }
 
         for(int_t i=0;i<wing;++i){

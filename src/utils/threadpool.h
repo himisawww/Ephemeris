@@ -15,7 +15,11 @@ public:
     //  call add_task/distribute_tasks/assign_task with &group to add tasks to this group,
     //  then wait_for_all(&group) will block until all the tasks of this group are done.
     // combined with get_thread_pool(), this mechanism can also be used in worker threads of a thread pool, recursively.
-    typedef std::atomic_size_t TaskGroup;
+    class TaskGroup:private std::atomic_size_t{
+        friend class ThreadPool;
+    public:
+        TaskGroup():std::atomic_size_t(0){}
+    };
 
     static constexpr size_t npos_tid=-1;
 private:

@@ -1,4 +1,5 @@
 #pragma once
+#include<cmath>//for trigs
 #ifndef INLINE
 #define INLINE inline
 #endif
