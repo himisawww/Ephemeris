@@ -162,15 +162,13 @@ static constexpr double midinterp_coefficients[][8]={
 constexpr int_t midinterp_max_wing=sizeof(midinterp_coefficients)/sizeof(midinterp_coefficients[0]);
 
 template<typename T,size_t N_Channel>
-auto ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val)){
+MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val)){
     struct scored_compress_data{
         MFILE data;
+        data_header *pheader;
         double max_error;
         double reduced_error;
         double score;
-        bool operator<(const scored_compress_data &other) const{
-            return score<other.score;
-        }
     };
     std::map<int_t,scored_compress_data> mfmap;
     const int_t n_min=1;
@@ -180,9 +178,10 @@ auto ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (
         auto &target=mfmap[n];
         MFILE &mf=target.data;
         const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
-        if(mf.size()==bsp_size)return (scored_compress_data*)nullptr;
+        const size_t data_size=bsp_size+sizeof(data_header);
         bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
-        memcpy(mf.prepare(bsp_size),bf.get_fitted_data(),bsp_size);
+        target.pheader=(data_header*)mf.prepare(data_size);
+        memcpy(target.pheader+1,bf.get_fitted_data(),bsp_size);
         bf.expand();
         T result[N_Channel];
         double max_error=0;
@@ -192,10 +191,9 @@ auto ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (
             checked_maximize(max_error,ierror);
         }
         target.max_error=max_error;
-        double score=filtered_min<double>(max_error,INFINITY)+epsilon_fitting_error;
+        double score=filtered_min<double>(max_error,INFINITY)+epsilon_relative_error;
         target.reduced_error=score;
-        target.score=double(bsp_size)*std::pow(score,compression_optimize_index);
-        //printf("[%lld, %.6e, %.6e]\n",n,score,target.score);
+        target.score=double(data_size)*std::pow(score,compression_optimize_index);
         return &target;
     };
 
@@ -257,10 +255,19 @@ auto ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (
     }
 
     scored_compress_data &result=mfmap[n_optimal];
-    //printf("%f%%: [%.17e] by %lld\n",result.data.size()/double(N_Channel*sizeof(T)*N)*100,
-    //    result.max_error,mfmap.size());
-    return std::move(result);
+    //fill header
+    data_header &header=*result.pheader;
+    //...
+    return std::move(result.data);
 }
+
+double ephemeris_compressor::relative_state_error(const vec *r,const vec *rp){
+    return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
+};
+double ephemeris_compressor::absolute_state_error(const vec *r,const vec *rp){
+    constexpr double minref=epsilon_absolute_error/epsilon_relative_error;
+    return std::sqrt((*rp-*r).normsqr()/std::max(minref*minref,(*r).normsqr()));
+};
 
 void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     mf.load_data();
@@ -301,9 +308,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     }
     bool can_kepler=!ostates.empty();
 
-    auto relative_state_error=[](const vec *r,const vec *rp){
-        return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
-    };
+    auto *state_error_fun=can_kepler?relative_state_error:absolute_state_error;
 
     if(dtest<1){//N==2 here
         if(can_kepler){
@@ -321,8 +326,8 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 kmix.rv(+HALF*h,r1,v1);
                 double kfac=1/(circ?-kmix.q:1+kmix.q);
                 const auto perr=circ?&fit_err_t::kcerr:&fit_err_t::krerr;
-                fiterrs[0].*perr=kfac*relative_state_error(&pdata[0].r,&r0);
-                fiterrs[1].*perr=kfac*relative_state_error(&pdata[1].r,&r1);
+                fiterrs[0].*perr=kfac*state_error_fun(&pdata[0].r,&r0);
+                fiterrs[1].*perr=kfac*state_error_fun(&pdata[1].r,&r1);
             }
         }
         vec dr=pdata[1].r-pdata[0].r;
@@ -372,7 +377,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 kmix.rv(0,r,v);
                 double kfac=1/(circ?-kmix.q:1+kmix.q);
                 const auto perr=circ?&fit_err_t::kcerr:&fit_err_t::krerr;
-                fiterrs[i].*perr=kfac*relative_state_error(&pdata[i].r,&r);
+                fiterrs[i].*perr=kfac*state_error_fun(&pdata[i].r,&r);
             }
             r=0;
             v=0;
@@ -381,7 +386,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 r+=wj*(pdata[i+j].r+pdata[i-j].r);
                 v+=wj*(pdata[i+j].v+pdata[i-j].v);
             }
-            fiterrs[i].serr=relative_state_error(&pdata[i].r,&r);
+            fiterrs[i].serr=state_error_fun(&pdata[i].r,&r);
         }
 
         for(int_t i=0;i<wing;++i){
@@ -411,9 +416,9 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
 
     //try fit state
     double min_kep_err=filtered_min(max_errs.kcerr,max_errs.krerr);
-    double use_state=max_errs.serr<epsilon_fitting_error?
+    double use_state=max_errs.serr<epsilon_relative_error?
         max_errs.serr:filtered_min(max_errs.serr,min_kep_err*(1<<d));
-    double use_kepler=min_kep_err<epsilon_fitting_error?
+    double use_kepler=min_kep_err<epsilon_relative_error?
         min_kep_err:filtered_min(max_errs.serr,min_kep_err);
     int choices=0;
     if(max_errs.serr==use_state){
@@ -422,7 +427,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         std::vector<vec> fdata;
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.push_back(pdata[i].r);
-        auto mf=compress_data<vec,1>(fdata.data(),N,d,relative_state_error);
+        auto mf=compress_data<vec,1>(fdata.data(),N,d,state_error_fun);
     }
     if(max_errs.kcerr==use_kepler){
         ++choices;

@@ -10,13 +10,13 @@ class ephemeris_compressor{
 public:
     //compressed data format
     enum class Format{
-        //orbital
-        STATE_VECTORS,
-        KEPLERIAN_CIRCULAR, //use j, ex,ey, ml
-        KEPLERIAN_RAW,      //use j, q, el, m
+        //orbital             type[channel]
+        STATE_VECTORS,      // vec[1]   , use x,y,z
+        KEPLERIAN_CIRCULAR, // double[6], use j, ex,ey, ml
+        KEPLERIAN_RAW,      // double[6], use j, q, el, m
         //rotational
-        POLAR_OFFSET,
-        QUATERNION
+        POLAR_OFFSET,       //
+        QUATERNION          //
     };
 
     class keplerian:public ephem_orb{
@@ -49,17 +49,28 @@ public:
     struct rotational_state_t{
         vec w,x,z;
     };
+    struct data_header{
+        int_t format;  // = ~int_t(enum Format)
+        int_t degree;  // of bspline basis
+        int_t n;       // # of segments. total size of data is (n+degree)*channel*sizeof(type).
+        double relative_error;
+    };
 private:
-    static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
     template<typename T,size_t N_Channel>
-    static auto compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val));
+    static MFILE compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val));
+
+    static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
+    static double relative_state_error(const vec *r,const vec *rp);
+    static double absolute_state_error(const vec *r,const vec *rp);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
     //do not change this
     static constexpr int_t max_bspline_degree=11;
     //criterion below which error is thought mainly due to fp-imprecision, not model.
-    static constexpr double epsilon_fitting_error=1e-12;
+    static constexpr double epsilon_relative_error=1e-12;
+    //same, but for absolute positional error(m)
+    static constexpr double epsilon_absolute_error=1e-4;
     //compression will try to minimize (relative error)^[this index] * size
     static constexpr double compression_optimize_index=0.25;
 
