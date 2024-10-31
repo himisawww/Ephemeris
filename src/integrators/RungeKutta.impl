@@ -176,12 +176,12 @@ RUNGE_KUTTA{
                 xi.w/=dt_k;
                 xi.s=xi0.s;
                 fast_mpvec dw=(fast_real(2)/3)*(xi.w-xi0.w);
-                xi.s+=rotation_matrix(xi.w-dw,dt*dt_k/2)%fast_mpmat(xi.s);
-                xi.s+=rotation_matrix(xi.w+dw,dt*dt_k/2)%fast_mpmat(xi.s);
+                xi.s+=(xi.w-dw).rotation_matrix(dt*dt_k/2)%fast_mpmat(xi.s);
+                xi.s+=(xi.w+dw).rotation_matrix(dt*dt_k/2)%fast_mpmat(xi.s);
                 xi.GL=xi0.GL+mpvec(dt*xi.dtorque);
             
                 if(k==25){
-                    xi.s+=rotation_matrix(xi.Egrad,xi.Erot)%fast_mpmat(xi.s);
+                    xi.s+=xi.Egrad.rotation_matrix(xi.Erot)%fast_mpmat(xi.s);
                 }
                 //update
                 xi.GM=xi.GM0+xi.dGM*t;

@@ -5,12 +5,18 @@
 #endif
 
 template<typename T>
+class mat_t;
+
+template<typename T>
+class quat_t;
+
+template<typename T>
 class vec_t{
 public:
     T x,y,z;
 
     INLINE vec_t(){}
-    INLINE vec_t(const T &x):x(x),y(x),z(x){}
+    explicit INLINE vec_t(const T &x):x(x),y(x),z(x){}
     INLINE vec_t(const T &x,const T &y,const T &z):x(x),y(y),z(z){}
     INLINE vec_t(const T &theta,const T &phi){
         T c=sin(theta);
@@ -20,6 +26,8 @@ public:
     }
     template<typename T2>
     INLINE vec_t(const vec_t<T2> &a):x(a.x),y(a.y),z(a.z){}
+    template<typename T2>
+    explicit INLINE vec_t(const quat_t<T2> &a):x(a.x),y(a.y),z(a.z){}
 
     INLINE vec_t<T> &rotx(const T &b){
         T s=sin(b),c=cos(b),ny=y*c-z*s;
@@ -83,18 +91,7 @@ public:
         z=a.z;
         return *this;
     }
-    INLINE vec_t<T> &operator +=(const T &a){
-        x+=a;
-        y+=a;
-        z+=a;
-        return *this;
-    }
-    INLINE vec_t<T> &operator -=(const T &a){
-        x-=a;
-        y-=a;
-        z-=a;
-        return *this;
-    }
+
     INLINE vec_t<T> &operator *=(const T &a){
         x*=a;
         y*=a;
@@ -141,66 +138,42 @@ public:
         }
         return p;
     }
+
+    //return matrix R s.t.
+    //(I+R)%x rotates vector x along axis w counterclockwise by angle norm()*t
+    INLINE mat_t<T> rotation_matrix(const T &t) const;
+
+    friend INLINE vec_t<T> operator +(const vec_t<T> &a){
+        return vec_t<T>(+a.x,+a.y,+a.z);
+    }
+    friend INLINE vec_t<T> operator -(const vec_t<T> &a){
+        return vec_t<T>(-a.x,-a.y,-a.z);
+    }
+    friend INLINE vec_t<T> operator +(const vec_t<T> &a,const vec_t<T> &b){
+        return vec_t<T>(a.x+b.x,a.y+b.y,a.z+b.z);
+    }
+    friend INLINE vec_t<T> operator -(const vec_t<T> &a,const vec_t<T> &b){
+        return vec_t<T>(a.x-b.x,a.y-b.y,a.z-b.z);
+    }
+    friend INLINE vec_t<T> operator *(const vec_t<T> &a,const vec_t<T> &b){
+        return vec_t<T>(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x);
+    }
+    friend INLINE T operator %(const vec_t<T> &a,const vec_t<T> &b){
+        return a.x*b.x+a.y*b.y+a.z*b.z;
+    }
+
+    friend INLINE vec_t<T> operator *(const T &a,const vec_t<T> &b){
+        return vec_t<T>(a*b.x,a*b.y,a*b.z);
+    }
+    friend INLINE vec_t<T> operator *(const vec_t<T> &b,const T &a){
+        return vec_t<T>(a*b.x,a*b.y,a*b.z);
+    }
+
+    friend INLINE vec_t<T> operator /(const vec_t<T> &b,const T &a){
+        T reca=1/a;
+        return vec_t<T>(b.x*reca,b.y*reca,b.z*reca);
+    }
 };
-
-template<typename T>
-INLINE vec_t<T> operator +(const vec_t<T> &a){
-    return vec_t<T>(+a.x,+a.y,+a.z);
-}
-template<typename T>
-INLINE vec_t<T> operator -(const vec_t<T> &a){
-    return vec_t<T>(-a.x,-a.y,-a.z);
-}
-template<typename T>
-INLINE vec_t<T> operator +(const vec_t<T> &a,const vec_t<T> &b){
-    return vec_t<T>(a.x+b.x,a.y+b.y,a.z+b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator -(const vec_t<T> &a,const vec_t<T> &b){
-    return vec_t<T>(a.x-b.x,a.y-b.y,a.z-b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator *(const vec_t<T> &a,const vec_t<T> &b){
-    return vec_t<T>(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x);
-}
-template<typename T>
-INLINE T operator %(const vec_t<T> &a,const vec_t<T> &b){
-    return a.x*b.x+a.y*b.y+a.z*b.z;
-}
-
-template<typename T>
-INLINE vec_t<T> operator +(const T &a,const vec_t<T> &b){
-    return vec_t<T>(a+b.x,a+b.y,a+b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator +(const vec_t<T> &b,const T &a){
-    return vec_t<T>(a+b.x,a+b.y,a+b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator -(const T &a,const vec_t<T> &b){
-    return vec_t<T>(a-b.x,a-b.y,a-b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator -(const vec_t<T> &b,const T &a){
-    return vec_t<T>(b.x-a,b.y-a,b.z-a);
-}
-template<typename T>
-INLINE vec_t<T> operator *(const T &a,const vec_t<T> &b){
-    return vec_t<T>(a*b.x,a*b.y,a*b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator *(const vec_t<T> &b,const T &a){
-    return vec_t<T>(a*b.x,a*b.y,a*b.z);
-}
-//template<typename T>
-//INLINE vec_t<T> operator /(const T &a,const vec_t<T> &b){
-//    return vec_t<T>(a/b.x,a/b.y,a/b.z);
-//}
-template<typename T>
-INLINE vec_t<T> operator /(const vec_t<T> &b,const T &a){
-    T reca=1/a;
-    return vec_t<T>(b.x*reca,b.y*reca,b.z*reca);
-}
 
 //mat_t: a coordinate represented by its 3 axes xyz.
 template<typename T>
@@ -316,14 +289,27 @@ public:
         *this=*this%b;
         return *this;
     }
-    INLINE mat_t<T> inverse() const{
-        T rdet=1/(x*y%z);
-        mat_t<T> inv(
+    INLINE T tr() const{
+        return x.x+y.y+z.z;
+    }
+    INLINE T det() const{
+        return x*y%z;
+    }
+    //square of Frobenius norm
+    INLINE T normsqr() const{
+        return x.normsqr()+y.normsqr()+z.normsqr();
+    }
+    INLINE mat_t<T> adjoint() const{
+        return mat_t<T>(
             vec_t<T>(y.y*z.z-y.z*z.y,z.y*x.z-x.y*z.z,x.y*y.z-x.z*y.y),
             vec_t<T>(y.z*z.x-y.x*z.z,z.z*x.x-x.z*z.x,x.z*y.x-x.x*y.z),
             vec_t<T>(y.x*z.y-y.y*z.x,z.x*x.y-x.x*z.y,x.x*y.y-x.y*y.x)
         );
-        return inv*rdet;
+    }
+    INLINE mat_t<T> inverse() const{
+        mat_t<T> madj=adjoint();
+        T rdet=1/(madj.x.z*z.x+madj.y.z*z.y+madj.z.z*z.z);
+        return madj*rdet;
     }
     INLINE mat_t<T> transpose() const{
         mat_t<T> trans(
@@ -333,90 +319,75 @@ public:
         );
         return trans;
     }
+
+    friend INLINE mat_t<T> operator +(const mat_t<T> &a){
+        return mat_t<T>(+a.x,+a.y,+a.z);
+    }
+    friend INLINE mat_t<T> operator -(const mat_t<T> &a){
+        return mat_t<T>(-a.x,-a.y,-a.z);
+    }
+    friend INLINE mat_t<T> operator +(const mat_t<T> &a,const mat_t<T> &b){
+        return mat_t<T>(a.x+b.x,a.y+b.y,a.z+b.z);
+    }
+    friend INLINE mat_t<T> operator -(const mat_t<T> &a,const mat_t<T> &b){
+        return mat_t<T>(a.x-b.x,a.y-b.y,a.z-b.z);
+    }
+    friend INLINE vec_t<T> operator %(const mat_t<T> &a,const vec_t<T> &b){
+        return a.x*b.x+a.y*b.y+a.z*b.z;
+    }
+    friend INLINE vec_t<T> operator %(const vec_t<T> &a,const mat_t<T> &b){
+        return vec_t<T>(a%b.x,a%b.y,a%b.z);
+    }
+    friend INLINE mat_t<T> operator %(const mat_t<T> &a,const mat_t<T> &b){
+        return mat_t<T>(a%b.x,a%b.y,a%b.z);
+    }
+
+    friend INLINE mat_t<T> operator +(const T &a,const mat_t<T> &b){
+        mat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE mat_t<T> operator +(const mat_t<T> &b,const T &a){
+        mat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE mat_t<T> operator -(const T &a,const mat_t<T> &b){
+        mat_t<T> result(-b);
+        result+=a;
+        return result;
+    }
+    friend INLINE mat_t<T> operator -(const mat_t<T> &b,const T &a){
+        mat_t<T> result(b);
+        result-=a;
+        return result;
+    }
+    friend INLINE mat_t<T> operator *(const T &a,const mat_t<T> &b){
+        return mat_t<T>(a*b.x,a*b.y,a*b.z);
+    }
+    friend INLINE mat_t<T> operator *(const mat_t<T> &b,const T &a){
+        return mat_t<T>(a*b.x,a*b.y,a*b.z);
+    }
+    friend INLINE mat_t<T> operator /(const T &a,const mat_t<T> &b){
+        mat_t<T> madj=b.adjoint();
+        T rdet=a/(madj.x.z*b.z.x+madj.y.z*b.z.y+madj.z.z*b.z.z);
+        return madj*rdet;
+    }
+    friend INLINE mat_t<T> operator /(const mat_t<T> &b,const T &a){
+        T reca=1/a;
+        return mat_t<T>(b.x*reca,b.y*reca,b.z*reca);
+    }
 };
 
 template<typename T>
-INLINE mat_t<T> operator +(const mat_t<T> &a){
-    return mat_t<T>(+a.x,+a.y,+a.z);
-}
-template<typename T>
-INLINE mat_t<T> operator -(const mat_t<T> &a){
-    return mat_t<T>(-a.x,-a.y,-a.z);
-}
-template<typename T>
-INLINE mat_t<T> operator +(const mat_t<T> &a,const mat_t<T> &b){
-    return mat_t<T>(a.x+b.x,a.y+b.y,a.z+b.z);
-}
-template<typename T>
-INLINE mat_t<T> operator -(const mat_t<T> &a,const mat_t<T> &b){
-    return mat_t<T>(a.x-b.x,a.y-b.y,a.z-b.z);
-}
-template<typename T>
-INLINE vec_t<T> operator %(const mat_t<T> &a,const vec_t<T> &b){
-    return a.x*b.x+a.y*b.y+a.z*b.z;
-}
-template<typename T>
-INLINE vec_t<T> operator %(const vec_t<T> &a,const mat_t<T> &b){
-    return vec_t<T>(a%b.x,a%b.y,a%b.z);
-}
-template<typename T>
-INLINE mat_t<T> operator %(const mat_t<T> &a,const mat_t<T> &b){
-    return mat_t<T>(a%b.x,a%b.y,a%b.z);
-}
-
-template<typename T>
-INLINE mat_t<T> operator +(const T &a,const mat_t<T> &b){
-    mat_t<T> result(b);
-    result+=a;
-    return result;
-}
-template<typename T>
-INLINE mat_t<T> operator +(const mat_t<T> &b,const T &a){
-    mat_t<T> result(b);
-    result+=a;
-    return result;
-}
-template<typename T>
-INLINE mat_t<T> operator -(const T &a,const mat_t<T> &b){
-    mat_t<T> result(-b);
-    result+=a;
-    return result;
-}
-template<typename T>
-INLINE mat_t<T> operator -(const mat_t<T> &b,const T &a){
-    mat_t<T> result(b);
-    result-=a;
-    return result;
-}
-template<typename T>
-INLINE mat_t<T> operator *(const T &a,const mat_t<T> &b){
-    return mat_t<T>(a*b.x,a*b.y,a*b.z);
-}
-template<typename T>
-INLINE mat_t<T> operator *(const mat_t<T> &b,const T &a){
-    return mat_t<T>(a*b.x,a*b.y,a*b.z);
-}
-//template<typename T>
-//INLINE mat_t<T> operator /(const T &a,const mat_t<T> &b){
-//    return mat_t<T>(a/b.x,a/b.y,a/b.z);
-//}
-template<typename T>
-INLINE mat_t<T> operator /(const mat_t<T> &b,const T &a){
-    T reca=1/a;
-    return mat_t<T>(b.x*reca,b.y*reca,b.z*reca);
-}
-
-//return matrix R s.t.
-//(I+R)%x rotates vector x along axis w counterclockwise by angle w.norm()*t
-template<typename T>
-INLINE mat_t<T> rotation_matrix(const vec_t<T> &w,const T &t){
-    T w2=w%w;
+INLINE mat_t<T> vec_t<T>::rotation_matrix(const T &t) const{
+    T w2=normsqr();
     if(w2==0)return 0;
     
     T w1=sqrt(w2),wt=w1*t,wr=1/w1;
     T st=sin(wt),st222=sin(wt/2);
     st222*=2*st222;
-    T _x=w.x*wr,_y=w.y*wr,_z=w.z*wr;
+    T _x=x*wr,_y=y*wr,_z=z*wr;
     mat_t<T> dr(
         vec_t<T>(_x*_x-1,_x*_y,_x*_z),
         vec_t<T>(_x*_y,_y*_y-1,_y*_z),
@@ -431,3 +402,322 @@ INLINE mat_t<T> rotation_matrix(const vec_t<T> &w,const T &t){
     dr.z.y-=_x*st;
     return dr;
 }
+
+template<typename T>
+class quat_t{
+public:
+    T x,y,z,w;
+
+    INLINE quat_t(){}
+    INLINE quat_t(const T &w):x(0),y(0),z(0),w(w){}
+    INLINE quat_t(const T &x,const T &y,const T &z,const T &w=0):x(x),y(y),z(z),w(w){}
+    template<typename T2>
+    INLINE quat_t(const vec_t<T2> &a,const T &w=0):x(a.x),y(a.y),z(a.z),w(w){}
+    template<typename T2>
+    INLINE quat_t(const quat_t<T2> &a):x(a.x),y(a.y),z(a.z),w(a.w){}
+    template<typename T2>
+    explicit INLINE operator vec_t<T2>(){ return vec_t<T2>(T2(x),T2(y),T2(z)); }
+    
+    INLINE quat_t(const mat_t<T> &m){
+        do{
+            T mx=m.y.y+m.z.z;
+            if(mx<=0&&m.y.y<=m.x.x&&m.z.z<=m.x.x){
+                x=sqrt(m.x.x-mx+T(1));
+                w=T(1)/x;
+                y=w*(m.x.y+m.y.x);
+                z=w*(m.x.z+m.z.x);
+                w=w*(m.y.z-m.z.y);
+                break;
+            }
+            T my=m.z.z+m.x.x;
+            if(my<=0&&m.z.z<=m.y.y&&m.x.x<=m.y.y){
+                y=sqrt(m.y.y-my+T(1));
+                w=T(1)/y;
+                z=w*(m.y.z+m.z.y);
+                x=w*(m.y.x+m.x.y);
+                w=w*(m.z.x-m.x.z);
+                break;
+            }
+            T mz=m.x.x+m.y.y;
+            if(mz<=0&&m.x.x<=m.z.z&&m.y.y<=m.z.z){
+                z=sqrt(m.z.z-mz+T(1));
+                w=T(1)/z;
+                x=w*(m.z.x+m.x.z);
+                y=w*(m.z.y+m.y.z);
+                w=w*(m.x.y-m.y.x);
+            }
+            else{
+                w=sqrt(m.z.z+mz+T(1));
+                z=T(1)/w;
+                x=z*(m.y.z-m.z.y);
+                y=z*(m.z.x-m.x.z);
+                z=z*(m.x.y-m.y.x);
+            }
+        } while(0);
+        T r=T(1)/sqrt(x*x+y*y+z*z+w*w);
+        x*=r;
+        y*=r;
+        z*=r;
+        w*=r;
+    }
+    explicit INLINE operator mat_t<T>(){
+        T xx=x*x,yy=y*y,zz=z*z,ww=w*w;
+        T q1=w*x,q2=w*y,q3=w*z;
+        T qx=y*z,qy=z*x,qz=x*y;
+        q1+=q1;q2+=q2;q3+=q3;
+        qx+=qx;qy+=qy;qz+=qz;
+        return mat_t<T>(
+            vec_t<T>(ww+xx-(yy+zz),qz+q3,qy-q2),
+            vec_t<T>(qz-q3,ww+yy-(xx+zz),qx+q1),
+            vec_t<T>(qy+q2,qx-q1,ww+zz-(xx+yy))
+            );
+    }
+
+    INLINE T norm() const{
+        return sqrt(x*x+y*y+z*z+w*w);
+    }
+    INLINE T normsqr() const{
+        return x*x+y*y+z*z+w*w;
+    }
+    //normalize *this by norm()
+    //  *this = (0,0,0,1) for (0,0,0,0)
+    //  return norm()
+    INLINE T normalize(){
+        const T r=norm();
+        if(r==0){
+            x=0;
+            y=0;
+            z=0;
+            w=1;
+        }
+        else{
+            T rr=1/r;
+            x*=rr;
+            y*=rr;
+            z*=rr;
+            w*=rr;
+        }
+        return r;
+    }
+
+    INLINE quat_t<T> &operator =(const T &a){
+        x=0;
+        y=0;
+        z=0;
+        w=a;
+        return *this;
+    }
+    template<typename T2>
+    INLINE quat_t<T> &operator =(const vec_t<T2> &a){
+        x=a.x;
+        y=a.y;
+        z=a.z;
+        w=0;
+        return *this;
+    }
+    template<typename T2>
+    INLINE quat_t<T> &operator =(const quat_t<T2> &a){
+        x=a.x;
+        y=a.y;
+        z=a.z;
+        w=a.w;
+        return *this;
+    }
+    INLINE quat_t<T> &operator +=(const T &a){
+        w+=a;
+        return *this;
+    }
+    INLINE quat_t<T> &operator -=(const T &a){
+        w-=a;
+        return *this;
+    }
+    INLINE quat_t<T> &operator *=(const T &a){
+        x*=a;
+        y*=a;
+        z*=a;
+        w*=a;
+        return *this;
+    }
+    INLINE quat_t<T> &operator /=(const T &a){
+        T reca=1/a;
+        x*=reca;
+        y*=reca;
+        z*=reca;
+        w*=reca;
+        return *this;
+    }
+    INLINE quat_t<T> &operator +=(const vec_t<T> &b){
+        x+=b.x;
+        y+=b.y;
+        z+=b.z;
+        return *this;
+    }
+    INLINE quat_t<T> &operator -=(const vec_t<T> &b){
+        x-=b.x;
+        y-=b.y;
+        z-=b.z;
+        return *this;
+    }
+    INLINE quat_t<T> &operator *=(const vec_t<T> &b){
+        *this=*this*b;
+        return *this;
+    }
+    INLINE quat_t<T> &operator /=(const vec_t<T> &b){
+        *this=*this/b;
+        return *this;
+    }
+    INLINE quat_t<T> &operator +=(const quat_t<T> &b){
+        x+=b.x;
+        y+=b.y;
+        z+=b.z;
+        w+=b.w;
+        return *this;
+    }
+    INLINE quat_t<T> &operator -=(const quat_t<T> &b){
+        x-=b.x;
+        y-=b.y;
+        z-=b.z;
+        w-=b.w;
+        return *this;
+    }
+    INLINE quat_t<T> &operator *=(const quat_t<T> &b){
+        *this=*this*b;
+        return *this;
+    }
+    INLINE quat_t<T> &operator /=(const quat_t<T> &b){
+        *this=*this/b;
+        return *this;
+    }
+    INLINE quat_t<T> inverse() const{
+        const T r=1/normsqr();
+        return quat_t<T>(-x,-y,-z,w)*r;
+    }
+    INLINE quat_t<T> conjugate() const{
+        return quat_t<T>(-x,-y,-z,w);
+    }
+
+    friend INLINE quat_t<T> operator +(const quat_t<T> &a){
+        return quat_t<T>(+a.x,+a.y,+a.z,+a.w);
+    }
+    friend INLINE quat_t<T> operator -(const quat_t<T> &a){
+        return quat_t<T>(-a.x,-a.y,-a.z,-a.w);
+    }
+    friend INLINE quat_t<T> operator +(const quat_t<T> &a,const quat_t<T> &b){
+        return quat_t<T>(a.x+b.x,a.y+b.y,a.z+b.z,a.w+b.w);
+    }
+    friend INLINE quat_t<T> operator -(const quat_t<T> &a,const quat_t<T> &b){
+        return quat_t<T>(a.x-b.x,a.y-b.y,a.z-b.z,a.w-b.w);
+    }
+    friend INLINE quat_t<T> operator *(const quat_t<T> &a,const quat_t<T> &b){
+        return quat_t<T>(
+          a.w*b.x+(a.x*b.w+a.y*b.z-a.z*b.y),
+          a.w*b.y+(a.y*b.w+a.z*b.x-a.x*b.z),
+          a.w*b.z+(a.z*b.w+a.x*b.y-a.y*b.x),
+          a.w*b.w-(a.x*b.x+a.y*b.y+a.z*b.z));
+    }
+    friend INLINE quat_t<T> operator /(const quat_t<T> &a,const quat_t<T> &b){
+        return a*b.inverse();
+    }
+    friend INLINE T operator %(const quat_t<T> &a,const quat_t<T> &b){
+        return a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;
+    }
+
+    friend INLINE quat_t<T> operator +(const T &a,const quat_t<T> &b){
+        quat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator +(const quat_t<T> &b,const T &a){
+        quat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator -(const T &a,const quat_t<T> &b){
+        quat_t<T> result(-b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator -(const quat_t<T> &b,const T &a){
+        quat_t<T> result(b);
+        result-=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator *(const T &a,const quat_t<T> &b){
+        return quat_t<T>(a*b.x,a*b.y,a*b.z,a*b.w);
+    }
+    friend INLINE quat_t<T> operator *(const quat_t<T> &b,const T &a){
+        return quat_t<T>(a*b.x,a*b.y,a*b.z,a*b.w);
+    }
+    friend INLINE quat_t<T> operator /(const T &a,const quat_t<T> &b){
+        return (a/b.normsqr())*b.conjugate();
+    }
+    friend INLINE quat_t<T> operator /(const quat_t<T> &b,const T &a){
+        T reca=1/a;
+        return quat_t<T>(b.x*reca,b.y*reca,b.z*reca,b.w*reca);
+    }
+
+    friend INLINE quat_t<T> operator +(const vec_t<T> &a,const quat_t<T> &b){
+        quat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator +(const quat_t<T> &b,const vec_t<T> &a){
+        quat_t<T> result(b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator -(const vec_t<T> &a,const quat_t<T> &b){
+        quat_t<T> result(-b);
+        result+=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator -(const quat_t<T> &b,const vec_t<T> &a){
+        quat_t<T> result(b);
+        result-=a;
+        return result;
+    }
+    friend INLINE quat_t<T> operator *(const vec_t<T> &a,const quat_t<T> &b){
+        return quat_t<T>(
+            a.x*b.w+a.y*b.z-a.z*b.y,
+            a.y*b.w+a.z*b.x-a.x*b.z,
+            a.z*b.w+a.x*b.y-a.y*b.x,
+          -(a.x*b.x+a.y*b.y+a.z*b.z));
+    }
+    friend INLINE quat_t<T> operator *(const quat_t<T> &b,const vec_t<T> &a){
+        return quat_t<T>(
+            b.w*a.x+b.y*a.z-b.z*a.y,
+            b.w*a.y+b.z*a.x-b.x*a.z,
+            b.w*a.z+b.x*a.y-b.y*a.x,
+          -(b.x*a.x+b.y*a.y+b.z*a.z));
+    }
+    friend INLINE quat_t<T> operator /(const vec_t<T> &a,const quat_t<T> &b){
+        T recb=1/b.normsqr();
+        return (a*recb)*b.conjugate();
+    }
+    friend INLINE quat_t<T> operator /(const quat_t<T> &b,const vec_t<T> &a){
+        T reca=1/(-a.normsqr());
+        return b*(a*reca);
+    }
+
+    friend INLINE quat_t<T> exp(const quat_t<T> &q){
+        T qv=sqrt(q.x*q.x+q.y*q.y+q.z*q.z);
+        T ew=exp(q.w);
+        T sincqv=(qv==0?1:sin(qv)/qv)*ew;
+        return quat_t<T>(q.x*sincqv,q.y*sincqv,q.z*sincqv,cos(qv)*ew);
+    }
+    friend INLINE quat_t<T> log(const quat_t<T> &q){
+        vec_t<T> v(q);
+        T qv=v.normsqr();
+        T qn=sqrt(qv+q.w*q.w);
+        if(qv==0){
+            v.x=1;
+            v.y=0;
+            v.z=0;
+        }
+        else{
+            qv=sqrt(qv);
+            v/=qv;
+        }
+        return quat_t<T>(v*atan2(qv,q.w),log(qn));
+    }
+};

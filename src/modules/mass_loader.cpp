@@ -385,7 +385,7 @@ bool msystem::load(
             using Constants::degree;
             z=vec((90-dec)*degree,ra*degree);
             x=vec(90*degree,(ra+90)*degree);
-            x+=rotation_matrix(z,W*degree)%x;
+            x+=z.rotation_matrix(W*degree)%x;
             x.rotx(-84381.448/3600*degree);
             z.rotx(-84381.448/3600*degree);
             w=z*(2*pi/(p*3600));

@@ -485,7 +485,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                 fast_real l=fast_mpvec(mi.GL).norm();
                 if(l>0){
                     zl/=l;
-                    mi.s+=rotation_matrix(zl,fast_real(1))%fast_mpmat(mi.s);
+                    mi.s+=zl.rotation_matrix(fast_real(1))%fast_mpmat(mi.s);
                 }
             }
         }
