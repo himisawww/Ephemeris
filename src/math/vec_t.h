@@ -26,8 +26,7 @@ public:
     }
     template<typename T2>
     INLINE vec_t(const vec_t<T2> &a):x(a.x),y(a.y),z(a.z){}
-    template<typename T2>
-    explicit INLINE vec_t(const quat_t<T2> &a):x(a.x),y(a.y),z(a.z){}
+
 
     INLINE vec_t<T> &rotx(const T &b){
         T s=sin(b),c=cos(b),ny=y*c-z*s;
@@ -416,7 +415,7 @@ public:
     template<typename T2>
     INLINE quat_t(const quat_t<T2> &a):x(a.x),y(a.y),z(a.z),w(a.w){}
     template<typename T2>
-    explicit INLINE operator vec_t<T2>(){ return vec_t<T2>(T2(x),T2(y),T2(z)); }
+    explicit INLINE operator vec_t<T2>() const{ return vec_t<T2>(T2(x),T2(y),T2(z)); }
     
     INLINE quat_t(const mat_t<T> &m){
         do{
@@ -460,7 +459,7 @@ public:
         z*=r;
         w*=r;
     }
-    explicit INLINE operator mat_t<T>(){
+    explicit INLINE operator mat_t<T>() const{
         T xx=x*x,yy=y*y,zz=z*z,ww=w*w;
         T q1=w*x,q2=w*y,q3=w*z;
         T qx=y*z,qy=z*x,qz=x*y;
@@ -706,7 +705,7 @@ public:
         return quat_t<T>(q.x*sincqv,q.y*sincqv,q.z*sincqv,cos(qv)*ew);
     }
     friend INLINE quat_t<T> log(const quat_t<T> &q){
-        vec_t<T> v(q);
+        vec_t<T> v=vec_t<T>(q);
         T qv=v.normsqr();
         T qn=sqrt(qv+q.w*q.w);
         if(qv==0){

@@ -24,6 +24,10 @@ tests.push_back({T,S,L})
         "Preparing resources (initials and params of celestial bodies)\n"
         "   for testing procedures.\n"
     );
+    DECLARE_TEST(test_math,         "VectorMath",
+        "Test correctness of vector/matrix/quaternion implementation\n"
+        "   by checking mathematical identities.\n"
+    );
     DECLARE_TEST(test_geopotential, "Geopotential",
         "Make sure the implementation of geopotential model is correct\n"
         "   by direct comparing to (Associated-) Legendre Polynomials.\n"

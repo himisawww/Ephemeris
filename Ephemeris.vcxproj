@@ -119,6 +119,7 @@
     <ClCompile Include="src\tests\test_bspline.cpp" />
     <ClCompile Include="src\tests\test_conservation.cpp" />
     <ClCompile Include="src\tests\test_integrator.cpp" />
+    <ClCompile Include="src\tests\test_math.cpp" />
     <ClCompile Include="src\tests\test_order.cpp" />
     <ClCompile Include="src\tests\test_kepler.cpp" />
     <ClCompile Include="src\tests\test_prepare.cpp" />
