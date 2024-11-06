@@ -9,14 +9,16 @@
 class ephemeris_compressor{
 public:
     //compressed data format
-    enum class Format{
-        //orbital             type[channel]
-        STATE_VECTORS,      // vec[1]   , use x,y,z
-        KEPLERIAN_CIRCULAR, // double[6], use j, ex,ey, ml
-        KEPLERIAN_RAW,      // double[6], use j, q, el, m
+    enum Format:int_t{
+        UNKNOWN             =0,
+        //orbital                  type[channel], data components , error function
+        STATE_VECTORS       =1,     // vec[1]   , use x,y,z,      , absolute_state_error
+        KEPLERIAN_VECTORS   =2,     // vec[1]   , use x,y,z,      , relative_state_error
+        KEPLERIAN_CIRCULAR  =3,     // double[6], use j, ex,ey, ml, circular_kepler_error
+        KEPLERIAN_RAW       =4,     // double[6], use j, q, el, m , raw_kepler_error
         //rotational
-        POLAR_OFFSET,       //
-        QUATERNION          //
+        AXIAL_OFFSET        =5,     // double[ ], use w, ???      , axial_rotation_error
+        QUATERNION          =6,     // quat[1]  , use q(s)        , quaterion_rotation_error
     };
 
     class keplerian:public ephem_orb{
@@ -32,6 +34,7 @@ public:
 
         keplerian()=default;
         keplerian(const ephem_orb &other);
+        keplerian(const double *k,bool circular);
 
         // test if two states are interpolatable
         static bool interpolatable(bool circular,const keplerian &k1,const keplerian &k2);
@@ -50,18 +53,23 @@ public:
         vec w,x,z;
     };
     struct data_header{
-        int_t format;  // = ~int_t(enum Format)
+        uint64_t uformat;  // = ~uint64_t(enum Format)
         int_t degree;  // of bspline basis
         int_t n;       // # of segments. total size of data is (n+degree)*channel*sizeof(type).
         double relative_error;
     };
 private:
-    template<typename T,size_t N_Channel>
-    static MFILE compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val));
+    template<typename T,size_t N_Channel,int_t format>
+    static MFILE compress_data(const T *pdata,int_t N,int_t d);
 
     static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
+
     static double relative_state_error(const vec *r,const vec *rp);
     static double absolute_state_error(const vec *r,const vec *rp);
+    static double circular_kepler_error(const double *k,const double *kp);
+    static double raw_kepler_error(const double *k,const double *kp);
+    static double axial_rotation_error(const double *a,const double *ap);
+    static double quaterion_rotation_error(const quat *q,const quat *qp);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
@@ -76,10 +84,10 @@ public:
 
     // mf: contains raw orbital_state_t data
     // dt: time cadence between data points
-    static void compress_orbital_data(MFILE &mf,double dt);
+    static bool compress_orbital_data(MFILE &mf,double dt);
     // mf: contains raw rotational_state_t data
     // dt: time cadence between data points
-    static void compress_rotational_data(MFILE &mf,double dt);
+    static bool compress_rotational_data(MFILE &mf,double dt);
 };
 
 class ephemeris_collector{

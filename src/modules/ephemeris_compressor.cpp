@@ -20,6 +20,23 @@ kep_t::keplerian(const ephem_orb &other){
         //ml=angle_reduce(ml);
     }
 }
+kep_t::keplerian(const double *p,bool circular){
+    t=1;
+    j.x=p[0];
+    j.y=p[1];
+    j.z=p[2];
+    if(circular){
+        ex=p[3];
+        ey=p[4];
+        ml=p[5];
+    }
+    else{
+        q=p[3];
+        el=p[4];
+        m=p[5];
+    }
+    blend_finalize(circular);
+}
 
 bool kep_t::interpolatable(bool circular,const kep_t &k1,const kep_t &k2){
     if(circular){
@@ -161,8 +178,23 @@ static constexpr double midinterp_coefficients[][8]={
 };
 constexpr int_t midinterp_max_wing=sizeof(midinterp_coefficients)/sizeof(midinterp_coefficients[0]);
 
-template<typename T,size_t N_Channel>
-MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double (*error_fun)(const T *ref,const T *val)){
+template<typename T,size_t N_Channel,int_t format>
+MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
+    double (*error_fun)(const T *ref,const T *val);
+    if constexpr(format==Format::STATE_VECTORS)
+        error_fun=absolute_state_error;
+    else if constexpr(format==Format::KEPLERIAN_VECTORS)
+        error_fun=relative_state_error;
+    else if constexpr(format==Format::KEPLERIAN_CIRCULAR)
+        error_fun=circular_kepler_error;
+    else if constexpr(format==Format::KEPLERIAN_RAW)
+        error_fun=raw_kepler_error;
+    else if constexpr(format==Format::AXIAL_OFFSET)
+        error_fun=axial_rotation_error;
+    else if constexpr(format==Format::QUATERNION)
+        error_fun=quaterion_rotation_error;
+    else return MFILE();
+
     struct scored_compress_data{
         MFILE data;
         data_header *pheader;
@@ -257,7 +289,10 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,double 
     scored_compress_data &result=mfmap[n_optimal];
     //fill header
     data_header &header=*result.pheader;
-    //...
+    header.uformat=~(uint64_t)format;
+    header.degree=d;
+    header.n=n_optimal;
+    header.relative_error=result.max_error;
     return std::move(result.data);
 }
 
@@ -268,15 +303,33 @@ double ephemeris_compressor::absolute_state_error(const vec *r,const vec *rp){
     constexpr double minref=epsilon_absolute_error/epsilon_relative_error;
     return std::sqrt((*rp-*r).normsqr()/std::max(minref*minref,(*r).normsqr()));
 };
+double ephemeris_compressor::circular_kepler_error(const double *k,const double *kp){
+    vec r,rp,v;
+    kep_t(k,true).rv(0,r,v);
+    kep_t(kp,true).rv(0,rp,v);
+    return std::sqrt((rp-r).normsqr()/r.normsqr());
+}
+double ephemeris_compressor::raw_kepler_error(const double *k,const double *kp){
+    vec r,rp,v;
+    kep_t(k,false).rv(0,r,v);
+    kep_t(kp,false).rv(0,rp,v);
+    return std::sqrt((rp-r).normsqr()/r.normsqr());
+}
+double ephemeris_compressor::axial_rotation_error(const double *a,const double *ap){
+    return 0;
+}
+double ephemeris_compressor::quaterion_rotation_error(const quat *q,const quat *qp){
+    return 0;
+}
 
-void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
+bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     mf.load_data();
     int_t N=mf.size();
     const orbital_state_t *pdata=(const orbital_state_t*)mf.prepare(N);
     constexpr int_t state_size=sizeof(orbital_state_t);
     if(N<2*state_size||N%state_size){
         LogError("compress_orbital_data::invalid file size.\n");
-        return;
+        return false;
     }
     N/=state_size;
 
@@ -339,7 +392,7 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         int_t wing=(dtest+1)/2;
         if(wing>midinterp_max_wing){
             LogError("Error: Interpolation Order %d Not Implemented.\n",dtest);
-            return;
+            return false;
         }
         const double *midinterp_coefs=midinterp_coefficients[wing-1];
 
@@ -368,10 +421,10 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
                 const bool circ=k==0;
                 if(!(circ?do_interp_c:do_interp_r))continue;
                 kmix.blend_initialize(circ);
-                for(int_t j=wing;j>0;--j){
-                    const double wj=midinterp_coefs[j-1];
+                for(int_t j=-wing;j<=wing;++j){
+                    if(j==0)continue;
+                    const double wj=midinterp_coefs[std::abs(j)-1];
                     kmix.blend_add(circ,ostates[i+j],wj);
-                    kmix.blend_add(circ,ostates[i-j],wj);
                 }
                 kmix.blend_finalize(circ);
                 kmix.rv(0,r,v);
@@ -420,33 +473,72 @@ void ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         max_errs.serr:filtered_min(max_errs.serr,min_kep_err*(1<<d));
     double use_kepler=min_kep_err<epsilon_relative_error?
         min_kep_err:filtered_min(max_errs.serr,min_kep_err);
-    int choices=0;
+    std::vector<MFILE> compressed_results;
     if(max_errs.serr==use_state){
-        ++choices;
         //{x,y,z}=vec[1]
         std::vector<vec> fdata;
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.push_back(pdata[i].r);
-        auto mf=compress_data<vec,1>(fdata.data(),N,d,state_error_fun);
+        compressed_results.push_back(
+            (can_kepler?compress_data<vec,1,KEPLERIAN_VECTORS>:compress_data<vec,1,STATE_VECTORS>)
+            (fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
     }
     if(max_errs.kcerr==use_kepler){
-        ++choices;
         //kep=double[6]
-
+        std::vector<double> fdata;
+        fdata.reserve(6*N);
+        double last_ml=ostates.front().ml;
+        for(const auto &oi:ostates){
+            fdata.push_back(oi.j.x);
+            fdata.push_back(oi.j.y);
+            fdata.push_back(oi.j.z);
+            fdata.push_back(oi.ex);
+            fdata.push_back(oi.ey);
+            double ml=oi.ml;
+            ml=last_ml+angle_reduce(ml-last_ml);
+            fdata.push_back(ml);
+            last_ml=ml;
+        }
+        compressed_results.push_back(compress_data<double,6,Format::KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
     }
     if(max_errs.krerr==use_kepler){
-        ++choices;
         //kep=double[6]
-
+        std::vector<double> fdata;
+        fdata.reserve(6*N);
+        for(const auto &oi:ostates){
+            fdata.push_back(oi.j.x);
+            fdata.push_back(oi.j.y);
+            fdata.push_back(oi.j.z);
+            fdata.push_back(oi.q);
+            fdata.push_back(oi.el);
+            fdata.push_back(oi.m);
+        }
+        compressed_results.push_back(compress_data<double,6,Format::KEPLERIAN_RAW>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
     }
-    if(!choices){
+    if(compressed_results.empty()){
         LogWarning("compress_orbital_data::no available method.\n");
+        return false;
     }
 
-    return;
+    MFILE *best_result=nullptr;
+    double best_score=INFINITY;
+    for(auto &cmf:compressed_results){
+        const auto *header=(const data_header*)cmf.data();
+        double cscore=filtered_min<double>(header->relative_error,INFINITY)+epsilon_relative_error;
+        cscore=double(cmf.size())*std::pow(cscore,compression_optimize_index*2);
+        if(cscore<best_score){
+            best_score=cscore;
+            best_result=&cmf;
+        }
+    }
+    memcpy(mf.prepare(best_result->size()),best_result->data(),best_result->size());
+    return true;
 }
-void ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
+bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
 
 
-    return;
+    return false;
 }
