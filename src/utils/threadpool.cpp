@@ -73,7 +73,7 @@ void ThreadPool::thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *pc){
         auto &task_queue=pPool->m_tasks;
         auto &busy_counter=pPool->m_busy;
         do{
-            std::unique_lock<std::mutex> lock(pPool->m_mutex);
+            std::unique_lock<std::mutex> lock(pPool->m_mutex_distribute);
             size_t depth=pPool->get_stack_depth();
             do{
                 if(!assigned_queue.empty()){
@@ -111,8 +111,10 @@ void ThreadPool::thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *pc){
             if(!--*task.p_counter)do_notify=true;
         }
         if(!--busy_counter)do_notify=true;
-        if(do_notify)
+        if(do_notify){
+            std::lock_guard<std::mutex>(pPool->m_mutex_collect);
             pPool->m_collect.notify_all();
+        }
     } while(1);
 }
 
@@ -156,7 +158,7 @@ size_t ThreadPool::resize(size_t n_threads){
 
 void ThreadPool::add_task(TaskFunction f,void *param,TaskGroup *pc){
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex_distribute);
         expand_unchecked(1);
         m_busy.fetch_add(1);
         if(pc)
@@ -167,7 +169,7 @@ void ThreadPool::add_task(TaskFunction f,void *param,TaskGroup *pc){
 }
 void ThreadPool::distribute_tasks(size_t n,TaskFunction f,void *param,TaskGroup *pc){
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex_distribute);
         expand_unchecked(n);
         m_busy.fetch_add(n);
         if(pc)
@@ -179,7 +181,7 @@ void ThreadPool::distribute_tasks(size_t n,TaskFunction f,void *param,TaskGroup 
     m_distribute.notify_all();
 }
 void ThreadPool::assign_task(size_t thread_id,TaskFunction f,void *param,TaskGroup *pc){
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex_distribute);
     expand_unchecked(thread_id+1);
     m_busy.fetch_add(1);
     if(pc)
@@ -200,7 +202,7 @@ bool ThreadPool::wait_for_all(TaskGroup *pc){
         return true;//assert(!pc.load());
     }
 
-    std::unique_lock<std::mutex> lock(m_mutex);
+    std::unique_lock<std::mutex> lock(m_mutex_collect);
     do{
         if(pc?!pc->load():!busy())break;
         m_collect.wait(lock);

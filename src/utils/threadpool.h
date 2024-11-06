@@ -43,7 +43,8 @@ private:
     std::vector<std::thread> m_threads;
     TaskQueue m_tasks;
     std::deque<TaskQueue> m_thread_tasks;
-    std::mutex m_mutex;
+    std::mutex m_mutex_distribute;
+    std::mutex m_mutex_collect;
     std::condition_variable m_distribute;
     std::condition_variable m_collect;
     std::atomic_size_t m_size;
