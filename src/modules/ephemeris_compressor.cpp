@@ -178,6 +178,16 @@ static constexpr double midinterp_coefficients[][8]={
 };
 constexpr int_t midinterp_max_wing=sizeof(midinterp_coefficients)/sizeof(midinterp_coefficients[0]);
 
+double ephemeris_compressor::compression_score(double relative_error,double compressed_size){
+    //score acts like (relative error)^[this index] * size at epsilon_relative_error
+    static constexpr double index_compress=0.25;
+    //make index_compress vary as (relative error)^[this index] to suppress large relative error
+    static constexpr double index_accuracy=0.3;
+
+    const double a=index_compress/std::pow(epsilon_relative_error,index_accuracy);
+    return std::log(compressed_size)/a+std::pow(relative_error,index_accuracy)/index_accuracy;
+}
+
 template<typename T,size_t N_Channel,int_t format>
 MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
     double (*error_fun)(const T *ref,const T *val);
@@ -225,7 +235,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         target.max_error=max_error;
         double score=filtered_min<double>(max_error,INFINITY)+epsilon_relative_error;
         target.reduced_error=score;
-        target.score=double(data_size)*std::pow(score,compression_optimize_index);
+        target.score=compression_score(score,double(data_size));
         return &target;
     };
 
@@ -236,12 +246,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         n_all.push_back(n);
     }
 
-    scored_compress_data *pmaxfit=make_fit(n_max);
-    const double e0=pmaxfit->reduced_error;
-    const double q0=2*pmaxfit->score;
-    double wdenom=std::cbrt(e0);
-    const double em=std::hypot(e0,wdenom);
-    wdenom=1/std::log1p(1/((e0+em)*wdenom));
+    make_fit(n_max);
     int_t i_current=0,i_left=0,i_right=n_all.size()-1;
     int_t step=1,dir=0,n_optimal=n_max;
 
@@ -263,16 +268,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         dir=next_dir;
         i_current=i_chs[step-1];
         int_t &n_chs=n_all[i_current];
-        scored_compress_data *pfit=make_fit(n_chs);
-
-        double e=pfit->reduced_error;
-        double w=wdenom*std::log(e/e0);
-        if(w<0)w=0;
-        else if(!(w<1))w=1;
-        w*=w;
-        double &q=pfit->score;
-        q=std::pow(q,1-w)*std::pow(q0,w);
-        if(q<mfmap[n_optimal].score){
+        if(make_fit(n_chs)->score<mfmap[n_optimal].score){
             n_optimal=n_chs;
             i_left=i_current;
             while(i_left>0&&n_all[i_left-1]>=n_min)--i_left;
@@ -528,7 +524,7 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     for(auto &cmf:compressed_results){
         const auto *header=(const data_header*)cmf.data();
         double cscore=filtered_min<double>(header->relative_error,INFINITY)+epsilon_relative_error;
-        cscore=double(cmf.size())*std::pow(cscore,compression_optimize_index*2);
+        cscore=compression_score(cscore,double(cmf.size()));
         if(cscore<best_score){
             best_score=cscore;
             best_result=&cmf;

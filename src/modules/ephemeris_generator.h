@@ -70,6 +70,9 @@ private:
     static double raw_kepler_error(const double *k,const double *kp);
     static double axial_rotation_error(const double *a,const double *ap);
     static double quaterion_rotation_error(const quat *q,const quat *qp);
+
+    //minimizing this will achieve a balance between relative error and file size
+    static double compression_score(double relative_error,double compressed_size);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
@@ -79,8 +82,6 @@ public:
     static constexpr double epsilon_relative_error=1e-12;
     //same, but for absolute positional error(m)
     static constexpr double epsilon_absolute_error=1e-4;
-    //compression will try to minimize (relative error)^[this index] * size
-    static constexpr double compression_optimize_index=0.25;
 
     // mf: contains raw orbital_state_t data
     // dt: time cadence between data points
