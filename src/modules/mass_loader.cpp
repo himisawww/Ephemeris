@@ -252,6 +252,7 @@ void msystem::reset_params(){
 
 void msystem::clear(){
     t_barycen=NAN;
+    t_update=NAN;
     blist.clear();
     mlist.clear();
     midx.clear();
@@ -804,6 +805,7 @@ msystem &msystem::operator =(const msystem &other){
     copy_member(tidal_matrix);
     copy_member(tidal_childlist);
     copy_member(t_barycen);
+    copy_member(t_update);
     copy_member(blist);
     copy_member(mlist);
 #undef copy_member

@@ -119,7 +119,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         int_t t_eph_start=ms.ephemeris_time();
 
-        bool barycen_updated=false;
+        bool resync=false;
         ephemeris_collector ephc(ms);
         //ephemeris integration
         for(int_t i=0;i<=iunit;++i){
@@ -127,20 +127,20 @@ int ephemeris_generator::make_ephemeris(int dir){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
            else if(use_gpu     )ms.integrate         (dt,          jsize,1);
            else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc.m_combinator);
-                barycen_updated=ms.analyse();
+                resync=!ephc.synchronized();
             }
 
             ephc.record();
 
             if(i==iunit)
                 ephc.extract(zms,true);
-            else if(barycen_updated)
+            else if(resync)
                 ephc.extract(zms,false);
 
             int_t mst_eph=ms.ephemeris_time();
             
             io_mutex.lock();
-            if(barycen_updated)LogInfo(
+            if(resync)LogInfo(
                 "\nInfo: At Ephemeris Time: %lld s\n"
                 "   System orbital structure is updated.\n",
                 mst_eph);
@@ -382,7 +382,12 @@ int_t ephemeris_collector::compose(int_t bid){
     return nret;
 }
 
+bool ephemeris_collector::synchronized(){
+    return ms.analyse()==t_bind;
+}
+
 void ephemeris_collector::rebind(){
+    t_bind=ms.analyse();
     blist=ms.get_barycens();
     int_t bn=blist.size();
     if(orbital_data.empty()){

@@ -121,6 +121,8 @@ class ephemeris_collector{
 private:
     msystem &ms;
     std::vector<barycen> blist;
+    //t_eph when blist is bind with ms
+    real t_bind;
 
     // { { mids of parent barycen, mids of child barycen }, index of pair }
     std::map<std::pair<std::set<int_t>,std::set<int_t>>,int_t> barycen_ids;
@@ -144,6 +146,8 @@ public:
     //record state vectors
     void record();
 
+    //return if structure of blist is up to date
+    bool synchronized();
     //rebind ephemeris data with parent barycen
     //update datapacks::tid & pbarycen
     void rebind();

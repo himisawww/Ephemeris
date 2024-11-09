@@ -38,7 +38,7 @@ void do_thread_works(void *pworks,size_t thread_id){
 
 
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,msystem_combinator *pmc){
-    analyse();
+    real t_latest=analyse();
     int_t bn=blist.size();
     std::map<int_t,int_t> clist;
     std::map<int_t,std::vector<int_t>> cvecs;

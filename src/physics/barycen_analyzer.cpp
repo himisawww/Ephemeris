@@ -15,11 +15,10 @@ struct bdata{
     bool del;
 };
 
-bool msystem::analyse(bool reconstruct){
+real msystem::analyse(bool reconstruct){
     int_t old_bn=reconstruct?0:blist.size();
     int_t mn=mlist.size();
-    if(old_bn&&t_barycen==t_eph)return false;
-    bool update_gm=!(t_barycen==t_barycen);
+    if(old_bn&&t_barycen==t_eph)return t_update;
     t_barycen=t_eph;
     std::vector<barycen> bl;
     std::vector<bdata> dl;
@@ -75,9 +74,9 @@ bool msystem::analyse(bool reconstruct){
             bi.v_sys+=vGM;
             bi.GM_sys+=mGM;
             int_t bp=bi.pid;
-            int_t ncount=0;
+
             while(bp>=0&&!dl[bp].del){
-                if(++ncount>=bl.size())return false;
+
                 bl[bp].GM_sys+=mGM;
                 bl[bp].r_sys+=rGM;
                 bl[bp].v_sys+=vGM;
@@ -244,17 +243,20 @@ bool msystem::analyse(bool reconstruct){
     } while(diff);
 
     if(old_bn){
-        if(update_gm)for(int_t i=0;i<old_bn;++i){
-            const barycen &bsrc=bl[i];
-            barycen &bdst=blist[i];
-            bdst.r=bsrc.r;
-            bdst.v=bsrc.v;
-            bdst.GM=bsrc.GM;
-            bdst.r_sys=bsrc.r_sys;
-            bdst.v_sys=bsrc.v_sys;
-            bdst.GM_sys=bsrc.GM_sys;
+        if(!(t_update==t_update)){
+            for(int_t i=0;i<old_bn;++i){
+                const barycen &bsrc=bl[i];
+                barycen &bdst=blist[i];
+                bdst.r=bsrc.r;
+                bdst.v=bsrc.v;
+                bdst.GM=bsrc.GM;
+                bdst.r_sys=bsrc.r_sys;
+                bdst.v_sys=bsrc.v_sys;
+                bdst.GM_sys=bsrc.GM_sys;
+            }
+            t_update=t_eph;
         }
-        return false;
+        return t_update;
     }
 
     //remove deleted barycens
@@ -311,98 +313,6 @@ bool msystem::analyse(bool reconstruct){
     }
 
     blist.swap(bl);
-    return true;
+    t_update=t_eph;
+    return t_update;
 }
-/*
-//combine minor bodies to majors
-int_t msystem::combine(int method){
-    if(method<0)return 0;
-
-    int_t bn=blist.size();
-    std::map<int_t,int_t> clist;
-    std::map<int_t,std::vector<int_t>> cvecs;
-    for(int_t id=0;id<bn;++id){
-        const auto &b=blist[id];
-        if(b.hid>=0)continue;
-
-        const auto &t=blist[b.tid];
-        if(t.pid<0)continue;
-        const auto &tp=blist[t.pid];
-        //combine target = tp.mid;
-
-        //combine threshold (only for Solar System)
-        //GM < 1E13 ( Ganymede < * < Mercury )
-        //target GM < 2E17 ( Jupiter < * < Sun )
-        if((fast_real)t.GM_sys>1E13
-         ||(fast_real)tp.GM>2E17)continue;
-
-        clist.insert({b.mid,tp.mid});
-    }
-
-    do{
-        bool changed=false;
-        for(auto &c:clist){
-            auto fs=clist.find(c.second);
-            if(fs==clist.end())continue;
-
-            c.second=fs->second;
-            changed=true;
-        }
-        if(!changed)break;
-    } while(1);
-
-    for(const auto &c:clist){
-        auto is=cvecs.insert({c.second,std::vector<int_t>()});
-        is.first->second.push_back(c.first);
-    }
-
-    std::vector<mass> ml;
-    int_t mn=mlist.size();
-    for(int_t i=0;i<mn;++i){
-        if(clist.find(i)!=clist.end())continue;
-        mass &mi=mlist[i];
-        auto fs=cvecs.find(i);
-        if(fs!=cvecs.end()){
-            //start combine process
-            if(method==0){
-                //do nothing
-            }
-            else if(method==1){
-                //newtonian combination
-                real GMi=mi.GM;
-                real GM=mi.GM0;
-                mpvec r=mi.r*GM,v=mi.v*GM;
-                for(auto &j:fs->second){
-                    mass &mj=mlist[j];
-                    real GMj=mj.GM;
-                    r+=mj.r*GMj;
-                    v+=mj.v*GMj;
-                    GMi+=GMj;
-                    GM+=mj.GM0;
-
-                    mi.dGM+=mj.dGM;
-                    mi.lum+=mj.lum;
-                }
-                r/=GM;
-                v/=GM;
-                mi.r=r;
-                mi.v=v;
-                mi.GM0=(fast_real)GM;
-                mi.GM=(fast_real)GMi;
-            }
-            else if(method==2){
-                //more complex considerations
-                //relativity: 20cm for earth, not too large ...
-                //GL, w, J2, C_static, GI, ...
-
-
-            }
-        }
-        ml.push_back(mi);
-    }
-    mlist.swap(ml);
-    accel();
-    analyse();
-    return clist.size();
-}
-*/

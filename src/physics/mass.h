@@ -169,6 +169,7 @@ public:
     };
 
     friend class ephemeris_generator;
+    friend class msystem_combinator;
 private:
     //relativistic coordinate time
     real t_eph;
@@ -194,6 +195,8 @@ private:
 
     //t_eph when blist is analysed
     real t_barycen;
+    //t_eph when analyse updates blist
+    real t_update;
     //list of barycens
     std::vector<barycen> blist;
     //list of masses
@@ -224,7 +227,6 @@ private:
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
 
-    friend class msystem_combinator;
 public:
     //calculate acceleration and solve for angular velocity
     void accel();
@@ -248,7 +250,8 @@ public:
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;
     //             if false, update existing structure when necessary, this is faster.
-    bool analyse(bool reconstruct=false);
+    //return latest t_eph when analyse updates blist
+    real analyse(bool reconstruct=false);
 
     const std::vector<barycen> &get_barycens() const{ return blist; }
 
