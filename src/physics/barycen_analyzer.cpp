@@ -1,6 +1,5 @@
 #include<map>
 #include"physics/mass.h"
-#include"modules/ephemeris_generator.h"
 
 barycen::barycen(){
     pid=-1;
@@ -407,47 +406,3 @@ int_t msystem::combine(int method){
     return clist.size();
 }
 */
-void ephemeris_collector::update_barycens(){
-    std::vector<barycen> &bl=blist;
-    int_t bn=bl.size();
-
-    //update barycens: bl.rvGM,rvGM_sys;
-    for(int_t i=0;i<bn;++i){//initialize
-        bl[i].GM_sys=0;
-        bl[i].r_sys=0;
-        bl[i].v_sys=0;
-    }
-    for(int_t i=0;i<bn;++i)if(bl[i].hid<0){//is mass
-        barycen &bi=bl[i];
-        const mass &mi=ms[bi.mid];
-        const real mGM=mi.GM;
-        const mpvec rGM=mi.r*mGM;
-        const mpvec vGM=mi.v*mGM;
-        bi.r=mi.r;
-        bi.v=mi.v;
-        bi.GM=mGM;
-        bi.r_sys+=rGM;
-        bi.v_sys+=vGM;
-        bi.GM_sys+=mGM;
-        int_t bp=bi.pid;
-        while(bp>=0){
-            bl[bp].GM_sys+=mGM;
-            bl[bp].r_sys+=rGM;
-            bl[bp].v_sys+=vGM;
-            bp=bl[bp].pid;
-        }
-    }
-    for(int_t i=0;i<bn;++i)if(bl[i].hid>=0){//is barycen
-        barycen &bi=bl[i];
-        barycen &h=bl[bi.hid];
-        barycen &g=bl[bi.gid];
-        bi.GM=h.GM_sys+g.GM_sys;
-        bi.r=(h.r_sys+g.r_sys)/bi.GM;
-        bi.v=(h.v_sys+g.v_sys)/bi.GM;
-    }
-    for(int_t i=0;i<bn;++i){//finalize
-        barycen &bi=bl[i];
-        bi.r_sys/=bi.GM_sys;
-        bi.v_sys/=bi.GM_sys;
-    }
-}

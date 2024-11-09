@@ -2,9 +2,10 @@
 #include<mutex>
 #include<set>
 #include<map>
+#include"math/Keplerians.h"
 #include"physics/mass.h"
 #include"utils/memio.h"
-#include"math/Keplerians.h"
+#include"integrators/mass_combined.h"
 
 class ephemeris_compressor{
 public:
@@ -127,6 +128,8 @@ private:
     std::vector<rotational_datapack_t> rotational_data;
     int_t t_start;
 public:
+    msystem_combinator m_combinator;
+
     ephemeris_collector(msystem &_ms);
 
     //update state vectors of blist by ms.mlist

@@ -126,7 +126,7 @@ int ephemeris_generator::make_ephemeris(int dir){
             if(i>0){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
            else if(use_gpu     )ms.integrate         (dt,          jsize,1);
-           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1);
+           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc.m_combinator);
                 barycen_updated=ms.analyse();
             }
 
@@ -226,6 +226,51 @@ int ephemeris_generator::make_ephemeris(int dir){
 ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms){
     t_start=ms.ephemeris_time();
     rebind();
+}
+
+void ephemeris_collector::update_barycens(){
+    std::vector<barycen> &bl=blist;
+    int_t bn=bl.size();
+
+    //update barycens: bl.rvGM,rvGM_sys;
+    for(int_t i=0;i<bn;++i){//initialize
+        bl[i].GM_sys=0;
+        bl[i].r_sys=0;
+        bl[i].v_sys=0;
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid<0){//is mass
+        barycen &bi=bl[i];
+        const mass &mi=ms[bi.mid];
+        const real mGM=mi.GM;
+        const mpvec rGM=mi.r*mGM;
+        const mpvec vGM=mi.v*mGM;
+        bi.r=mi.r;
+        bi.v=mi.v;
+        bi.GM=mGM;
+        bi.r_sys+=rGM;
+        bi.v_sys+=vGM;
+        bi.GM_sys+=mGM;
+        int_t bp=bi.pid;
+        while(bp>=0){
+            bl[bp].GM_sys+=mGM;
+            bl[bp].r_sys+=rGM;
+            bl[bp].v_sys+=vGM;
+            bp=bl[bp].pid;
+        }
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid>=0){//is barycen
+        barycen &bi=bl[i];
+        barycen &h=bl[bi.hid];
+        barycen &g=bl[bi.gid];
+        bi.GM=h.GM_sys+g.GM_sys;
+        bi.r=(h.r_sys+g.r_sys)/bi.GM;
+        bi.v=(h.v_sys+g.v_sys)/bi.GM;
+    }
+    for(int_t i=0;i<bn;++i){//finalize
+        barycen &bi=bl[i];
+        bi.r_sys/=bi.GM_sys;
+        bi.v_sys/=bi.GM_sys;
+    }
 }
 
 int_t ephemeris_collector::decompose(int_t bid){

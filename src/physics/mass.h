@@ -154,6 +154,8 @@ struct mass_state{
     }
 };
 
+class msystem_combinator;
+
 //stellar system
 class msystem{
 public:
@@ -222,6 +224,7 @@ private:
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
 
+    friend class msystem_combinator;
 public:
     //calculate acceleration and solve for angular velocity
     void accel();
@@ -238,7 +241,9 @@ public:
     //for full system with un-parented tiny masses, use (dt*n_combine) as time step
     //for subsystem with tiny children masses, use dt as time step, always use CPU
     //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
-    void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1);
+    //pmc: if available, cache combination/distribution setups to avoid redo the calculations.
+    void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1,
+        msystem_combinator *pmc=nullptr);
 
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;

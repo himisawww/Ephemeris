@@ -143,8 +143,10 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="src\configs.h" />
     <ClInclude Include="src\definitions.h" />
+    <ClInclude Include="src\integrators\mass_combined.h" />
     <ClInclude Include="src\math\basic_math.h" />
     <ClInclude Include="src\math\dfloat_t.h" />
+    <ClInclude Include="src\math\distribute.h" />
     <ClInclude Include="src\math\interp.h" />
     <ClInclude Include="src\math\Keplerians.h" />
     <ClInclude Include="src\math\random.h" />
