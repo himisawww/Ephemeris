@@ -24,6 +24,9 @@ public:
     INLINE bool operator> (const dfloat_impl_t<T> &x){ return T(*this-x)> 0; }
     INLINE bool operator< (const dfloat_impl_t<T> &x){ return T(*this-x)< 0; }
     INLINE bool operator==(const dfloat_impl_t<T> &x){ return T(*this-x)==0; }
+    INLINE bool operator>=(const dfloat_impl_t<T> &x){ return T(*this-x)>=0; }
+    INLINE bool operator<=(const dfloat_impl_t<T> &x){ return T(*this-x)<=0; }
+    INLINE bool operator!=(const dfloat_impl_t<T> &x){ return T(*this-x)!=0; }
 
     friend INLINE dfloat_impl_t<T> operator+(dfloat_impl_t<T> x,dfloat_impl_t<T> y){
         dfloat_impl_t<T> re;

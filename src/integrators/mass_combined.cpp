@@ -80,7 +80,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
     //major subsystems
     std::vector<int_t> Smajsub;
     int_t mn=mlist.size();
-
+    
     for(const auto &p:cvecs)
         Sn.insert({p.first,msystem()});
     
@@ -268,6 +268,13 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.accel();
         }
 
+        if(pmc&&(pmc->pms!=this||pmc->t_split!=t_latest)){
+            pmc->pms=this;
+            pmc->t_split=t_latest;
+            for(auto &sns:Sn)
+                pmc->link(sns.second);
+        }
+
         // integrate
 #ifndef NDEBUG
         Sc.integrate(dt_long,1,USE_GPU);
@@ -398,4 +405,52 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         if(USE_GPU)Cuda_accel();
         else accel();
     }
+}
+
+
+int_t msystem_combinator::link(msystem &mssub,int_t bid){
+    const msystem &ms=*pms;
+    const auto &blist=ms.get_barycens();
+
+    uint64_t psid=mssub[mssub.tidal_parent].sid;
+    std::vector<barycen> &sublist=sublists[psid];
+    if(bid<0){
+        int_t pmid=ms.get_mid(psid);
+        //assume for ms.mlist[i], ms.blist[i].mid==i
+        int_t pbid=link(mssub,blist[pmid].tid);
+        sublist[pbid].pid=-1;
+        barycen::fill_tid(sublist);
+        return sublist.size();
+    }
+
+    barycen sbi;
+    const barycen &bi=blist[bid];
+    if(bi.hid>=0){
+        const auto &h=blist[bi.hid];
+        const auto &g=blist[bi.gid];
+        int_t hmid=mssub.get_mid(ms[h.mid].sid);
+        int_t gmid=mssub.get_mid(ms[g.mid].sid);
+        if(gmid>=0){
+            sbi.hid=link(mssub,bi.hid);
+            sbi.gid=link(mssub,bi.gid);
+        }
+    }
+    else{
+        sbi.mid=mssub.get_mid(ms[bi.mid].sid);
+    }
+
+    for(auto cid:bi.children){
+        const auto &ci=blist[cid];
+        if(mssub.get_mid(ms[ci.mid].sid)>=0)
+            sbi.children.push_back(link(mssub,cid));
+    }
+    int_t sbid=sublist.size();
+    if(sbi.hid>=0){
+        sublist[sbi.hid].pid=sbid;
+        sublist[sbi.gid].pid=sbid;
+    }
+    for(auto scid:sbi.children)
+        sublist[scid].pid=sbid;
+    sublist.push_back(sbi);
+    return sbid;
 }

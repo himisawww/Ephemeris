@@ -243,7 +243,7 @@ real msystem::analyse(bool reconstruct){
     } while(diff);
 
     if(old_bn){
-        if(!(t_update==t_update)){
+        if(t_update!=t_update){
             for(int_t i=0;i<old_bn;++i){
                 const barycen &bsrc=bl[i];
                 barycen &bdst=blist[i];
@@ -293,6 +293,15 @@ real msystem::analyse(bool reconstruct){
     }
 
     //fill tid and mid
+    barycen::fill_tid(bl);
+
+    blist.swap(bl);
+    t_update=t_eph;
+    return t_update;
+}
+
+void barycen::fill_tid(std::vector<barycen> &bl){
+    int_t bsize=bl.size();
     for(int_t i=0;i<bsize;++i){
         barycen &bi=bl[i];
 
@@ -311,8 +320,157 @@ real msystem::analyse(bool reconstruct){
             bi.mid=bl[hid].mid;
         }
     }
+}
 
-    blist.swap(bl);
-    t_update=t_eph;
-    return t_update;
+void barycen::update_barycens(const msystem &ms,std::vector<barycen> &bl){
+    int_t bn=bl.size();
+
+    //update barycens: bl.rvGM,rvGM_sys;
+    for(int_t i=0;i<bn;++i){//initialize
+        bl[i].GM_sys=0;
+        bl[i].r_sys=0;
+        bl[i].v_sys=0;
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid<0){//is mass
+        barycen &bi=bl[i];
+        const mass &mi=ms[bi.mid];
+        const real mGM=mi.GM;
+        const mpvec rGM=mi.r*mGM;
+        const mpvec vGM=mi.v*mGM;
+        bi.r=mi.r;
+        bi.v=mi.v;
+        bi.GM=mGM;
+        bi.r_sys+=rGM;
+        bi.v_sys+=vGM;
+        bi.GM_sys+=mGM;
+        int_t bp=bi.pid;
+        while(bp>=0){
+            bl[bp].GM_sys+=mGM;
+            bl[bp].r_sys+=rGM;
+            bl[bp].v_sys+=vGM;
+            bp=bl[bp].pid;
+        }
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid>=0){//is barycen
+        barycen &bi=bl[i];
+        barycen &h=bl[bi.hid];
+        barycen &g=bl[bi.gid];
+        bi.GM=h.GM_sys+g.GM_sys;
+        bi.r=(h.r_sys+g.r_sys)/bi.GM;
+        bi.v=(h.v_sys+g.v_sys)/bi.GM;
+    }
+    for(int_t i=0;i<bn;++i){//finalize
+        barycen &bi=bl[i];
+        bi.r_sys/=bi.GM_sys;
+        bi.v_sys/=bi.GM_sys;
+    }
+}
+
+int_t barycen::decompose(std::vector<barycen> &blist,int_t bid){
+    if(bid<0){
+        int_t bn=blist.size();
+        int_t rootid=-1;
+        int_t nroot=0;
+        for(int_t i=0;i<bn;++i){
+            if(blist[i].pid<0){
+                rootid=i;
+                ++nroot;
+            }
+        }
+        return nroot==1?decompose(blist,rootid):-1;
+    }
+
+    barycen &b=blist[bid];
+    int_t nret=0;
+    for(const auto cid:b.children)
+        nret+=decompose(blist,cid);
+
+    if(b.gid>=0){
+        nret+=decompose(blist,b.gid);
+        nret+=decompose(blist,b.hid);
+    }
+
+    if(b.pid>=0){
+        barycen &p=blist[b.pid];
+        if(bid==p.hid){
+            b.r=NAN;
+            b.v=NAN;
+        }
+        else if(bid==p.gid){
+            b.r=b.r_sys-blist[p.hid].r_sys;
+            b.v=b.v_sys-blist[p.hid].v_sys;
+        }
+        else{
+            b.r=b.r_sys-p.r;
+            b.v=b.v_sys-p.v;
+        }
+    }
+    else{
+        b.r=b.r_sys;
+        b.v=b.v_sys;
+    }
+
+    b.r_sys=NAN;
+    b.v_sys=NAN;
+
+    return nret+1;
+}
+
+int_t barycen::compose(std::vector<barycen> &blist,int_t bid){
+    if(bid<0){
+        int_t bn=blist.size();
+        int_t rootid=-1;
+        int_t nroot=0;
+        for(int_t i=0;i<bn;++i){
+            if(blist[i].pid<0){
+                rootid=i;
+                ++nroot;
+            }
+        }
+        return nroot==1?compose(blist,rootid):-1;
+    }
+
+    barycen &b=blist[bid];
+    int_t nret=1;
+
+    if(b.pid<0){
+        b.r_sys=b.r;
+        b.v_sys=b.v;
+    }
+    else{
+        barycen &p=blist[b.pid];
+        if(bid==p.gid){
+            b.r_sys=b.r+blist[p.hid].r_sys;
+            b.v_sys=b.v+blist[p.hid].v_sys;
+        }
+        else if(bid==p.hid){
+            barycen &g=blist[p.gid];
+            real gdm=g.GM_sys/p.GM;
+            b.r_sys=p.r-gdm*g.r;
+            b.v_sys=p.v-gdm*g.v;
+        }
+        else{
+            b.r_sys=b.r+p.r;
+            b.v_sys=b.v+p.v;
+        }
+    }
+
+    mpvec cracc(0),cvacc(0);
+    for(const auto cid:b.children){
+        barycen &c=blist[cid];
+        cracc+=c.r*c.GM_sys;
+        cvacc+=c.v*c.GM_sys;
+    }
+    b.r=b.r_sys-cracc/b.GM_sys;
+    b.v=b.v_sys-cvacc/b.GM_sys;
+
+    if(b.gid>=0){
+        nret+=compose(blist,b.hid);
+        nret+=compose(blist,b.gid);
+    }
+
+    for(const auto cid:b.children)
+        nret+=compose(blist,cid);
+
+    return nret;
 }

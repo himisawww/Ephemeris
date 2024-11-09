@@ -6,6 +6,8 @@
 #include<vector>
 #include<map>
 
+class msystem;
+
 class barycen{
 public:
     mpvec r,v;
@@ -36,6 +38,15 @@ public:
     std::vector<int_t> children;
 
     barycen();
+
+    //fill tid and mid
+    static void fill_tid(std::vector<barycen> &blist);
+    //update state vectors of blist by ms.mlist
+    static void update_barycens(const msystem &ms,std::vector<barycen> &blist);
+    //convert state vectors in blist as relative to direct parent
+    static int_t decompose(std::vector<barycen> &blist,int_t bid=-1);
+    //restore state vectors in blist to absolute
+    static int_t compose(std::vector<barycen> &blist,int_t bid=-1);
 };
 
 

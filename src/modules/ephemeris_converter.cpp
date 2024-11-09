@@ -153,7 +153,7 @@ int ephemeris_collector::convert_format(const char *path){
                     }
                     if(it!=it_barycen){
                         ephc.blist=it->second;
-                        ephc.update_barycens();
+                        barycen::update_barycens(ms,ephc.blist);
                         it_barycen=it;
                         int_t bn=ephc.blist.size();
                         for(int_t i=0;i<bn;++i){
@@ -187,7 +187,7 @@ int ephemeris_collector::convert_format(const char *path){
                         b.r=v5._orb[0];
                         b.v=v5._orb[1];
                     }
-                    ephc.compose();
+                    barycen::compose(ephc.blist);
                     for(int_t i=0;i<mn;++i){
                         barycen &b=ephc.blist[bids[i]];
                         _data_t &v5=ephm_data[i];
