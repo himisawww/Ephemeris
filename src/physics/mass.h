@@ -203,6 +203,7 @@ private:
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
     std::vector<int_t> tidal_childlist;
+    msystem_combinator *p_substep_recorder;
 
     //t_eph when blist is analysed
     real t_barycen;
@@ -237,6 +238,8 @@ private:
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
+    //used by combined_integrate with pmc
+    void record_substeps(fast_real dt);
 
 public:
     //calculate acceleration and solve for angular velocity

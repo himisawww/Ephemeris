@@ -191,5 +191,8 @@ RUNGE_KUTTA{
             
             ACCEL();
         }
+#ifndef CUDA_IMPL
+        record_substeps(dt);
+#endif
     }
 }

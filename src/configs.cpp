@@ -10,12 +10,15 @@ const int ExportHeaderCount=4;
 const char *SaveNameCheckpoint="checkpoint.dat";
 const char *SaveNameReadme="readme.txt";
 const char *SaveNameStructure="structure.json";
-const char *SaveNameIndex="0.dat";
-const char *SaveDataExtension=".dat";
+const char *SaveNameIndex="index.dat";
+const char *SaveRotationalDataExtension=".rot";
+const char *SaveOrbitalDataExtension=".pos";
+const char *SaveSubstepDataExtension=".posx";
 const char *SaveNameInitialDirectory="system_initial";
 const char *VersionString="v0.2.0.beta";
 const char AuthorName[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
 //deprecated
 const char *SaveNameTimestamps="timestamps.dat";
+const char *SaveDataExtension=".dat";
 }

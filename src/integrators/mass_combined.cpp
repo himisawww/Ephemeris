@@ -33,7 +33,7 @@ void do_thread_works(void *pworks,size_t thread_id){
     const auto &idxs=(*w.widxs)[thread_id];
     const auto &mss=*w.pm;
     for(const auto idx:idxs)
-        mss[idx]->integrate(w.dt,w.n_combine);
+        mss[idx]->integrate(w.dt,w.n_combine,0);
 }
 
 
@@ -266,11 +266,14 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.t_eph=t_eph;
             sn.build_mid();
             sn.accel();
+            sn.p_substep_recorder=pmc;
         }
 
         if(pmc&&(pmc->pms!=this||pmc->t_split!=t_latest)){
             pmc->pms=this;
+            pmc->t_substep=dt;
             pmc->t_split=t_latest;
+            pmc->sublists.clear();
             for(auto &sns:Sn)
                 pmc->link(sns.second);
         }
@@ -307,8 +310,9 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         tasks.n_combine=n_combine;
         ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
         std::vector<std::thread> threads;
+        ThreadPool::TaskGroup task_group;
         if(pthread_pool)
-            pthread_pool->distribute_tasks(n_threads,do_thread_works,&tasks);
+            pthread_pool->distribute_tasks(n_threads,do_thread_works,&tasks,&task_group);
         else for(int_t i=0;i<n_threads;++i)
             threads.push_back(std::thread(do_thread_works,&tasks,i));
 
@@ -317,7 +321,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         Sc.integrate(dt_long,1,USE_GPU);
 
         if(pthread_pool)
-            pthread_pool->wait_for_all();
+            pthread_pool->wait_for_all(&task_group);
         else for(int_t i=0;i<n_threads;++i)
             threads[i].join();
 #endif

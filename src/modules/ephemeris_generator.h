@@ -129,6 +129,8 @@ private:
     std::vector<orbital_datapack_t> orbital_data;
     std::vector<rotational_datapack_t> rotational_data;
     int_t t_start;
+
+    std::map<uint64_t,int_t> file_index;
 public:
     msystem_combinator m_combinator;
 

@@ -11,9 +11,10 @@ int ephemeris_collector::convert_format(const char *path){
         const char *fwdbak=dir>0?"fwd":"bak";
 
         std::string zckpt;
-        size_t cur_index=1;
+        size_t cur_index=0;
         MFILE *fout=mopen(sop+"."+fwdbak,MFILE_STATE::WRITE_FILE);
         do{
+            ++cur_index;
             zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
             if(!file_exist(zckpt))break;
 
@@ -45,8 +46,10 @@ int ephemeris_collector::convert_format(const char *path){
                 ++mi;
             }
 
-            if(mf_mlist.empty())
+            if(mf_mlist.empty()){
+                is_broken=true;
                 continue;
+            }
 
             if(version==0){//index is timestamps
                 vec v5[5];
@@ -71,6 +74,8 @@ int ephemeris_collector::convert_format(const char *path){
                     continue;
                 }
 
+                //{fname, fid}
+                std::map<std::string,int_t> fidmap;
                 //{fid, index_entry_t of fid.dat}
                 std::map<int_t,index_entry_t> indices;
                 //{t_end, blist over [t_start,t_end]}
@@ -89,8 +94,15 @@ int ephemeris_collector::convert_format(const char *path){
                         blist.resize(index.sid);
                         msystem::load_barycen_structure(&mf_index,blist);
                     }
-                    else
-                        indices[index.fid]=index;
+                    else{
+                        int_t fid=fidmap.size();
+                        std::string fname=index.fid>0
+                            ?strprintf("%s.%lld%s",&index.sid,index.fid,Configs::SaveOrbitalDataExtension)
+                            :strprintf("%s%s",&index.sid,Configs::SaveRotationalDataExtension);
+                        if(!fidmap.insert({fname,fid}).second)
+                            is_broken=true;
+                        indices[fid]=index;
+                    }
                 } while(1);
 
                 typedef vec _orb_t[2];
@@ -98,20 +110,24 @@ int ephemeris_collector::convert_format(const char *path){
                 typedef struct{ _orb_t _orb;_rot_t _rot; } _data_t;
                 int_t t_start,t_end,t_interval=0;
                 for(auto &mf:mf_mlist){
-                    int_t fid=atoi(mf.get_name().c_str());
+                    auto itfid=fidmap.find(mf.get_name());
+                    if(itfid==fidmap.end())
+                        continue;
+                    int_t fid=itfid->second;
                     auto it=indices.find(fid);
                     if(it==indices.end()){
                         is_broken=true;
                         continue;
                     }
+                    index_entry_t &index=it->second;
+                    bool is_orb=index.fid>0;
                     mf.seek(0,SEEK_END);
-                    int_t fsize=mf.tell()/(fid>0?sizeof(_orb_t):sizeof(_rot_t));
+                    int_t fsize=mf.tell()/(is_orb?sizeof(_orb_t):sizeof(_rot_t));
                     mf.seek(0,SEEK_SET);
                     if(fsize<=1){
                         is_broken=true;
                         continue;
                     }
-                    index_entry_t &index=it->second;
                     int_t finterval=(index.t_end-index.t_start)/(fsize-1);
                     if(t_interval==0){
                         t_interval=finterval;
@@ -125,11 +141,12 @@ int ephemeris_collector::convert_format(const char *path){
                         t_end=index.t_end;
                     }
                     int_t mid=ms.get_mid(index.sid);
-                    if(fid>0)
+                    if(is_orb)
                         orb_fids[mid][dir*index.t_end]=fid;
                     else
                         rot_fids[mid]=fid;
                     ephm_files[fid]=&mf;
+                    index.fid=fid;
                 }
 
                 if(t_interval==0||(t_end-t_start)%t_interval||(t_end-t_start)/t_interval<1){
@@ -198,7 +215,6 @@ int ephemeris_collector::convert_format(const char *path){
                 }
             }
 
-            ++cur_index;
         } while(1);
         fclose(fout);
     }

@@ -11,11 +11,14 @@ extern const char *SaveNameCheckpoint;
 extern const char *SaveNameReadme;
 extern const char *SaveNameStructure;
 extern const char *SaveNameIndex;
-extern const char *SaveDataExtension;
+extern const char *SaveRotationalDataExtension;
+extern const char *SaveOrbitalDataExtension;
+extern const char *SaveSubstepDataExtension;
 extern const char *SaveNameInitialDirectory;
 extern const char *VersionString;
 extern const char AuthorName[];
 
 //deprecated
 extern const char *SaveNameTimestamps;
+extern const char *SaveDataExtension;
 }

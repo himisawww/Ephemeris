@@ -804,6 +804,7 @@ msystem &msystem::operator =(const msystem &other){
     copy_member(tidal_parent);
     copy_member(tidal_matrix);
     copy_member(tidal_childlist);
+    copy_member(p_substep_recorder);
     copy_member(t_barycen);
     copy_member(t_update);
     copy_member(blist);
