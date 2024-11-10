@@ -4,6 +4,25 @@
 
 class ephemeris_compressor{
 public:
+    struct orbital_state_t{
+        vec r,v;
+    };
+    struct rotational_state_t{
+        vec w,x,z;
+    };
+private:
+    static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
+
+    static double relative_state_error(const vec *r,const vec *rp);
+    static double absolute_state_error(const vec *r,const vec *rp);
+    static double circular_kepler_error(const double *k,const double *kp);
+    static double raw_kepler_error(const double *k,const double *kp);
+    static double axial_rotation_error(const double *a,const double *ap);
+    static double quaterion_rotation_error(const quat *q,const quat *qp);
+
+    //minimizing this will achieve a balance between relative error and file size
+    static double compression_score(double relative_error,double compressed_size);
+public:
     //compressed data format
     enum Format:int_t{
         UNKNOWN             =0,
@@ -42,14 +61,14 @@ public:
 
     };
 
-    struct orbital_state_t{
-        vec r,v;
+    class axial:public ephem_rot{
+    public:
+        axial()=default;
+        axial(const ephem_rot &other):ephem_rot(other){}
+        axial(const double *a);
     };
-    struct rotational_state_t{
-        vec w,x,z;
-    };
-    
-    struct data_header_base{
+
+    struct header_base{
         float relative_error;
         int16_t degree;     // of bspline basis
         uint16_t uformat;   // = ~uint16_t(enum Format)
@@ -58,41 +77,47 @@ public:
                             //      otherwise data was left unchanged as a raw sequence of double.
         int_t n;            // # of segments. total size of data is (n+degree)*channel*sizeof(type).
     };
-    template<Format format>struct data_header;
-    template<>struct data_header<STATE_VECTORS>:public data_header_base{
+    template<Format format>struct header_t;
+    template<>struct header_t<STATE_VECTORS>:public header_base{
         typedef vec type;
         static constexpr size_t channel=1;
+        static constexpr auto error_function=absolute_state_error;
 
         vec r0,v0,r1,v1;
     };
-    template<>struct data_header<KEPLERIAN_VECTORS>:public data_header_base{
+    template<>struct header_t<KEPLERIAN_VECTORS>:public header_base{
         typedef vec type;
         static constexpr size_t channel=1;
+        static constexpr auto error_function=relative_state_error;
 
         vec r0,v0,r1,v1;
     };
-    template<>struct data_header<KEPLERIAN_CIRCULAR>:public data_header_base{
+    template<>struct header_t<KEPLERIAN_CIRCULAR>:public header_base{
         typedef double type;
         static constexpr size_t channel=6;
+        static constexpr auto error_function=circular_kepler_error;
 
         typedef double kep_ct[6];
         kep_ct k0,k1;
     };
-    template<>struct data_header<KEPLERIAN_RAW>:public data_header_base{
+    template<>struct header_t<KEPLERIAN_RAW>:public header_base{
         typedef double type;
         static constexpr size_t channel=6;
+        static constexpr auto error_function=raw_kepler_error;
 
         typedef double kep_rt[6];
         kep_rt k0,k1;
     };
-    template<>struct data_header<AXIAL_OFFSET>:public data_header_base{
+    template<>struct header_t<AXIAL_OFFSET>:public header_base{
         typedef double type;
         static constexpr size_t channel=6;
+        static constexpr auto error_function=axial_rotation_error;
 
     };
-    template<>struct data_header<QUATERNION>:public data_header_base{
+    template<>struct header_t<QUATERNION>:public header_base{
         typedef quat type;
         static constexpr size_t channel=1;
+        static constexpr auto error_function=quaterion_rotation_error;
 
         quat q0;
         vec w0;
@@ -100,20 +125,9 @@ public:
         vec w1;
     };
 private:
-    template<Format format,typename T=typename data_header<format>::type,size_t N_Channel=data_header<format>::channel>
+    template<Format format,typename T=typename header_t<format>::type,size_t N_Channel=header_t<format>::channel>
     static MFILE compress_data(const T *pdata,int_t N,int_t d);
-
-    static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
-
-    static double relative_state_error(const vec *r,const vec *rp);
-    static double absolute_state_error(const vec *r,const vec *rp);
-    static double circular_kepler_error(const double *k,const double *kp);
-    static double raw_kepler_error(const double *k,const double *kp);
-    static double axial_rotation_error(const double *a,const double *ap);
-    static double quaterion_rotation_error(const quat *q,const quat *qp);
-
-    //minimizing this will achieve a balance between relative error and file size
-    static double compression_score(double relative_error,double compressed_size);
+    static void select_best(MFILE &mf,std::vector<MFILE> &compressed_results);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator

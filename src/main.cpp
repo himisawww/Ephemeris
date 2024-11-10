@@ -99,7 +99,7 @@ int main(int argc,const char **argv){
                 ephemeris_compressor::compress_rotational_data
                 )(mf,3600);
             if(success){
-                auto *pheader=(ephemeris_compressor::data_header_base*)mf.data();
+                auto *pheader=(ephemeris_compressor::header_base*)mf.data();
                 printf("%3lld: [%8llu/%8llu, %.2f%% @ %6llu] : %.17e in %fs\n",id,
                     mf.size(),oldsize,100.*mf.size()/oldsize,(oldsize)/samplesize,
                     pheader->relative_error,CalcTime()-s

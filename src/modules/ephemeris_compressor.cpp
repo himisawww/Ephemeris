@@ -6,8 +6,7 @@
 #define HALF 0.5
 typedef ephemeris_compressor::keplerian kep_t;
 
-kep_t::keplerian(const ephem_orb &other){
-    static_cast<ephem_orb&>(*this)=other;
+kep_t::keplerian(const ephem_orb &other):ephem_orb(other){
     el=earg+j.asc_node().phi();
     ex=(q+1)*std::cos(el);
     ey=(q+1)*std::sin(el);
@@ -127,6 +126,16 @@ void kep_t::blend_finalize(bool circular){
     w=0;
 }
 
+ephemeris_compressor::axial::axial(const double *a){
+    t=0;
+    w.x=a[0];
+    w.y=a[1];
+    w.z=a[2];
+    pphi=std::asin(a[3]/std::sqrt(1-a[4]*a[4]));
+    ptheta=std::acos(a[4]);
+    angle=a[5];
+}
+
 double ephemeris_compressor::infer_GM_from_data(const orbital_state_t *pdata,int_t N){
     std::vector<double> angles(N);
     angles[0]=0;
@@ -190,26 +199,11 @@ double ephemeris_compressor::compression_score(double relative_error,double comp
 
 template<ephemeris_compressor::Format format,typename T,size_t N_Channel>
 MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
-    typedef data_header<format> header_t;
-
-    double (*error_fun)(const T*ref,const T*val);
-    if constexpr(format==Format::STATE_VECTORS)
-        error_fun=absolute_state_error;
-    else if constexpr(format==Format::KEPLERIAN_VECTORS)
-        error_fun=relative_state_error;
-    else if constexpr(format==Format::KEPLERIAN_CIRCULAR)
-        error_fun=circular_kepler_error;
-    else if constexpr(format==Format::KEPLERIAN_RAW)
-        error_fun=raw_kepler_error;
-    else if constexpr(format==Format::AXIAL_OFFSET)
-        error_fun=axial_rotation_error;
-    else if constexpr(format==Format::QUATERNION)
-        error_fun=quaterion_rotation_error;
-    else return MFILE();
+    typedef header_t<format> data_header;
 
     struct scored_compress_data{
         MFILE data;
-        header_t *pheader;
+        data_header *pheader;
         double max_error;
         double reduced_error;
         double score;
@@ -222,16 +216,16 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         auto &target=mfmap[n];
         MFILE &mf=target.data;
         const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
-        const size_t data_size=bsp_size+sizeof(header_t);
+        const size_t data_size=bsp_size+sizeof(data_header);
         bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
-        target.pheader=(header_t*)mf.prepare(data_size);
+        target.pheader=(data_header*)mf.prepare(data_size);
         memcpy(target.pheader+1,bf.get_fitted_data(),bsp_size);
         bf.expand();
         T result[N_Channel];
         double max_error=0;
         for(int_t i=0;i<N;++i){
             bf(double(i),result);
-            double ierror=error_fun(pdata+N_Channel*i,result);
+            double ierror=data_header::error_function(pdata+N_Channel*i,result);
             checked_maximize(max_error,ierror);
         }
         target.max_error=max_error;
@@ -286,7 +280,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
 
     scored_compress_data &result=mfmap[n_optimal];
     //fill header
-    header_t &header=*result.pheader;
+    data_header &header=*result.pheader;
     header.relative_error=(float)result.max_error;
     header.degree=(int16_t)d;
     header.uformat=~(uint16_t)format;
@@ -314,10 +308,15 @@ double ephemeris_compressor::raw_kepler_error(const double *k,const double *kp){
     return std::sqrt((rp-r).normsqr()/r.normsqr());
 }
 double ephemeris_compressor::axial_rotation_error(const double *a,const double *ap){
-    return 0;
+    mat s,sp;
+    vec w;
+    axial(a).sw(0,s,w);
+    axial(ap).sw(0,sp,w);
+    quat q(s),qp(sp);
+    return quaterion_rotation_error(&q,&qp);
 }
 double ephemeris_compressor::quaterion_rotation_error(const quat *q,const quat *qp){
-    return 0;
+    return std::sqrt(checked_min((*q-*qp).normsqr(),(*q+*qp).normsqr()));
 }
 
 bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
@@ -480,14 +479,14 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         compressed_results.push_back(
             (can_kepler?compress_data<KEPLERIAN_VECTORS>:compress_data<STATE_VECTORS>)
             (fdata.data(),N,d));
-        size_t header_size=(can_kepler?sizeof(data_header<KEPLERIAN_VECTORS>):sizeof(data_header<STATE_VECTORS>));
+        size_t header_size=(can_kepler?sizeof(header_t<KEPLERIAN_VECTORS>):sizeof(header_t<STATE_VECTORS>));
         if(compressed_results.back().size()<=header_size)compressed_results.pop_back();
     }
     if(max_errs.kcerr==use_kepler){
         //kep=double[6]
         std::vector<double> fdata;
         fdata.reserve(6*N);
-        double last_ml=ostates.front().ml;
+        double last_ml=0;
         for(const auto &oi:ostates){
             fdata.push_back(oi.j.x);
             fdata.push_back(oi.j.y);
@@ -500,7 +499,7 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
             last_ml=ml;
         }
         compressed_results.push_back(compress_data<Format::KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
-        if(compressed_results.back().size()<=sizeof(data_header<KEPLERIAN_CIRCULAR>))compressed_results.pop_back();
+        if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_CIRCULAR>))compressed_results.pop_back();
     }
     if(max_errs.krerr==use_kepler){
         //kep=double[6]
@@ -515,17 +514,95 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
             fdata.push_back(oi.m);
         }
         compressed_results.push_back(compress_data<Format::KEPLERIAN_RAW>(fdata.data(),N,d));
-        if(compressed_results.back().size()<=sizeof(data_header<KEPLERIAN_RAW>))compressed_results.pop_back();
+        if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_RAW>))compressed_results.pop_back();
     }
     if(compressed_results.empty()){
         LogWarning("compress_orbital_data::no available method.\n");
         return false;
     }
 
+    select_best(mf,compressed_results);
+    return true;
+}
+bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
+    mf.load_data();
+    int_t N=mf.size();
+    const rotational_state_t *pdata=(const rotational_state_t*)mf.prepare(N);
+    constexpr int_t state_size=sizeof(rotational_state_t);
+    if(N<2*state_size||N%state_size){
+        LogError("compress_rotational_data::invalid file size.\n");
+        return false;
+    }
+    N/=state_size;
+
+    int_t d=std::min(max_bspline_degree,N-1);
+    d-=d+1&1;
+
+    std::vector<MFILE> compressed_results;
+    do{
+        vec wlocal(0);
+        double wmax=0;
+        for(int_t i=0;i<N;++i){
+            mat s=mat(pdata[i].x,0,pdata[i].z);
+            vec wi=s.tolocal(pdata[i].w);
+            wlocal+=wi;
+            checked_maximize(wmax,wi.normsqr());
+        }
+        wmax=std::sqrt(wmax);
+        double local_axis_theta=wlocal.theta(),local_axis_phi=wlocal.phi();
+        mat local_axis(vec(local_axis_theta,local_axis_phi),vec(local_axis_theta+Constants::pi_div2,local_axis_phi),0);
+        std::vector<double> fdata;
+        fdata.reserve(6*N);
+        double last_angle=0;
+        for(int_t i=0;i<N;++i){
+            mat s=mat(pdata[i].x,0,pdata[i].z);
+            mat saxis(s.toworld(local_axis.x),s.toworld(local_axis.y),s.toworld(local_axis.z));
+            ephem_rot ri(0,saxis,pdata[i].w);
+            double py=std::sin(ri.ptheta);
+            double pz=std::cos(ri.ptheta);
+            py*=std::sin(ri.pphi);
+            if(!(-HALF<=py&&py<=HALF)||!(-HALF<=pz&&pz<=HALF)||!(wmax*HALF<=saxis.x%pdata[i].w)){
+                fdata.clear();
+                break;
+            }
+            fdata.push_back(ri.w.x);
+            fdata.push_back(ri.w.y);
+            fdata.push_back(ri.w.z);
+            fdata.push_back(py);
+            fdata.push_back(pz);
+            double angle=ri.angle;
+            angle=last_angle+angle_reduce(angle-last_angle);
+            fdata.push_back(angle);
+            last_angle=angle;
+        }
+
+        if(fdata.empty())
+            break;
+        compressed_results.push_back(compress_data<Format::AXIAL_OFFSET>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(header_t<AXIAL_OFFSET>))compressed_results.pop_back();
+    } while(0);
+    {
+        std::vector<quat> fdata;
+        fdata.reserve(N);
+        for(int_t i=0;i<N;++i)fdata.emplace_back(mat(pdata[i].x,0,pdata[i].z));
+        for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
+        compressed_results.push_back(compress_data<QUATERNION>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(header_t<QUATERNION>))compressed_results.pop_back();
+    }
+    if(compressed_results.empty()){
+        LogWarning("compress_rotational_data::no available method.\n");
+        return false;
+    }
+
+    select_best(mf,compressed_results);
+    return true;
+}
+
+void ephemeris_compressor::select_best(MFILE &mf,std::vector<MFILE> &compressed_results){
     MFILE *best_result=nullptr;
     double best_score=INFINITY;
     for(auto &cmf:compressed_results){
-        const auto *header=(const data_header_base*)cmf.data();
+        const auto *header=(const header_base*)cmf.data();
         double cscore=filtered_min<double>(header->relative_error,INFINITY)+epsilon_relative_error;
         cscore=compression_score(cscore,double(cmf.size()));
         if(cscore<best_score){
@@ -534,9 +611,4 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         }
     }
     memcpy(mf.prepare(best_result->size()),best_result->data(),best_result->size());
-    return true;
-}
-bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
-
-    return false;
 }
