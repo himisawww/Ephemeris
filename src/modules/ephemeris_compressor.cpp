@@ -1,5 +1,5 @@
-#include<queue>
-#include"ephemeris_generator.h"
+#include"ephemeris_compressor.h"
+#include<map>
 #include"math/interp.h"
 #include"utils/logger.h"
 
@@ -188,9 +188,11 @@ double ephemeris_compressor::compression_score(double relative_error,double comp
     return std::log(compressed_size)/a+std::pow(relative_error,index_accuracy)/index_accuracy;
 }
 
-template<typename T,size_t N_Channel,int_t format>
+template<ephemeris_compressor::Format format,typename T,size_t N_Channel>
 MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
-    double (*error_fun)(const T *ref,const T *val);
+    typedef data_header<format> header_t;
+
+    double (*error_fun)(const T*ref,const T*val);
     if constexpr(format==Format::STATE_VECTORS)
         error_fun=absolute_state_error;
     else if constexpr(format==Format::KEPLERIAN_VECTORS)
@@ -207,7 +209,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
 
     struct scored_compress_data{
         MFILE data;
-        data_header *pheader;
+        header_t *pheader;
         double max_error;
         double reduced_error;
         double score;
@@ -220,9 +222,9 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         auto &target=mfmap[n];
         MFILE &mf=target.data;
         const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
-        const size_t data_size=bsp_size+sizeof(data_header);
+        const size_t data_size=bsp_size+sizeof(header_t);
         bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
-        target.pheader=(data_header*)mf.prepare(data_size);
+        target.pheader=(header_t*)mf.prepare(data_size);
         memcpy(target.pheader+1,bf.get_fitted_data(),bsp_size);
         bf.expand();
         T result[N_Channel];
@@ -284,11 +286,11 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
 
     scored_compress_data &result=mfmap[n_optimal];
     //fill header
-    data_header &header=*result.pheader;
-    header.uformat=~(uint64_t)format;
-    header.degree=d;
+    header_t &header=*result.pheader;
+    header.relative_error=(float)result.max_error;
+    header.degree=(int16_t)d;
+    header.uformat=~(uint16_t)format;
     header.n=n_optimal;
-    header.relative_error=result.max_error;
     return std::move(result.data);
 }
 
@@ -476,9 +478,10 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.push_back(pdata[i].r);
         compressed_results.push_back(
-            (can_kepler?compress_data<vec,1,KEPLERIAN_VECTORS>:compress_data<vec,1,STATE_VECTORS>)
+            (can_kepler?compress_data<KEPLERIAN_VECTORS>:compress_data<STATE_VECTORS>)
             (fdata.data(),N,d));
-        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
+        size_t header_size=(can_kepler?sizeof(data_header<KEPLERIAN_VECTORS>):sizeof(data_header<STATE_VECTORS>));
+        if(compressed_results.back().size()<=header_size)compressed_results.pop_back();
     }
     if(max_errs.kcerr==use_kepler){
         //kep=double[6]
@@ -496,8 +499,8 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
             fdata.push_back(ml);
             last_ml=ml;
         }
-        compressed_results.push_back(compress_data<double,6,Format::KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
-        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
+        compressed_results.push_back(compress_data<Format::KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(data_header<KEPLERIAN_CIRCULAR>))compressed_results.pop_back();
     }
     if(max_errs.krerr==use_kepler){
         //kep=double[6]
@@ -511,8 +514,8 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
             fdata.push_back(oi.el);
             fdata.push_back(oi.m);
         }
-        compressed_results.push_back(compress_data<double,6,Format::KEPLERIAN_RAW>(fdata.data(),N,d));
-        if(compressed_results.back().size()<=sizeof(data_header))compressed_results.pop_back();
+        compressed_results.push_back(compress_data<Format::KEPLERIAN_RAW>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(data_header<KEPLERIAN_RAW>))compressed_results.pop_back();
     }
     if(compressed_results.empty()){
         LogWarning("compress_orbital_data::no available method.\n");
@@ -522,7 +525,7 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     MFILE *best_result=nullptr;
     double best_score=INFINITY;
     for(auto &cmf:compressed_results){
-        const auto *header=(const data_header*)cmf.data();
+        const auto *header=(const data_header_base*)cmf.data();
         double cscore=filtered_min<double>(header->relative_error,INFINITY)+epsilon_relative_error;
         cscore=compression_score(cscore,double(cmf.size()));
         if(cscore<best_score){
@@ -534,7 +537,6 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     return true;
 }
 bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
-
 
     return false;
 }

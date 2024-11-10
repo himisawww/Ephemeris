@@ -214,6 +214,9 @@
     <ClInclude Include="src\math\distribute.h">
       <Filter>math</Filter>
     </ClInclude>
+    <ClInclude Include="src\modules\ephemeris_compressor.h">
+      <Filter>modules</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">

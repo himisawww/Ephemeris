@@ -151,6 +151,7 @@
     <ClInclude Include="src\math\Keplerians.h" />
     <ClInclude Include="src\math\random.h" />
     <ClInclude Include="src\math\vec_t.h" />
+    <ClInclude Include="src\modules\ephemeris_compressor.h" />
     <ClInclude Include="src\modules\ephemeris_generator.h" />
     <ClInclude Include="src\physics\mass.h" />
     <ClInclude Include="src\physics\geopotential.h" />

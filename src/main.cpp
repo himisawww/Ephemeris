@@ -82,37 +82,37 @@ int main_fun(int argc,const char **argv){
 
 int main(int argc,const char **argv){
 #if 0
+    double CalcTime();
     izippack fzip("F:\\Temp\\ephm\\Ephemeris\\Decomposed\\SolarSystem.1.fwd.zip");
     ozippack fczip("F:\\Temp\\ephm\\Ephemeris\\Decomposed\\SolarSystem.compressed2.1.fwd.zip");
     for(const izipfile &zf:fzip){
+        int_t id=atoi(zf.name().c_str());
+        if(id>=0)continue;
         MFILE mf;
         zf.dumpfile(mf);
-        int_t id=atoi(zf.name().c_str());
-        if(id==0){
-            fczip.push_back(mf.get_name(),std::move(mf));
-            continue;
-        }
-        if(id>0){
+        if(id!=0){
+            size_t samplesize=(id>0?2:3)*sizeof(vec);
             size_t oldsize=mf.size();
             double s=CalcTime();
-            bool success=ephemeris_compressor::compress_orbital_data(mf,3600);
+            bool success=(id>0?
+                ephemeris_compressor::compress_orbital_data:
+                ephemeris_compressor::compress_rotational_data
+                )(mf,3600);
             if(success){
-                auto *pheader=(ephemeris_compressor::data_header*)mf.data();
+                auto *pheader=(ephemeris_compressor::data_header_base*)mf.data();
                 printf("%3lld: [%8llu/%8llu, %.2f%% @ %6llu] : %.17e in %fs\n",id,
-                    mf.size(),oldsize,100.*mf.size()/oldsize,(oldsize)/sizeof(vec)/2,
+                    mf.size(),oldsize,100.*mf.size()/oldsize,(oldsize)/samplesize,
                     pheader->relative_error,CalcTime()-s
-                    );
+                );
             }
             else{
                 printf("%3lld: [  Failed/%8llu, x.xx%% @ %6llu] in %fs\n",id,
-                    mf.size(),(oldsize)/sizeof(vec)/2,
+                    mf.size(),(oldsize)/samplesize,
                     CalcTime()-s
                 );
             }
-            fczip.push_back(mf.get_name(),std::move(mf));
         }
-        else
-            ephemeris_compressor::compress_rotational_data(mf,3600);
+        fczip.push_back(mf.get_name(),std::move(mf));
     }
     return 0;
 #endif
