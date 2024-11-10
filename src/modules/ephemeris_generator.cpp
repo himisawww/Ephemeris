@@ -126,7 +126,7 @@ int ephemeris_generator::make_ephemeris(int dir){
             if(i>0){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
            else if(use_gpu     )ms.integrate         (dt,          jsize,1);
-           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc.m_combinator);
+           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc.m_substeper);
                 resync=!ephc.synchronized();
             }
 
@@ -301,15 +301,15 @@ void ephemeris_collector::record(){
     }
 }
 
-void msystem::record_substeps(fast_real dt){
-    if(tidal_childlist.empty()||!p_substep_recorder)return;
-    auto &mc=*p_substep_recorder;
+void msystem::record_substeps(fast_real dt,bool initialize){
+    if(tidal_childlist.empty()||!p_substeper)return;
+    auto &mc=*p_substeper;
     if(mc.t_substep!=dt){
-        mc.t_substep=fast_real(NAN);
+        p_substeper=nullptr;
         return;
     }
-    auto it=mc.sublists.find(mlist[tidal_parent].sid);
-    std::vector<barycen> &blist=it->second;
+
+    std::vector<barycen> &blist=mc.sublists.at(mlist[tidal_parent].sid);
 
     barycen::update_barycens(*this,blist);
     barycen::decompose(blist);
@@ -324,16 +324,13 @@ void msystem::record_substeps(fast_real dt){
         if(b.pid<0)
             continue;
         int_t sid=m.sid;
-        MFILE *morb=&mc.orbital_subdata[sid];
-        //MFILE *mrot=&mc.rotational_subdata[sid];
-        vec r=b.r,v=b.v,w=m.w,x=m.s.x,z=m.s.z;
-        fwrite(&r,sizeof(vec),1,morb);
-        fwrite(&v,sizeof(vec),1,morb);
-        //fwrite(&w,sizeof(vec),1,mrot);
-        //fwrite(&x,sizeof(vec),1,mrot);
-        //fwrite(&z,sizeof(vec),1,mrot);
+        MFILE *morb=initialize?&mc.orbital_subdata[sid]:&mc.orbital_subdata.at(sid);
+        if(!(initialize&&morb->size())){
+            vec r=b.r,v=b.v;
+            fwrite(&r,sizeof(vec),1,morb);
+            fwrite(&v,sizeof(vec),1,morb);
+        }
     }
-
 }
 
 void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
@@ -383,10 +380,10 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
         ephm_files.push_back(std::move(*mfp));
         
         //save substep data, if exist
-        auto it=m_combinator.orbital_subdata.find(m.sid);
-        if(it!=m_combinator.orbital_subdata.end()){
+        auto it=m_substeper.orbital_subdata.find(m.sid);
+        if(it!=m_substeper.orbital_subdata.end()){
             MFILE *maux=&it->second;
-            if(maux->size()*m_combinator.t_substep==2*sizeof(vec)*fast_real(idat.t_end-idat.t_start)){
+            if((maux->size()/fast_real(2*sizeof(vec))-1)*m_substeper.t_substep==idat.t_end-idat.t_start){
                 maux->set_name(strprintf("%s.%lld%s",&m.sid,idat.fid,Configs::SaveSubstepDataExtension));
                 ephm_files.push_back(std::move(*maux));
             }

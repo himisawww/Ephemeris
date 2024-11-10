@@ -37,7 +37,7 @@ void do_thread_works(void *pworks,size_t thread_id){
 }
 
 
-void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,msystem_combinator *pmc){
+void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,ephemeris_substeper *ps){
     real t_latest=analyse();
     int_t bn=blist.size();
     std::map<int_t,int_t> clist;
@@ -266,16 +266,19 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.t_eph=t_eph;
             sn.build_mid();
             sn.accel();
-            sn.p_substep_recorder=pmc;
+            sn.p_substeper=ps;
         }
 
-        if(pmc&&(pmc->pms!=this||pmc->t_split!=t_latest)){
-            pmc->pms=this;
-            pmc->t_substep=dt;
-            pmc->t_split=t_latest;
-            pmc->sublists.clear();
-            for(auto &sns:Sn)
-                pmc->link(sns.second);
+        if(ps&&(ps->pms!=this||ps->t_link!=t_latest)){
+            ps->pms=this;
+            ps->t_substep=dt;
+            ps->t_link=t_latest;
+            ps->sublists.clear();
+            for(auto &sns:Sn){
+                ps->link(sns.second);
+                //initialize, avoid concurrent modification of orbital_subdata map
+                sns.second.record_substeps(dt,true);
+            }
         }
 
         // integrate
@@ -412,7 +415,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
 }
 
 
-int_t msystem_combinator::link(msystem &mssub,int_t bid){
+int_t ephemeris_substeper::link(msystem &mssub,int_t bid){
     const msystem &ms=*pms;
     const auto &blist=ms.get_barycens();
 

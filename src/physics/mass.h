@@ -165,7 +165,7 @@ struct mass_state{
     }
 };
 
-class msystem_combinator;
+class ephemeris_substeper;
 
 //stellar system
 class msystem{
@@ -180,7 +180,7 @@ public:
     };
 
     friend class ephemeris_generator;
-    friend class msystem_combinator;
+    friend class ephemeris_substeper;
 private:
     //relativistic coordinate time
     real t_eph;
@@ -203,7 +203,7 @@ private:
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
     std::vector<int_t> tidal_childlist;
-    msystem_combinator *p_substep_recorder;
+    ephemeris_substeper *p_substeper;
 
     //t_eph when blist is analysed
     real t_barycen;
@@ -238,8 +238,8 @@ private:
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
-    //used by combined_integrate with pmc
-    void record_substeps(fast_real dt);
+    //used by combined_integrate with p_substeper
+    void record_substeps(fast_real dt,bool initialize=false);
 
 public:
     //calculate acceleration and solve for angular velocity
@@ -257,9 +257,9 @@ public:
     //for full system with un-parented tiny masses, use (dt*n_combine) as time step
     //for subsystem with tiny children masses, use dt as time step, always use CPU
     //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
-    //pmc: if available, cache combination/distribution setups to avoid redo the calculations.
+    //ps: if !nullptr, collects substeps of children in subsystems
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1,
-        msystem_combinator *pmc=nullptr);
+        ephemeris_substeper *ps=nullptr);
 
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;

@@ -132,7 +132,7 @@ private:
 
     std::map<uint64_t,int_t> file_index;
 public:
-    msystem_combinator m_combinator;
+    ephemeris_substeper m_substeper;
 
     ephemeris_collector(msystem &_ms);
 
