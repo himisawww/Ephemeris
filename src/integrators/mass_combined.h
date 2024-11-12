@@ -3,12 +3,18 @@
 #include"utils/memio.h"
 
 class ephemeris_substeper{
+    struct subdatapack_t{
+        MFILE orbital_data;
+        MFILE rotational_data;
+    };
+
+
     msystem *pms;
     fast_real t_substep;
     real t_link;
 
     std::map<uint64_t,std::vector<barycen>> sublists;
-    std::map<uint64_t,MFILE> orbital_subdata;
+    std::map<uint64_t,subdatapack_t> subdata;
 
     friend class msystem;
     friend class ephemeris_collector;

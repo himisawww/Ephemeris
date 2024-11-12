@@ -2,34 +2,32 @@
 #include<mutex>
 #include<set>
 #include<map>
+#include<string>
 #include"physics/mass.h"
 #include"utils/memio.h"
 #include"integrators/mass_combined.h"
 
 class ephemeris_collector{
-    struct orbital_datapack_t{
+    struct datapack_t{
         int_t tid;
         int_t t_start;
         int_t t_end;
         int_t parent_barycen_id;
-        MFILE data;
-    };
-    struct rotational_datapack_t{
-        int_t t_start;
-        int_t t_end;
-        MFILE data;
+        MFILE orbital_data;
+        MFILE rotational_data;
     };
 
     struct index_entry_t{
-        //+: orbital data file, from 1...
-        //-: rotational data file, from -1...
         //0: barycen structure
+        //+: orbital&rotational data file, from 1...
         int_t fid;
         //for data file: sid of related mass
         //for barycen structure: vector<barycen>.size
         uint64_t sid;
         int_t t_start;
         int_t t_end;
+
+        std::string entry_name(bool rotational,bool substep);
     };
 
 private:
@@ -40,8 +38,7 @@ private:
 
     // { { mids of parent barycen, mids of child barycen }, index of pair }
     std::map<std::pair<std::set<int_t>,std::set<int_t>>,int_t> barycen_ids;
-    std::vector<orbital_datapack_t> orbital_data;
-    std::vector<rotational_datapack_t> rotational_data;
+    std::vector<datapack_t> data;
     int_t t_start;
 
     std::map<uint64_t,int_t> file_index;

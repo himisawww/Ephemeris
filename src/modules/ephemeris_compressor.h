@@ -25,15 +25,17 @@ private:
 public:
     //compressed data format
     enum Format:int_t{
-        UNKNOWN             =0,
+        NONE                =0,
         //orbital                  type[channel], data components , error function
         STATE_VECTORS       =1,     // vec[1]   , use x,y,z,      , absolute_state_error
         KEPLERIAN_VECTORS   =2,     // vec[1]   , use x,y,z,      , relative_state_error
         KEPLERIAN_CIRCULAR  =3,     // double[6], use j, ex,ey, ml, circular_kepler_error
         KEPLERIAN_RAW       =4,     // double[6], use j, q, el, m , raw_kepler_error
         //rotational
-        AXIAL_OFFSET        =5,     // double[ ], use w, ???      , axial_rotation_error
+        AXIAL_OFFSET        =5,     // double[6], use w, py,pz,ang, axial_rotation_error
         QUATERNION          =6,     // quat[1]  , use q(s)        , quaterion_rotation_error
+        TIDAL_LOCK          =7,     // quat[1]  , use q(s in -r0j), quaterion_rotation_error
+        UNKNOWN                     // last enum
     };
 
     class keplerian:public ephem_orb{
@@ -113,8 +115,23 @@ public:
         static constexpr size_t channel=6;
         static constexpr auto error_function=axial_rotation_error;
 
+        double local_axis_theta,local_axis_phi;
+        quat q0;
+        vec w0;
+        quat q1;
+        vec w1;
     };
     template<>struct header_t<QUATERNION>:public header_base{
+        typedef quat type;
+        static constexpr size_t channel=1;
+        static constexpr auto error_function=quaterion_rotation_error;
+
+        quat q0;
+        vec w0;
+        quat q1;
+        vec w1;
+    };
+    template<>struct header_t<TIDAL_LOCK>:public header_base{
         typedef quat type;
         static constexpr size_t channel=1;
         static constexpr auto error_function=quaterion_rotation_error;
