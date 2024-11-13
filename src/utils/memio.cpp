@@ -133,8 +133,8 @@ MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
 }
 void MFILE::reset(){
     close();
-    filename.resize(0);
-    cached_data.resize(0);
+    std::string().swap(filename);
+    std::vector<byte_t>().swap(cached_data);
     fp=0;
     offset=0;
     state=MFILE_STATE::WRITE_CACHE;

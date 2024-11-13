@@ -161,4 +161,8 @@ public:
     // mf: contains raw rotational_state_t data
     // dt: time cadence between data points
     static bool compress_rotational_data(MFILE &mf,double dt);
+    // ephemeris_data: full datapack produced by ephemeris_generator and collected by ephemeris_collector,
+    //      see ephemeris_generator::make_ephemeris
+    // return number of failures
+    static int_t compress(std::vector<MFILE> &ephemeris_data);
 };

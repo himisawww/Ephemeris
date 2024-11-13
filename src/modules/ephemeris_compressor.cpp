@@ -612,3 +612,8 @@ void ephemeris_compressor::select_best(MFILE &mf,std::vector<MFILE> &compressed_
     }
     memcpy(mf.prepare(best_result->size()),best_result->data(),best_result->size());
 }
+
+int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
+
+    return -1;
+}

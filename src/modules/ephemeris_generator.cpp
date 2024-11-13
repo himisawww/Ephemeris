@@ -4,6 +4,7 @@
 #include"utils/calctime.h"
 #include"utils/logger.h"
 #include"utils/threadpool.h"
+#include"modules/ephemeris_compressor.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -206,6 +207,8 @@ int ephemeris_generator::make_ephemeris(int dir){
         std::string zckpt;
         zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
+
+        ephemeris_compressor::compress(zms);
 
         io_mutex.lock();
         {

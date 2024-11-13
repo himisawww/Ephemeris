@@ -109,7 +109,7 @@ izippack::izippack(const std::string &filename){
 izippack::~izippack(){
 	if(fzip)fclose(fzip);
 }
-izipfile izippack::begin(){
+izipfile izippack::begin() const{
 	izipfile res;
 	res.pzip=this;
 	res.offset=0;
@@ -118,7 +118,7 @@ izipfile izippack::begin(){
 	res.validate();
 	return res;
 }
-izipfile izippack::end(){
+izipfile izippack::end() const{
 	izipfile res;
 	res.pzip=this;
 	res.offset=-1;
@@ -144,6 +144,7 @@ ozippack::~ozippack(){
 	const uint32_t max_uint32=-1;
 	std::vector<zipcentralheader> zchs(nzips);
 	std::vector<zip64header> z64hs(nzips);
+	std::vector<std::string> zipnames(nzips);
 
 	memset(zchs.data(),0,sizeof(zipcentralheader)*nzips);
 	memset(z64hs.data(),0,sizeof(zip64header)*nzips);
@@ -151,9 +152,10 @@ ozippack::~ozippack(){
 	for(size_t i=0;i<nzips;++i){
 		zipmems[i].load_data();
 		const auto &zm=zipmems[i];
-		const std::string &namestr=zm.get_name();
-		if(!zm.is_cache()||!namestr.size())continue;
-	
+		if(zm.is_cache())zipnames[i]=zm.get_name();
+		const std::string &namestr=zipnames[i];
+		if(!namestr.size())continue;
+
 		zipheader zh;
 		zip64header &z64h=z64hs[i];
 		zipcentralheader &zch=zchs[i];
@@ -185,16 +187,18 @@ ozippack::~ozippack(){
 		fwrite(namestr.data(),zh.lenfname,1,fzip);
 		fwrite(&z64h,zh.lenexfield,1,fzip);
 		fwrite(zm.data(),1,zsize,fzip);
+		zipmems[i].reset();
 	}
 	
+	zipmems.clear();
+
 	zip64end ze;
 	memset(&ze,0,sizeof(ze));
 	ze.chsroffset=ftell(fzip);
 	
 	for(size_t i=0;i<nzips;++i){
-		const auto &zm=zipmems[i];
-		const std::string &namestr=zm.get_name();
-		if(!zm.is_cache()||!namestr.size())continue;
+		const std::string &namestr=zipnames[i];
+		if(!namestr.size())continue;
 		zip64header &z64h=z64hs[i];
 		zipcentralheader &zch=zchs[i];
 	
@@ -240,4 +244,13 @@ ozippack::~ozippack(){
 }
 void ozippack::push_back(std::string fullname,MFILE &&mf){
 	emplace_back(std::move(mf)).set_name(fullname);
+}
+void ozippack::push_back(const izipfile &zf){
+	MFILE mf;
+	zf.dumpfile(mf);
+	emplace_back(std::move(mf));
+}
+void ozippack::push_back(const izippack &izip){
+	for(const izipfile &zf:izip)
+		push_back(zf);
 }

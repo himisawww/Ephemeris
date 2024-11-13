@@ -27,14 +27,14 @@ class izippack{
     MFILE *fzip;
     friend class izipfile;
 public:
-    operator bool(){ return fzip; }
+    operator bool() const{ return fzip; }
 
     izippack(izippack &&_i);
     //name of the zip file
-    izippack(const std::string &filename);
+    explicit izippack(const std::string &filename);
     ~izippack();
-    izipfile begin();
-    izipfile end();
+    izipfile begin() const;
+    izipfile end() const;
 };
 
 class ozippack:private std::vector<MFILE>{
@@ -49,16 +49,18 @@ public:
     using base_t::resize;
     using base_t::reserve;
 
-    operator bool(){ return fzip; }
+    operator bool() const{ return fzip; }
     ozippack(ozippack &&_o);
     //name of the zip file
-    ozippack(const std::string &filename);
+    explicit ozippack(const std::string &filename);
     ~ozippack();
     void push_back(std::string fullname,MFILE &&mf);
+    void push_back(const izipfile &zf);
+    void push_back(const izippack &izip);
 };
 
 class izipfile{
-    izippack *pzip;
+    const izippack *pzip;
     size_t offset,fileoffset,filesize;
     std::string filename;
     friend class izippack;
