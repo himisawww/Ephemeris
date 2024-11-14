@@ -1,7 +1,7 @@
+#include<algorithm>
 #include"definitions.h"
 #include"math/random.h"
 #include"utils/logger.h"
-
 static double max_relative_error=0;
 
 #define TEST_EPSILON_QUATERNION     2e-14

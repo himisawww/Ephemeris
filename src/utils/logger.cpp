@@ -1,12 +1,15 @@
 #include"logger.h"
 #include<cstdarg>
+#include"memio.h"
 
 Logger global_logger;
 
-Logger::Logger(LogTo _target,const char *_logfile,MFILE_STATE _filestate){
+Logger::Logger(LogTo _target,const char *_logfile,bool _use_cache){
     target=_target;
     if(target&LogTo::FILE)
-        mbind=mopen(_logfile,_filestate);
+        mbind=_logfile?
+         mopen(_logfile,_use_cache?MFILE_STATE::WRITE_CACHE:MFILE_STATE::WRITE_FILE)
+        :mopen();
     else
         mbind=nullptr;
     if(!mbind)

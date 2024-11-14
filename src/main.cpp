@@ -83,8 +83,8 @@ int main_fun(int argc,const char **argv){
 int main(int argc,const char **argv){
 #if 0
     ozippack fczip("F:\\Temp\\ephm\\Ephemeris\\Substep\\SolarSystem.compressed.1.fwd.zip");
-    fczip.push_back(izippack("F:\\Temp\\ephm\\Ephemeris\\Substep\\SolarSystem.1.fwd.zip"));
-    ephemeris_compressor::compress((std::vector<MFILE>&)fczip);
+    fczip.push_back(izippack("R:\\SolarSystem.1.fwd.zip"));
+    ephemeris_collector::compress((std::vector<MFILE>&)fczip);
     return 0;
 #endif
     return main_fun(argc,argv);

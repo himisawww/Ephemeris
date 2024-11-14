@@ -120,14 +120,15 @@ public:
     size_t write(const void *buffer,size_t e_size,size_t e_count);
     std::string readline();
 
-    // (WRITE_CACHE/READ_CACHE)
+    // (WRITE_CACHE/READ_CACHE/READ_FILE)
     //  convert *this to READ_CACHE, load_data to local cache,
     //      and set offset to 0
-    //  if(fname):
+    //  if(filename):
     //      put cache to a memory library with a file name;
     //      no writing to disk;
     //      can be further read by MFILE(filename);
-    bool publish(const std::string &fname="");
+    bool publish();
+    bool publish(const std::string &filename);
 
     // When open failed in WRITE_FILE mode, that is, cannot create FILE for writing,
     // if true: MFILE is still a valid WRITE_FILE stream, all wrote data will be

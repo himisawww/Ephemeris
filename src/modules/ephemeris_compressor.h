@@ -144,7 +144,10 @@ public:
 private:
     template<Format format,typename T=typename header_t<format>::type,size_t N_Channel=header_t<format>::channel>
     static MFILE compress_data(const T *pdata,int_t N,int_t d);
-    static void select_best(MFILE &mf,std::vector<MFILE> &compressed_results);
+    static int_t select_best(MFILE &mf,std::vector<MFILE> &compressed_results,int_t N,int_t d);
+    // for number of datapoints and degree of bspline fitting,
+    // fill possible choices of segments of compressed bsplines in decreasing order.
+    static void segment_choices(std::vector<int_t> &result,int_t N,int_t d);
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
@@ -156,13 +159,11 @@ public:
     static constexpr double epsilon_absolute_error=1e-4;
 
     // mf: contains raw orbital_state_t data
-    // dt: time cadence between data points
-    static bool compress_orbital_data(MFILE &mf,double dt);
+    // time_span: time between first & last data point, i.e. delta_t*(N-1)
+    // return level of compression, 0 means failed and mf is untouched.
+    static int_t compress_orbital_data(MFILE &mf,double time_span);
     // mf: contains raw rotational_state_t data
-    // dt: time cadence between data points
-    static bool compress_rotational_data(MFILE &mf,double dt);
-    // ephemeris_data: full datapack produced by ephemeris_generator and collected by ephemeris_collector,
-    //      see ephemeris_generator::make_ephemeris
-    // return number of failures
-    static int_t compress(std::vector<MFILE> &ephemeris_data);
+    // time_span: time between first & last data point, i.e. delta_t*(N-1)
+    // return level of compression, 0 means failed and mf is untouched.
+    static int_t compress_rotational_data(MFILE &mf,double time_span);
 };

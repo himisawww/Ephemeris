@@ -4,7 +4,6 @@
 #include"utils/calctime.h"
 #include"utils/logger.h"
 #include"utils/threadpool.h"
-#include"modules/ephemeris_compressor.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -208,7 +207,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
 
-        ephemeris_compressor::compress(zms);
+        ephemeris_collector::compress(zms);
 
         io_mutex.lock();
         {
@@ -337,7 +336,7 @@ void msystem::record_substeps(fast_real dt,bool initialize){
     }
 }
 
-std::string ephemeris_collector::index_entry_t::entry_name(bool rotational,bool substep){
+std::string ephemeris_entry::entry_name(bool rotational,bool substep){
     if(fid<=0)
         return std::string();
     return strprintf("%s.%lld%s%s",&sid,fid,
@@ -377,7 +376,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
         const mass &m=ms[i];
         const barycen &b=blist[d.tid];
 
-        index_entry_t idat;
+        ephemeris_entry idat;
         idat.fid=++file_index[m.sid];
         idat.sid=m.sid;
         idat.t_start=d.t_start;
@@ -423,7 +422,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
 
     MFILE *findex=&ephm_files[0];
     //record blist for [t_start,t_end]
-    index_entry_t idat;
+    ephemeris_entry idat;
     idat.fid=0;
     idat.sid=blist.size();
     idat.t_start=t_start;

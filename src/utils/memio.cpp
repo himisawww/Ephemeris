@@ -61,7 +61,6 @@ MFILE::MFILE(const void *_mem,size_t _size){
 }
 MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     state=_state;
-    if(state==MFILE_STATE::INVALID)return;
     bool is_read_=is_read();
     bool is_cache_=is_cache();
     if(is_read_){
@@ -74,6 +73,10 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
             state=MFILE_STATE::READ_CACHE;
             return;
         }
+    }
+    else if(!is_write()){
+        state=MFILE_STATE::INVALID;
+        return;
     }
 
     fp=fopen(_fname,is_read_);
@@ -125,6 +128,8 @@ int MFILE::close(){
 MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
     close();
     cached_data.resize(new_cache_size);
+    if(cached_data.capacity()-new_cache_size>(new_cache_size>>1))
+        cached_data.shrink_to_fit();
     state=MFILE_STATE::READ_CACHE;
     idata=cached_data.data();
     isize=new_cache_size;
@@ -288,20 +293,24 @@ std::string MFILE::readline(){
     } while(result.size()==0&&fret);
     return result;
 }
-bool MFILE::publish(const std::string &fname){
+bool MFILE::publish(){
     if(state==MFILE_STATE::WRITE_CACHE)
         prepare(size());
-    else if(state==MFILE_STATE::READ_CACHE){
+    else if(is_read()){
         load_data();
         offset=0;
     }
     else
         return false;
+    return true;
+}
+bool MFILE::publish(const std::string &fname){
+    if(!publish())return false;
     if(fname.size()){
         auto &pmem=mem_library[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
-        cached_data.clear();
+        std::vector<byte_t>().swap(cached_data);
     }
     return true;
 }

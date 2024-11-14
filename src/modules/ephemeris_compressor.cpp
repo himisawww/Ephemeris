@@ -209,8 +209,6 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         double score;
     };
     std::map<int_t,scored_compress_data> mfmap;
-    const int_t n_min=1;
-    const int_t n_max=std::max(n_min,(N-d)/(d+1));
     
     auto make_fit=[&](int_t n){
         auto &target=mfmap[n];
@@ -235,16 +233,15 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         return &target;
     };
 
-    std::vector<int_t> n_all(1,-1),i_chs;
-    int_t n=n_max;
-    while(n>n_min){
-        n=std::max(n_min,n*3/4);
-        n_all.push_back(n);
-    }
+    std::vector<int_t> n_all,i_chs;
+    segment_choices(n_all,N,d);
+    const int_t n_min=n_all.back();
+    const int_t n_max=n_all.front();
 
     make_fit(n_max);
     int_t i_current=0,i_left=0,i_right=n_all.size()-1;
     int_t step=1,dir=0,n_optimal=n_max;
+    n_all.front()=-1;
 
     for(int_t k=0;k<2;++k){
         int_t next_dir=dir^k;
@@ -319,17 +316,18 @@ double ephemeris_compressor::quaterion_rotation_error(const quat *q,const quat *
     return std::sqrt(checked_min((*q-*qp).normsqr(),(*q+*qp).normsqr()));
 }
 
-bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
+int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     mf.load_data();
     int_t N=mf.size();
     const orbital_state_t *pdata=(const orbital_state_t*)mf.prepare(N);
     constexpr int_t state_size=sizeof(orbital_state_t);
     if(N<2*state_size||N%state_size){
         LogError("compress_orbital_data::invalid file size.\n");
-        return false;
+        return 0;
     }
     N/=state_size;
 
+    double delta_t=time_span/(N-1);
     //DEBUG
     //N=2;
 
@@ -389,7 +387,7 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
         int_t wing=(dtest+1)/2;
         if(wing>midinterp_max_wing){
             LogError("Error: Interpolation Order %d Not Implemented.\n",dtest);
-            return false;
+            return 0;
         }
         const double *midinterp_coefs=midinterp_coefficients[wing-1];
 
@@ -518,20 +516,19 @@ bool ephemeris_compressor::compress_orbital_data(MFILE &mf,double delta_t){
     }
     if(compressed_results.empty()){
         LogWarning("compress_orbital_data::no available method.\n");
-        return false;
+        return 0;
     }
 
-    select_best(mf,compressed_results);
-    return true;
+    return select_best(mf,compressed_results,N,d);
 }
-bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
+int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span){
     mf.load_data();
     int_t N=mf.size();
     const rotational_state_t *pdata=(const rotational_state_t*)mf.prepare(N);
     constexpr int_t state_size=sizeof(rotational_state_t);
     if(N<2*state_size||N%state_size){
         LogError("compress_rotational_data::invalid file size.\n");
-        return false;
+        return 0;
     }
     N/=state_size;
 
@@ -591,16 +588,16 @@ bool ephemeris_compressor::compress_rotational_data(MFILE &mf,double dt){
     }
     if(compressed_results.empty()){
         LogWarning("compress_rotational_data::no available method.\n");
-        return false;
+        return 0;
     }
 
-    select_best(mf,compressed_results);
-    return true;
+    return select_best(mf,compressed_results,N,d);
 }
 
-void ephemeris_compressor::select_best(MFILE &mf,std::vector<MFILE> &compressed_results){
+int_t ephemeris_compressor::select_best(MFILE &mf,std::vector<MFILE> &compressed_results,int_t N,int_t d){
     MFILE *best_result=nullptr;
     double best_score=INFINITY;
+    int_t n_optimal=0;
     for(auto &cmf:compressed_results){
         const auto *header=(const header_base*)cmf.data();
         double cscore=filtered_min<double>(header->relative_error,INFINITY)+epsilon_relative_error;
@@ -608,12 +605,33 @@ void ephemeris_compressor::select_best(MFILE &mf,std::vector<MFILE> &compressed_
         if(cscore<best_score){
             best_score=cscore;
             best_result=&cmf;
+            n_optimal=header->n;
         }
     }
+
+    int_t ret=0;
+    std::vector<int_t> n_all;
+    segment_choices(n_all,N,d);
+    int_t ns=n_all.size();
+    for(int_t i=0;i<ns;++i){
+        if(n_all[i]<=n_optimal){
+            ret=i+1;
+            break;
+        }
+    }
+    if(!best_result||!ret)
+        return 0;
+
     memcpy(mf.prepare(best_result->size()),best_result->data(),best_result->size());
+    return ret;
 }
 
-int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
-
-    return -1;
+void ephemeris_compressor::segment_choices(std::vector<int_t> &result,int_t N,int_t d){
+    const int_t n_min=1;
+    int_t n=std::max(n_min,(N-d)/(d+1));
+    result.resize(1,n);
+    while(n>n_min){
+        n=std::max(n_min,n*3/4);
+        result.push_back(n);
+    }
 }

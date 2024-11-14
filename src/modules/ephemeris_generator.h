@@ -7,6 +7,19 @@
 #include"utils/memio.h"
 #include"integrators/mass_combined.h"
 
+struct ephemeris_entry{
+    //0: barycen structure
+    //+: orbital&rotational data file, from 1...
+    int_t fid;
+    //for data file: sid of related mass
+    //for barycen structure: vector<barycen>.size
+    uint64_t sid;
+    int_t t_start;
+    int_t t_end;
+
+    std::string entry_name(bool rotational,bool substep);
+};
+
 class ephemeris_collector{
     struct datapack_t{
         int_t tid;
@@ -16,20 +29,6 @@ class ephemeris_collector{
         MFILE orbital_data;
         MFILE rotational_data;
     };
-
-    struct index_entry_t{
-        //0: barycen structure
-        //+: orbital&rotational data file, from 1...
-        int_t fid;
-        //for data file: sid of related mass
-        //for barycen structure: vector<barycen>.size
-        uint64_t sid;
-        int_t t_start;
-        int_t t_end;
-
-        std::string entry_name(bool rotational,bool substep);
-    };
-
 private:
     msystem &ms;
     std::vector<barycen> blist;
@@ -62,6 +61,10 @@ public:
 
     //convert zips to old data pack
     static int convert_format(const char *path);
+    // ephemeris_data: full datapack produced by ephemeris_generator and collected by ephemeris_collector,
+    //      see ephemeris_generator::make_ephemeris
+    // return number of failures
+    static int_t compress(std::vector<MFILE> &ephemeris_data);
 };
 
 class ephemeris_generator{

@@ -1,8 +1,9 @@
 #include"ephemeris_generator.h"
-
 #include"configs.h"
 #include"utils/zipio.h"
 #include"utils/logger.h"
+#include"utils/calctime.h"
+#include"modules/ephemeris_compressor.h"
 
 int ephemeris_collector::convert_format(const char *path){
     bool is_broken=false;
@@ -76,8 +77,8 @@ int ephemeris_collector::convert_format(const char *path){
 
                 //{fname, fid}
                 std::map<std::string,int_t> fidmap;
-                //{fid, index_entry_t of fid.dat}
-                std::map<int_t,index_entry_t> indices;
+                //{fid, ephemeris_entry of fid.dat}
+                std::map<int_t,ephemeris_entry> indices;
                 //{t_end, blist over [t_start,t_end]}
                 std::map<int_t,std::vector<barycen>> bss;
                 //[mid]={t_end, fid over [t_start,t_end]}
@@ -86,7 +87,7 @@ int ephemeris_collector::convert_format(const char *path){
                 //{fid, fid.dat}
                 std::map<int_t,MFILE*> ephm_files;
                 do{
-                    index_entry_t index;
+                    ephemeris_entry index;
                     if(1!=fread(&index,sizeof(index),1,&mf_index))
                         break;
                     if(index.fid==0){
@@ -119,7 +120,7 @@ int ephemeris_collector::convert_format(const char *path){
                         is_broken=true;
                         continue;
                     }
-                    index_entry_t &index=it->second;
+                    ephemeris_entry &index=it->second;
                     bool is_orb=index.fid>0;
                     mf.seek(0,SEEK_END);
                     int_t fsize=mf.tell()/(is_orb?sizeof(_orb_t):sizeof(_rot_t));
@@ -188,8 +189,8 @@ int ephemeris_collector::convert_format(const char *path){
                             is_broken=true;
                             continue;
                         }
-                        index_entry_t &oindex=indices[it_data->second];
-                        index_entry_t &rindex=indices[rot_fids[i]];
+                        ephemeris_entry &oindex=indices[it_data->second];
+                        ephemeris_entry &rindex=indices[rot_fids[i]];
                         MFILE *fodata=ephm_files[oindex.fid];
                         MFILE *frdata=ephm_files[rindex.fid];
                         _data_t &v5=ephm_data[i];
@@ -221,4 +222,84 @@ int ephemeris_collector::convert_format(const char *path){
     if(is_broken)
         LogError("Error: Ephemeris %s is broken!\n",path);
     return 0;
+}
+
+int_t ephemeris_collector::compress(std::vector<MFILE> &ephemeris_data){
+    int_t error_count=0;
+    struct entry_info{
+        int_t entry_id;
+        MFILE *pmfile;
+        bool rotational,substep;
+
+        entry_info():entry_id(-1),pmfile(nullptr){}
+        void set_info(int_t _entry_id,bool _rotational,bool _substep){
+            entry_id=_entry_id;
+            rotational=_rotational;
+            substep=_substep;
+        }
+    };
+
+    std::vector<ephemeris_entry> indices;
+    std::map<std::string,entry_info> indexmap;
+    for(MFILE &mf:ephemeris_data){
+        const std::string &namestr=mf.get_name();
+        if(namestr!=Configs::SaveNameIndex){
+            indexmap[namestr].pmfile=&mf;
+            continue;
+        }
+        mf.publish();
+        ephemeris_entry index;
+        while(fread(&index,sizeof(index),1,&mf)==1){
+            if(index.fid==0){
+                if(index.sid>2*ephemeris_data.size()){
+                    LogError("Invalid barycenter list size.\n");
+                    return -1;
+                }
+                std::vector<barycen> blist(index.sid);
+                msystem::load_barycen_structure(&mf,blist);
+            }
+            else{
+                int_t entry_id=indices.size();
+                indexmap[index.entry_name(true,false)].set_info(entry_id,true,false);
+                indexmap[index.entry_name(false,false)].set_info(entry_id,false,false);
+                indexmap[index.entry_name(true,true)].set_info(entry_id,true,true);
+                indexmap[index.entry_name(false,true)].set_info(entry_id,false,true);
+                indices.push_back(index);
+            }
+        }
+    }
+
+    //compress orbital data
+    for(MFILE &mf:ephemeris_data){
+        auto &einfo=indexmap[mf.get_name()];
+        if(einfo.entry_id<0||!einfo.pmfile||einfo.rotational||einfo.substep)
+            continue;
+        ephemeris_entry &index=indices[einfo.entry_id];
+        MFILE *psubstep=indexmap[index.entry_name(false,true)].pmfile;
+        mf.publish();
+        if(psubstep)psubstep->publish();
+
+        do{
+            int_t oldsize=mf.size();
+            int_t samplesize=2*sizeof(vec);
+            double tstart=CalcTime();
+            int_t clevel=ephemeris_compressor::compress_orbital_data(mf,index.t_end-index.t_start);
+            printf("%8s[%3lld, ",&index.sid,clevel);
+            if(!clevel)printf("failed] in %fs\n",CalcTime()-tstart);
+            else{
+                auto *pheader=(ephemeris_compressor::header_base*)mf.data();
+                printf("%8llu/%8llu, %.2f%% @ %6llu] : %.17e in %fs\n",
+                    mf.size(),oldsize,100.*mf.size()/oldsize,(oldsize)/samplesize,
+                    pheader->relative_error,CalcTime()-tstart
+                );
+            }
+        } while(0);
+    }
+
+    //compress rotational data
+
+
+    //remove substep data
+
+    return error_count;
 }

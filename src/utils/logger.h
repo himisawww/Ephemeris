@@ -1,4 +1,5 @@
-#include"memio.h"
+#include<cstdint>
+class MFILE;
 
 //like enum class, but can be used as uint8_t without static_cast
 class LogTo{
@@ -42,9 +43,9 @@ private:
         LogLevel levels[8];
     };
 public:
+    // if target&LogTo::FILE and !_logfile, log to memory.
     Logger(LogTo _target=LogTo::STDOUT|LogTo::STDERR,
-           const char *_logfile=nullptr,
-           MFILE_STATE _filestate=MFILE_STATE::WRITE_FILE);
+           const char *_logfile=nullptr,bool _use_cache=false);
     Logger(Logger &&)=delete;
     ~Logger();
 
