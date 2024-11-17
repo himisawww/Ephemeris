@@ -525,6 +525,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_CIRCULAR>))compressed_results.pop_back();
         else{
             auto *pheader=(header_t<KEPLERIAN_CIRCULAR>*)compressed_results.back().data();
+            pheader->GM=GM;
             const double *pleft=fdata.data();
             const double *pright=fdata.data()+6*(N-1);
             for(int_t ich=0;ich<6;++ich)
@@ -551,6 +552,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_RAW>))compressed_results.pop_back();
         else{
             auto *pheader=(header_t<KEPLERIAN_RAW>*)compressed_results.back().data();
+            pheader->GM=GM;
             const double *pleft=fdata.data();
             const double *pright=fdata.data()+6*(N-1);
             for(int_t ich=0;ich<6;++ich)
@@ -776,10 +778,12 @@ CONVERT_IMPLEMENT(KEPLERIAN_VECTORS){
 CONVERT_IMPLEMENT(KEPLERIAN_CIRCULAR){
     kep_t k(x,true);
     k.rv(0,pstate->r,pstate->v);
+    pstate->v*=sGM;
 }
 CONVERT_IMPLEMENT(KEPLERIAN_RAW){
     kep_t k(x,false);
     k.rv(0,pstate->r,pstate->v);
+    pstate->v*=sGM;
 }
 CONVERT_IMPLEMENT(AXIAL_OFFSET){
     axial a(x);
@@ -861,7 +865,15 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
 
         if(pfitter){
             //set auxiliary data
-            if(f==AXIAL_OFFSET){
+            if(f==KEPLERIAN_CIRCULAR){
+                auto *pheader=(header_t<KEPLERIAN_CIRCULAR>*)fdata;
+                sGM=std::sqrt(pheader->GM);
+            }
+            else if(f==KEPLERIAN_RAW){
+                auto *pheader=(header_t<KEPLERIAN_RAW>*)fdata;
+                sGM=std::sqrt(pheader->GM);
+            }
+            else if(f==AXIAL_OFFSET){
                 auto *pheader=(header_t<AXIAL_OFFSET>*)fdata;
                 double local_axis_theta=pheader->local_axis_theta;
                 double local_axis_phi=pheader->local_axis_phi;

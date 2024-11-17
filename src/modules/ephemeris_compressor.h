@@ -108,6 +108,7 @@ public:
         typedef orbital_state_t state_type;
 
         data_type fix[4][data_channel];
+        double GM;
     };
     template<>struct header_t<KEPLERIAN_RAW>:public header_base{
         typedef double data_type;
@@ -116,6 +117,7 @@ public:
         typedef orbital_state_t state_type;
 
         data_type fix[4][data_channel];
+        double GM;
     };
     template<>struct header_t<AXIAL_OFFSET>:public header_base{
         typedef double data_type;
@@ -146,6 +148,7 @@ public:
     class interpolator:private header_base{
         //auxiliary data
         union{
+            double sGM;
             mat local_axis;
             orbital_state_t orb;
         };
