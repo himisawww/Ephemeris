@@ -197,9 +197,9 @@ double ephemeris_compressor::compression_score(double relative_error,double comp
     return std::log(compressed_size)/a+std::pow(relative_error,index_accuracy)/index_accuracy;
 }
 
-template<ephemeris_compressor::Format format,typename T,size_t N_Channel>
+template<ephemeris_format F,typename T,size_t N_Channel>
 MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
-    typedef header_t<format> data_header;
+    typedef header_t<F> data_header;
 
     struct scored_compress_data{
         MFILE data;
@@ -221,11 +221,13 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
         bf.expand();
         T result[N_Channel];
         double max_error=0;
+        bf(double(0),target.pheader->fix[0],target.pheader->fix[1]);
         for(int_t i=0;i<N;++i){
             bf(double(i),result);
             double ierror=data_header::error_function(pdata+N_Channel*i,result);
             checked_maximize(max_error,ierror);
         }
+        bf(double(N-1),target.pheader->fix[2],target.pheader->fix[3]);
         target.max_error=max_error;
         double score=filtered_min<double>(max_error,INFINITY)+epsilon_relative_error;
         target.reduced_error=score;
@@ -280,8 +282,10 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
     data_header &header=*result.pheader;
     header.relative_error=(float)result.max_error;
     header.degree=(int16_t)d;
-    header.uformat=~(uint16_t)format;
+    header.uformat=~(uint16_t)F;
     header.n=n_optimal;
+    if(!(header.relative_error<1))
+        result.data.reset();
     return std::move(result.data);
 }
 
@@ -479,6 +483,27 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
             (fdata.data(),N,d));
         size_t header_size=(can_kepler?sizeof(header_t<KEPLERIAN_VECTORS>):sizeof(header_t<STATE_VECTORS>));
         if(compressed_results.back().size()<=header_size)compressed_results.pop_back();
+        else{
+            vec left_r=pdata[0].r,left_v=pdata[0].v,right_r=pdata[N-1].r,right_v=pdata[N-1].v;
+            if(can_kepler){
+                auto *pheader=(header_t<KEPLERIAN_VECTORS>*)compressed_results.back().data();
+                double v_factor=time_span/pheader->n;
+                double compress_factor=double(N-1)/pheader->n;
+                pheader->fix[0][0]= left_r-pheader->fix[0][0];
+                pheader->fix[1][0]=( left_v*v_factor-pheader->fix[1][0]*compress_factor);
+                pheader->fix[2][0]=right_r-pheader->fix[2][0];
+                pheader->fix[3][0]=(right_v*v_factor-pheader->fix[3][0]*compress_factor);
+            }
+            else{
+                auto *pheader=(header_t<STATE_VECTORS>*)compressed_results.back().data();
+                double v_factor=time_span/pheader->n;
+                double compress_factor=double(N-1)/pheader->n;
+                pheader->fix[0][0]= left_r-pheader->fix[0][0];
+                pheader->fix[1][0]=( left_v*v_factor-pheader->fix[1][0]*compress_factor);
+                pheader->fix[2][0]=right_r-pheader->fix[2][0];
+                pheader->fix[3][0]=(right_v*v_factor-pheader->fix[3][0]*compress_factor);
+            }
+        }
     }
     if(max_errs.kcerr==use_kepler){
         //kep=double[6]
@@ -496,8 +521,19 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
             fdata.push_back(ml);
             last_ml=ml;
         }
-        compressed_results.push_back(compress_data<Format::KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
+        compressed_results.push_back(compress_data<KEPLERIAN_CIRCULAR>(fdata.data(),N,d));
         if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_CIRCULAR>))compressed_results.pop_back();
+        else{
+            auto *pheader=(header_t<KEPLERIAN_CIRCULAR>*)compressed_results.back().data();
+            const double *pleft=fdata.data();
+            const double *pright=fdata.data()+6*(N-1);
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
+            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
+            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
+        }
     }
     if(max_errs.krerr==use_kepler){
         //kep=double[6]
@@ -511,8 +547,19 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
             fdata.push_back(oi.el);
             fdata.push_back(oi.m);
         }
-        compressed_results.push_back(compress_data<Format::KEPLERIAN_RAW>(fdata.data(),N,d));
+        compressed_results.push_back(compress_data<KEPLERIAN_RAW>(fdata.data(),N,d));
         if(compressed_results.back().size()<=sizeof(header_t<KEPLERIAN_RAW>))compressed_results.pop_back();
+        else{
+            auto *pheader=(header_t<KEPLERIAN_RAW>*)compressed_results.back().data();
+            const double *pleft=fdata.data();
+            const double *pright=fdata.data()+6*(N-1);
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
+            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
+            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
+        }
     }
     if(compressed_results.empty()){
         LogWarning("compress_orbital_data::no available method.\n");
@@ -521,7 +568,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
 
     return select_best(mf,compressed_results,N,d);
 }
-int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span){
+int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,MFILE *morb){
     mf.load_data();
     int_t N=mf.size();
     const rotational_state_t *pdata=(const rotational_state_t*)mf.prepare(N);
@@ -575,16 +622,90 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span)
 
         if(fdata.empty())
             break;
-        compressed_results.push_back(compress_data<Format::AXIAL_OFFSET>(fdata.data(),N,d));
+        compressed_results.push_back(compress_data<AXIAL_OFFSET>(fdata.data(),N,d));
         if(compressed_results.back().size()<=sizeof(header_t<AXIAL_OFFSET>))compressed_results.pop_back();
+        else{
+            auto *pheader=(header_t<AXIAL_OFFSET>*)compressed_results.back().data();
+            pheader->local_axis_theta=local_axis_theta;
+            pheader->local_axis_phi=local_axis_phi;
+            const double *pleft=fdata.data();
+            const double *pright=fdata.data()+6*(N-1);
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
+            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
+            for(int_t ich=0;ich<6;++ich)
+                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
+            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
+        }
     } while(0);
-    {
+
+    bool tidal_lockable=false;
+    do{
+        interpolator eorb(morb,time_span);
+        if(!eorb.is_orbital())
+            break;
+        eorb.expand();
+        vec left_w,right_w;
+        std::vector<quat> fdata;
+        fdata.reserve(N);
+        for(int_t i=0;;++i){
+            orbital_state_t os;
+            eorb(double(i)/(N-1)*time_span,&os);
+            vec &r=os.r,&j=os.v;
+            double r2=r.normsqr();
+            vec w=r*j/r2;
+            r/=-std::sqrt(r2);
+            mat jframe(r,0,w/w.norm());
+            mat js(jframe.tolocal(pdata[i].x),0,jframe.tolocal(pdata[i].z));
+            if(!(js.x.x>HALF)){
+                fdata.clear();
+                break;
+            }
+            fdata.emplace_back(js);
+            if(i==0||i+1==N){
+                (i==0?left_w:right_w)=jframe.tolocal(pdata[i].w-w);
+                if(i)break;
+            }
+        }
+        if(fdata.empty())
+            break;
+        for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
+        compressed_results.push_back(compress_data<TIDAL_LOCK>(fdata.data(),N,d));
+        if(compressed_results.back().size()<=sizeof(header_t<TIDAL_LOCK>))compressed_results.pop_back();
+        else{
+            tidal_lockable=true;
+            quat left_q=fdata[0],right_q=fdata[N-1];
+            quat left_dq=HALF*left_w*left_q;
+            quat right_dq=HALF*right_w*right_q;
+            auto *pheader=(header_t<TIDAL_LOCK>*)compressed_results.back().data();
+            double v_factor=time_span/pheader->n;
+            double compress_factor=double(N-1)/pheader->n;
+            pheader->fix[0][0]= left_q-pheader->fix[0][0];
+            pheader->fix[1][0]=( left_dq*v_factor-pheader->fix[1][0]*compress_factor);
+            pheader->fix[2][0]=right_q-pheader->fix[2][0];
+            pheader->fix[3][0]=(right_dq*v_factor-pheader->fix[3][0]*compress_factor);
+        }
+    } while(0);
+
+    if(!tidal_lockable){
         std::vector<quat> fdata;
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.emplace_back(mat(pdata[i].x,0,pdata[i].z));
         for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
         compressed_results.push_back(compress_data<QUATERNION>(fdata.data(),N,d));
         if(compressed_results.back().size()<=sizeof(header_t<QUATERNION>))compressed_results.pop_back();
+        else{
+            quat left_q=fdata[0],right_q=fdata[N-1];
+            quat left_dq=HALF*pdata[0].w*left_q;
+            quat right_dq=HALF*pdata[N-1].w*right_q;
+            auto *pheader=(header_t<QUATERNION>*)compressed_results.back().data();
+            double v_factor=time_span/pheader->n;
+            double compress_factor=double(N-1)/pheader->n;
+            pheader->fix[0][0]= left_q-pheader->fix[0][0];
+            pheader->fix[1][0]=( left_dq*v_factor-pheader->fix[1][0]*compress_factor);
+            pheader->fix[2][0]=right_q-pheader->fix[2][0];
+            pheader->fix[3][0]=(right_dq*v_factor-pheader->fix[3][0]*compress_factor);
+        }
     }
     if(compressed_results.empty()){
         LogWarning("compress_rotational_data::no available method.\n");
@@ -635,3 +756,180 @@ void ephemeris_compressor::segment_choices(std::vector<int_t> &result,int_t N,in
         result.push_back(n);
     }
 }
+
+typedef ephemeris_compressor::interpolator interp_t;
+
+#define CONVERT_IMPLEMENT(F)  template<>        \
+void interp_t::convert<ephemeris_format::F>(    \
+    typename header_t<F>::state_type *pstate,   \
+    const typename header_t<F>::data_type *x,   \
+    const typename header_t<F>::data_type *v) const
+
+CONVERT_IMPLEMENT(STATE_VECTORS){
+    pstate->r=*x;
+    pstate->v=*v;
+}
+CONVERT_IMPLEMENT(KEPLERIAN_VECTORS){
+    pstate->r=*x;
+    pstate->v=*v;
+}
+CONVERT_IMPLEMENT(KEPLERIAN_CIRCULAR){
+    kep_t k(x,true);
+    k.rv(0,pstate->r,pstate->v);
+}
+CONVERT_IMPLEMENT(KEPLERIAN_RAW){
+    kep_t k(x,false);
+    k.rv(0,pstate->r,pstate->v);
+}
+CONVERT_IMPLEMENT(AXIAL_OFFSET){
+    axial a(x);
+    mat saxis;
+    a.sw(0,saxis,pstate->w);
+    saxis%=local_axis;
+    pstate->x=saxis.x;
+    pstate->z=saxis.z;
+}
+CONVERT_IMPLEMENT(QUATERNION){
+    mat s(*x);
+    pstate->w=vec(2*(*v)/(*x));
+    pstate->x=s.x;
+    pstate->z=s.z;
+}
+CONVERT_IMPLEMENT(TIDAL_LOCK){
+    mat s(*x);
+    pstate->w=vec(2*(*v)/(*x));
+    pstate->x=s.x;
+    pstate->z=s.z;
+    // correct by orbital state
+    vec r=orb.r;
+    double r2=r.normsqr();
+    vec w=r*orb.v/r2;
+    r/=-std::sqrt(r2);
+    mat jframe(r,0,w/w.norm());
+    pstate->x=jframe.toworld(pstate->x);
+    pstate->z=jframe.toworld(pstate->z);
+    pstate->w=jframe.toworld(pstate->w)+w;
+}
+#undef CONVERT_IMPLEMENT
+
+
+#define CASE(F,...) case F:{            \
+    constexpr format_t FORMAT=F;        \
+    typedef header_t<F> header_type;    \
+    typedef bspline_fitter<typename header_type::data_type,header_type::data_channel> bspline_t;  \
+    bspline_t *&pfitter=(bspline_t*&)(this->pfitter);   \
+    __VA_ARGS__                                         \
+}break
+
+#define SWITCH(F,...)   \
+        switch(F){      \
+            CASE(STATE_VECTORS      ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_VECTORS  ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_CIRCULAR ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_RAW      ,__VA_ARGS__);  \
+            CASE(AXIAL_OFFSET       ,__VA_ARGS__);  \
+            CASE(QUATERNION         ,__VA_ARGS__);  \
+            CASE(TIDAL_LOCK         ,__VA_ARGS__);  \
+        }
+
+
+interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
+    pfitter=nullptr;
+    do{
+        if(!fin||!fin->publish()||fin->size()<=sizeof(base_t))
+            break;
+        const uint8_t *const fdata=fin->data();
+        memcpy((base_t*)this,fdata,sizeof(base_t));
+        double r=relative_error();
+        if(!(0<=r&&r<1))
+            break;
+        ephemeris_format f=data_format();
+        if(!is_valid_format(f))
+            break;
+
+        const size_t fsize=fin->size();
+
+        SWITCH(f,
+            if(fsize!=sizeof(header_type)+(n+degree)*bspline_t::data_size)break;
+            pfitter=new bspline_t((typename bspline_t::data_type*)(fdata+sizeof(header_type)),
+                degree,n,t_range);
+            if(!*pfitter){
+                delete pfitter;
+                pfitter=nullptr;
+            }
+        );
+
+        if(pfitter){
+            //set auxiliary data
+            if(f==AXIAL_OFFSET){
+                auto *pheader=(header_t<AXIAL_OFFSET>*)fdata;
+                double local_axis_theta=pheader->local_axis_theta;
+                double local_axis_phi=pheader->local_axis_phi;
+                local_axis=mat(
+                    vec(local_axis_theta,local_axis_phi),
+                    vec(local_axis_theta+Constants::pi_div2,local_axis_phi),
+                    0).transpose();
+            }
+            return;
+        }
+    } while(0);
+    //failed
+    base_t::uformat=~uint16_t(ephemeris_format::INVALID);
+    base_t::relative_error=NAN;
+}
+
+interp_t::interpolator(interpolator &&other){
+    memcpy(this,&other,sizeof(interpolator));
+    memset(&other,0,sizeof(interpolator));
+}
+
+interp_t::~interpolator(){
+    if(!pfitter)
+        return;
+    ephemeris_format f=data_format();
+    SWITCH(f,
+        delete pfitter;
+    );
+}
+
+void interp_t::expand(){
+    if(!pfitter)
+        return;
+    ephemeris_format f=data_format();
+    SWITCH(f,
+        pfitter->expand();
+    );
+}
+
+void interp_t::set_orbital_state(const vec &_r,const vec &_v){
+    if(data_format()==TIDAL_LOCK){
+        orb.r=_r;
+        orb.v=_v;
+    }
+}
+
+void interp_t::operator()(double t,void *state) const{
+    if(!pfitter)
+        return;
+
+    double x=t/t_range*n;
+    bool fix_left=std::floor(x)==0;
+    bool fix_right=std::ceil(x)==n;
+
+    ephemeris_format f=data_format();
+    SWITCH(f,
+        typename header_type::data_type r[header_type::data_channel],v[header_type::data_channel];
+        (*pfitter)(t,r,v);
+        if(fix_left){
+
+        }
+        if(fix_right){
+            x=n-x;
+
+        }
+        convert<FORMAT>((typename header_type::state_type *)state,r,v);
+    );
+}
+
+#undef SWITCH
+#undef CASE

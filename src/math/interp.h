@@ -35,7 +35,8 @@ double bspline_basis_chebyshev(int_t d,double x,double *pdb);
 
 template<typename T,size_t N_Channel>
 class bspline_fitter{
-    const int_t d,n,mn;
+    const int_t d,n;
+    double range;
     std::vector<T> bsplines;
     std::vector<T> chebyshevs;
     bool is_valid;
@@ -43,15 +44,18 @@ class bspline_fitter{
     typedef dfloat_t<double> ddouble;
     typedef dfloat_t<T> dprec_t;
     static_assert(N_Channel>0,"Number of Channels should be positive.");
-
 public:
+    typedef T data_type;
+    static constexpr size_t data_channel=N_Channel;
+    //sizeof(data_type)*data_count
+    static constexpr size_t data_size=sizeof(T)*N_Channel;
 
     //Fit T source_data[mn+1][N_Channel] with n+d d-th-degree bspline basis functions.
     //Coefficients will be stored internally as T bspline_coefs[n+d][N_Channel].
     //need n>=1 && d>0 && n+d<=mn+1
     //Note with high degree d, the problem may be ill-conditioned when n+d is close to mn+1,
     // thence the fitting may be very poor or result to nan.
-    bspline_fitter(int_t _d,int_t _n,const T *source_data,int_t _mn):d(_d),n(_n),mn(_mn){
+    bspline_fitter(int_t _d,int_t _n,const T *source_data,const int_t mn):d(_d),n(_n),range(double(mn)){
         is_valid=n>0&&d>0&&mn+1>=n+d;
         if(!is_valid)return;
 
@@ -135,15 +139,17 @@ public:
     }
 
     //Construct from fitted coefficients T bspline_coefs[n+d][N_Channel].
-    //need n>=1 && d>0 && n+d<=mn+1
-    bspline_fitter(const T *bspline_coefs,int_t _d,int_t _n,int_t _mn):d(_d),n(_n),mn(_mn){
-        is_valid=n>0&&d>0&&mn+1>=n+d;
+    //need n>=1 && d>0 && range!=0,+-inf
+    bspline_fitter(const T *bspline_coefs,int_t _d,int_t _n,double _range):d(_d),n(_n),range(_range){
+        is_valid=n>0&&d>0&&(range!=0&&range*0==0);
         if(!is_valid)return;
         std::vector<T>(bspline_coefs,bspline_coefs+N_Channel*(n+d)).swap(bsplines);
         //must expand for d==1
         //otherwise discrete derivative will lead to errors on edge cases
         if(d==1)expand();
     }
+
+    operator bool() const{ return is_valid; }
 
     //convert bspline coefs to chebyshev coefs to accelerate future samplings
     void expand(){
@@ -169,7 +175,7 @@ public:
 
     //fit original data[mn] at a position in [0,mn]
     void operator ()(double position,T result[N_Channel]) const{
-        double x=position/mn*n;
+        double x=position/range*n;
         if(!(is_valid&&0<=x&&x<=n)){
             for(all_channels)
                 result[index(0)]=T(NAN);
@@ -211,8 +217,8 @@ public:
 
     //fit original data[mn] at a position in [0,mn], with derivative
     void operator ()(double position,T result[N_Channel],T derivative[N_Channel]) const{
-        double x=position/mn*n;
-        double dx_factor=double(n)/mn;
+        double x=position/range*n;
+        double dx_factor=double(n)/range;
         if(!(is_valid&&0<=x&&x<=n)){
             for(all_channels)
                 result[index(0)]=T(NAN);

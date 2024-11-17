@@ -224,7 +224,7 @@ int ephemeris_collector::convert_format(const char *path){
     return 0;
 }
 
-int_t ephemeris_collector::compress(std::vector<MFILE> &ephemeris_data){
+int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
     int_t error_count=0;
     struct entry_info{
         int_t entry_id;
@@ -252,7 +252,7 @@ int_t ephemeris_collector::compress(std::vector<MFILE> &ephemeris_data){
         while(fread(&index,sizeof(index),1,&mf)==1){
             if(index.fid==0){
                 if(index.sid>2*ephemeris_data.size()){
-                    LogError("Invalid barycenter list size.\n");
+                    LogError("\nInvalid barycenter list size.\n");
                     return -1;
                 }
                 std::vector<barycen> blist(index.sid);
@@ -269,37 +269,130 @@ int_t ephemeris_collector::compress(std::vector<MFILE> &ephemeris_data){
         }
     }
 
-    //compress orbital data
-    for(MFILE &mf:ephemeris_data){
-        auto &einfo=indexmap[mf.get_name()];
-        if(einfo.entry_id<0||!einfo.pmfile||einfo.rotational||einfo.substep)
-            continue;
-        ephemeris_entry &index=indices[einfo.entry_id];
-        MFILE *psubstep=indexmap[index.entry_name(false,true)].pmfile;
-        mf.publish();
-        if(psubstep)psubstep->publish();
+    for(const ephemeris_entry &index:indices){
+        MFILE *mrot=indexmap[index.entry_name(true,false)].pmfile;
+        MFILE *msubrot=indexmap[index.entry_name(true,true)].pmfile;
+        MFILE *morb=indexmap[index.entry_name(false,false)].pmfile;
+        MFILE *msuborb=indexmap[index.entry_name(false,true)].pmfile;
+        if(!morb||!mrot){
+            LogError("\nError: Missing data for <%s>\n",&index.sid);
+            return -1;
+        }
+        morb->publish();
+        mrot->publish();
+        if(msuborb)msuborb->publish();
+        if(msubrot)msubrot->publish();
 
-        do{
-            int_t oldsize=mf.size();
-            int_t samplesize=2*sizeof(vec);
+        // for debug
+        std::vector<orbital_state_t> sorb,ssuborb;
+        std::vector<rotational_state_t> srot,ssubrot;
+        sorb.insert(sorb.begin(),
+            (orbital_state_t*)morb->data(),
+            (orbital_state_t*)(morb->data()+morb->size()));
+        srot.insert(srot.begin(),
+            (rotational_state_t*)mrot->data(),
+            (rotational_state_t*)(mrot->data()+mrot->size()));
+        if(msuborb)
+            ssuborb.insert(ssuborb.begin(),
+                (orbital_state_t*)msuborb->data(),
+                (orbital_state_t*)(msuborb->data()+msuborb->size()));
+        if(msubrot)
+            ssubrot.insert(ssubrot.begin(),
+                (rotational_state_t*)msubrot->data(),
+                (rotational_state_t*)(msubrot->data()+msubrot->size()));
+
+        //orbital,rotational
+        double trange=double(index.t_end-index.t_start);
+        for(int k=0;k<2;++k){
+            MFILE *&mbase=k==0?morb:mrot;
+            MFILE *&msub=k==0?msuborb:msubrot;
+
+            int_t oldsize=mbase->size();
+            int_t newsize=oldsize;
+            header_base *pheader=nullptr;
+            int_t target_clevel=1;
             double tstart=CalcTime();
-            int_t clevel=ephemeris_compressor::compress_orbital_data(mf,index.t_end-index.t_start);
-            printf("%8s[%3lld, ",&index.sid,clevel);
-            if(!clevel)printf("failed] in %fs\n",CalcTime()-tstart);
-            else{
-                auto *pheader=(ephemeris_compressor::header_base*)mf.data();
-                printf("%8llu/%8llu, %.2f%% @ %6llu] : %.17e in %fs\n",
-                    mf.size(),oldsize,100.*mf.size()/oldsize,(oldsize)/samplesize,
-                    pheader->relative_error,CalcTime()-tstart
-                );
+            int_t clevel=
+                k==0?compress_orbital_data(*mbase,trange)
+                 :compress_rotational_data(*mbase,trange,morb);
+            bool use_substep=false;
+            if(clevel){
+                newsize=mbase->size();
+                pheader=(header_base*)mbase->data();
+                double ecrit=pheader->relative_error;
+                ecrit=std::log10(ecrit/epsilon_relative_error);
+                if(ecrit>0)
+                    target_clevel=(int_t)std::ceil(ecrit*ecrit);
             }
-        } while(0);
+            if(msub&&clevel<target_clevel){
+                clevel=
+                    k==0?compress_orbital_data(*msub,trange)
+                     :compress_rotational_data(*msub,trange,morb);
+                if(clevel){
+                    auto *psubheader=(header_base*)msub->data();
+                    use_substep=!(pheader&&pheader->relative_error<=psubheader->relative_error);
+                    if(use_substep){
+                        newsize=msub->size();
+                        pheader=psubheader;
+                    }
+                }
+            }
+            if(!clevel){
+                ++error_count;
+                LogWarning("\nWarning: Cannot compress %s data for <%s>, ignored.\n",
+                    k==0?"orbital":"rotational",&index.sid);
+                continue;
+            }
+            if(use_substep){
+                std::swap(mbase,msub);
+                mbase->set_name(index.entry_name(k,false));
+            }
+            if(msub){
+                msub->reset();
+                msub->close();
+            }
+            // verbose info
+            int_t samplesize=(2+k)*sizeof(vec);
+            LogInfo("%8s %c:%d[%c%3lld, %8llu/%8llu, %6.2f%% @ %6llu] : %.17e in %fs\n",
+                &index.sid,k["or"],(int)ephemeris_format(~pheader->uformat),use_substep[" *"],clevel,
+                newsize,oldsize,100.*newsize/oldsize,oldsize/samplesize,
+                pheader->relative_error,CalcTime()-tstart
+            );
+        }
+
+        //debug
+        ephemeris_interpolator iorb(morb,trange);
+        ephemeris_interpolator irot(mrot,trange);
+        double max_r=0,max_v=0,max_xz=0,max_w=0;
+        for(size_t i=0;i<sorb.size();++i){
+            orbital_state_t os;
+            rotational_state_t rs;
+            double t=double(i)/(sorb.size()-1)*trange;
+            iorb(t,&os);
+            irot.set_orbital_state(os.r,os.v);
+            irot(t,&rs);
+            checked_maximize(max_r,(sorb[i].r-os.r).norm());
+            checked_maximize(max_v,(sorb[i].v-os.v).norm());
+            checked_maximize(max_w,(srot[i].w-rs.w).norm());
+            checked_maximize(max_xz,(srot[i].x-rs.x).norm());
+            checked_maximize(max_xz,(srot[i].z-rs.z).norm());
+        }
+        printf(" max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
+        if(ssuborb.empty())continue;
+        for(size_t i=0;i<ssuborb.size();++i){
+            orbital_state_t os;
+            rotational_state_t rs;
+            double t=double(i)/(ssuborb.size()-1)*trange;
+            iorb(t,&os);
+            irot.set_orbital_state(os.r,os.v);
+            irot(t,&rs);
+            checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
+            checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
+            checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
+            checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
+            checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
+        }
+        printf("*max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
     }
-
-    //compress rotational data
-
-
-    //remove substep data
-
     return error_count;
 }

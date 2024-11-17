@@ -4,6 +4,7 @@
 #include"utils/calctime.h"
 #include"utils/logger.h"
 #include"utils/threadpool.h"
+#include"modules/ephemeris_compressor.h"
 
 std::mutex ephemeris_generator::io_mutex;
 
@@ -70,13 +71,13 @@ int ephemeris_generator::make_ephemeris(int dir){
     bool use_combined=ms.integrator==int_t(msystem::COMBINED_RK12);
     
     fast_real dt=use_combined?ms.combined_delta_t:ms.delta_t;
-    int_t jsize=std::round(ms.data_cadence/dt);
+    int_t jsize=(int_t)std::round(ms.data_cadence/dt);
     if(jsize<1)jsize=1;
     dt=ms.data_cadence/jsize;
 
     int_t n_combine;
     if(use_combined){
-        n_combine=std::round(dt/ms.delta_t);
+        n_combine=(int_t)std::round(dt/ms.delta_t);
         if(n_combine<1)n_combine=1;
         dt/=n_combine;
     }
@@ -90,8 +91,8 @@ int ephemeris_generator::make_ephemeris(int dir){
     
     dt*=dir;
 
-    int_t isize=t_years*Constants::year/ms.data_cadence;
-    int_t iunit=ms.max_ephm_length/ms.data_cadence;
+    int_t isize=int_t(t_years*Constants::year/ms.data_cadence);
+    int_t iunit=int_t(ms.max_ephm_length/ms.data_cadence);
 
     const int_t min_iunit=4096;
     if(isize<1){
@@ -151,7 +152,7 @@ int ephemeris_generator::make_ephemeris(int dir){
                     double yr=mst_eph/Constants::year;
                     double t=CalcTime();
                     LogInfo(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
-                    int_t new_skip_size=std::round(skip_size/(t-oldt));
+                    int_t new_skip_size=(int_t)std::round(skip_size/(t-oldt));
                     if(new_skip_size<=0)new_skip_size=1;
                     if(new_skip_size>2*skip_size)new_skip_size=2*skip_size;
                     skip_size=new_skip_size;
@@ -207,7 +208,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
 
-        ephemeris_collector::compress(zms);
+        ephemeris_compressor::compress(zms);
 
         io_mutex.lock();
         {
@@ -336,7 +337,7 @@ void msystem::record_substeps(fast_real dt,bool initialize){
     }
 }
 
-std::string ephemeris_entry::entry_name(bool rotational,bool substep){
+std::string ephemeris_entry::entry_name(bool rotational,bool substep) const{
     if(fid<=0)
         return std::string();
     return strprintf("%s.%lld%s%s",&sid,fid,

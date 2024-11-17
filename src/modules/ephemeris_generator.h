@@ -17,7 +17,7 @@ struct ephemeris_entry{
     int_t t_start;
     int_t t_end;
 
-    std::string entry_name(bool rotational,bool substep);
+    std::string entry_name(bool rotational,bool substep) const;
 };
 
 class ephemeris_collector{
@@ -61,10 +61,6 @@ public:
 
     //convert zips to old data pack
     static int convert_format(const char *path);
-    // ephemeris_data: full datapack produced by ephemeris_generator and collected by ephemeris_collector,
-    //      see ephemeris_generator::make_ephemeris
-    // return number of failures
-    static int_t compress(std::vector<MFILE> &ephemeris_data);
 };
 
 class ephemeris_generator{
