@@ -197,98 +197,6 @@ double ephemeris_compressor::compression_score(double relative_error,double comp
     return std::log(compressed_size)/a+std::pow(relative_error,index_accuracy)/index_accuracy;
 }
 
-template<ephemeris_format F,typename T,size_t N_Channel>
-MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d){
-    typedef header_t<F> data_header;
-
-    struct scored_compress_data{
-        MFILE data;
-        data_header *pheader;
-        double max_error;
-        double reduced_error;
-        double score;
-    };
-    std::map<int_t,scored_compress_data> mfmap;
-    
-    auto make_fit=[&](int_t n){
-        auto &target=mfmap[n];
-        MFILE &mf=target.data;
-        const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
-        const size_t data_size=bsp_size+sizeof(data_header);
-        bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
-        target.pheader=(data_header*)mf.prepare(data_size);
-        memcpy(target.pheader+1,bf.get_fitted_data(),bsp_size);
-        bf.expand();
-        T result[N_Channel];
-        double max_error=0;
-        bf(double(0),target.pheader->fix[0],target.pheader->fix[1]);
-        for(int_t i=0;i<N;++i){
-            bf(double(i),result);
-            double ierror=data_header::error_function(pdata+N_Channel*i,result);
-            checked_maximize(max_error,ierror);
-        }
-        bf(double(N-1),target.pheader->fix[2],target.pheader->fix[3]);
-        target.max_error=max_error;
-        double score=filtered_min<double>(max_error,INFINITY)+epsilon_relative_error;
-        target.reduced_error=score;
-        target.score=compression_score(score,double(data_size));
-        return &target;
-    };
-
-    std::vector<int_t> n_all,i_chs;
-    segment_choices(n_all,N,d);
-    const int_t n_min=n_all.back();
-    const int_t n_max=n_all.front();
-
-    make_fit(n_max);
-    int_t i_current=0,i_left=0,i_right=n_all.size()-1;
-    int_t step=1,dir=0,n_optimal=n_max;
-    n_all.front()=-1;
-
-    for(int_t k=0;k<2;++k){
-        int_t next_dir=dir^k;
-        i_chs.clear();
-        int_t i_next=i_current;
-        do{
-            i_next+=next_dir==0?-1:1;
-            if(i_next<i_left||i_next>i_right)
-                break;
-            if(n_all[i_next]<n_min)
-                continue;
-            i_chs.push_back(i_next);
-        } while(1);
-        if(i_chs.empty())continue;
-        step=dir==next_dir?step*2:std::max<int_t>(1,step/2);
-        step=std::min<int_t>(step,(i_chs.size()+1)/2);
-        dir=next_dir;
-        i_current=i_chs[step-1];
-        int_t &n_chs=n_all[i_current];
-        if(make_fit(n_chs)->score<mfmap[n_optimal].score){
-            n_optimal=n_chs;
-            i_left=i_current;
-            while(i_left>0&&n_all[i_left-1]>=n_min)--i_left;
-            int_t i_max=n_all.size();
-            i_right=i_current;
-            while(i_right+1<i_max&&n_all[i_right+1]>=n_min)++i_right;
-        }
-        else (n_chs<n_optimal?i_right:i_left)=i_current;
-
-        n_chs=-1;
-        k=-1;
-    }
-
-    scored_compress_data &result=mfmap[n_optimal];
-    //fill header
-    data_header &header=*result.pheader;
-    header.relative_error=(float)result.max_error;
-    header.degree=(int16_t)d;
-    header.uformat=~(uint16_t)F;
-    header.n=n_optimal;
-    if(!(header.relative_error<1))
-        result.data.reset();
-    return std::move(result.data);
-}
-
 double ephemeris_compressor::relative_state_error(const vec *r,const vec *rp){
     return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
 };
@@ -478,31 +386,15 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         std::vector<vec> fdata;
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.push_back(pdata[i].r);
+        vec dfix[2][1]={pdata[0].v*delta_t,pdata[N-1].v*delta_t};
         compressed_results.push_back(
             (can_kepler?compress_data<KEPLERIAN_VECTORS>:compress_data<STATE_VECTORS>)
-            (fdata.data(),N,d));
+            (fdata.data(),N,d,dfix));
         size_t header_size=(can_kepler?sizeof(header_t<KEPLERIAN_VECTORS>):sizeof(header_t<STATE_VECTORS>));
         if(compressed_results.back().size()<=header_size)compressed_results.pop_back();
-        else{
-            vec left_r=pdata[0].r,left_v=pdata[0].v,right_r=pdata[N-1].r,right_v=pdata[N-1].v;
-            if(can_kepler){
-                auto *pheader=(header_t<KEPLERIAN_VECTORS>*)compressed_results.back().data();
-                double v_factor=time_span/pheader->n;
-                double compress_factor=double(N-1)/pheader->n;
-                pheader->fix[0][0]= left_r-pheader->fix[0][0];
-                pheader->fix[1][0]=( left_v*v_factor-pheader->fix[1][0]*compress_factor);
-                pheader->fix[2][0]=right_r-pheader->fix[2][0];
-                pheader->fix[3][0]=(right_v*v_factor-pheader->fix[3][0]*compress_factor);
-            }
-            else{
-                auto *pheader=(header_t<STATE_VECTORS>*)compressed_results.back().data();
-                double v_factor=time_span/pheader->n;
-                double compress_factor=double(N-1)/pheader->n;
-                pheader->fix[0][0]= left_r-pheader->fix[0][0];
-                pheader->fix[1][0]=( left_v*v_factor-pheader->fix[1][0]*compress_factor);
-                pheader->fix[2][0]=right_r-pheader->fix[2][0];
-                pheader->fix[3][0]=(right_v*v_factor-pheader->fix[3][0]*compress_factor);
-            }
+        else if(can_kepler){
+            auto *pheader=(header_t<KEPLERIAN_VECTORS>*)compressed_results.back().data();
+            pheader->GM=GM;
         }
     }
     if(max_errs.kcerr==use_kepler){
@@ -526,14 +418,6 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         else{
             auto *pheader=(header_t<KEPLERIAN_CIRCULAR>*)compressed_results.back().data();
             pheader->GM=GM;
-            const double *pleft=fdata.data();
-            const double *pright=fdata.data()+6*(N-1);
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
-            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
-            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
         }
     }
     if(max_errs.krerr==use_kepler){
@@ -553,14 +437,6 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         else{
             auto *pheader=(header_t<KEPLERIAN_RAW>*)compressed_results.back().data();
             pheader->GM=GM;
-            const double *pleft=fdata.data();
-            const double *pright=fdata.data()+6*(N-1);
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
-            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
-            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
         }
     }
     if(compressed_results.empty()){
@@ -580,6 +456,8 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         return 0;
     }
     N/=state_size;
+
+    double delta_t=time_span/(N-1);
 
     int_t d=std::min(max_bspline_degree,N-1);
     d-=d+1&1;
@@ -630,14 +508,6 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
             auto *pheader=(header_t<AXIAL_OFFSET>*)compressed_results.back().data();
             pheader->local_axis_theta=local_axis_theta;
             pheader->local_axis_phi=local_axis_phi;
-            const double *pleft=fdata.data();
-            const double *pright=fdata.data()+6*(N-1);
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[0][ich]= pleft[ich]-pheader->fix[0][ich];
-            memset(pheader->fix[1],0,sizeof(pheader->fix[1]));
-            for(int_t ich=0;ich<6;++ich)
-                pheader->fix[2][ich]=pright[ich]-pheader->fix[2][ich];
-            memset(pheader->fix[3],0,sizeof(pheader->fix[3]));
         }
     } while(0);
 
@@ -672,21 +542,10 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         if(fdata.empty())
             break;
         for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
-        compressed_results.push_back(compress_data<TIDAL_LOCK>(fdata.data(),N,d));
+        quat dfix[2][1]={HALF*delta_t*left_w*fdata[0],HALF*delta_t*right_w*fdata[N-1]};
+        compressed_results.push_back(compress_data<TIDAL_LOCK>(fdata.data(),N,d,dfix));
         if(compressed_results.back().size()<=sizeof(header_t<TIDAL_LOCK>))compressed_results.pop_back();
-        else{
-            tidal_lockable=true;
-            quat left_q=fdata[0],right_q=fdata[N-1];
-            quat left_dq=HALF*left_w*left_q;
-            quat right_dq=HALF*right_w*right_q;
-            auto *pheader=(header_t<TIDAL_LOCK>*)compressed_results.back().data();
-            double v_factor=time_span/pheader->n;
-            double compress_factor=double(N-1)/pheader->n;
-            pheader->fix[0][0]= left_q-pheader->fix[0][0];
-            pheader->fix[1][0]=( left_dq*v_factor-pheader->fix[1][0]*compress_factor);
-            pheader->fix[2][0]=right_q-pheader->fix[2][0];
-            pheader->fix[3][0]=(right_dq*v_factor-pheader->fix[3][0]*compress_factor);
-        }
+        else tidal_lockable=true;
     } while(0);
 
     if(!tidal_lockable){
@@ -694,20 +553,9 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.emplace_back(mat(pdata[i].x,0,pdata[i].z));
         for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
-        compressed_results.push_back(compress_data<QUATERNION>(fdata.data(),N,d));
+        quat dfix[2][1]={HALF*delta_t*pdata[0].w*fdata[0],HALF*delta_t*pdata[N-1].w*fdata[N-1]};
+        compressed_results.push_back(compress_data<QUATERNION>(fdata.data(),N,d,dfix));
         if(compressed_results.back().size()<=sizeof(header_t<QUATERNION>))compressed_results.pop_back();
-        else{
-            quat left_q=fdata[0],right_q=fdata[N-1];
-            quat left_dq=HALF*pdata[0].w*left_q;
-            quat right_dq=HALF*pdata[N-1].w*right_q;
-            auto *pheader=(header_t<QUATERNION>*)compressed_results.back().data();
-            double v_factor=time_span/pheader->n;
-            double compress_factor=double(N-1)/pheader->n;
-            pheader->fix[0][0]= left_q-pheader->fix[0][0];
-            pheader->fix[1][0]=( left_dq*v_factor-pheader->fix[1][0]*compress_factor);
-            pheader->fix[2][0]=right_q-pheader->fix[2][0];
-            pheader->fix[3][0]=(right_dq*v_factor-pheader->fix[3][0]*compress_factor);
-        }
     }
     if(compressed_results.empty()){
         LogWarning("compress_rotational_data::no available method.\n");
@@ -759,7 +607,169 @@ void ephemeris_compressor::segment_choices(std::vector<int_t> &result,int_t N,in
     }
 }
 
+template<typename T>
+static double norm(const T &x){
+    if constexpr(!std::is_arithmetic_v<T>)
+        return std::sqrt(double(x%x));
+    else
+        return std::abs(double(x));
+}
+
+template<ephemeris_format F,typename T,size_t N_Channel>
+MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T fix_direvative[2][N_Channel]){
+    typedef header_t<F> data_header;
+
+    struct scored_compress_data{
+        MFILE data;
+        data_header *pheader;
+        double max_error;
+        double reduced_error;
+        double score;
+        double smooth_range[2];
+    };
+    std::map<int_t,scored_compress_data> mfmap;
+    
+    auto make_fit=[&](int_t n){
+        auto &target=mfmap[n];
+        MFILE &mf=target.data;
+        const size_t bsp_size=N_Channel*sizeof(T)*(n+d);
+        const size_t data_size=bsp_size+sizeof(data_header);
+        bspline_fitter<T,N_Channel> bf(d,n,pdata,N-1);
+        target.pheader=(data_header*)mf.prepare(data_size);
+        memcpy(target.pheader+1,bf.get_fitted_data(),bsp_size);
+        bf.expand();
+        T result[N_Channel],dres[N_Channel];
+        double max_error=0;
+        double fix_errors[4][N_Channel]{};
+        double compress_factor=double(N-1)/n;
+#define all_channels    int_t ich=0;ich<N_Channel;++ich
+#define index(i)        (i)*N_Channel+ich
+        for(int_t i=0;i<N;++i){
+            if(i==0||N==i+1){
+                T *pd=target.pheader->fix[i==0?0:2];
+                T *pdd=target.pheader->fix[i==0?1:3];
+                if(fix_direvative){
+                    bf(double(i),result,dres);
+                    double *pdf=fix_errors[i==0?1:3];
+                    for(all_channels){
+                        pdd[index(0)]=(fix_direvative[i!=0][index(0)]-dres[index(0)])*compress_factor;
+                        pdf[index(0)]=norm(pdd[index(0)]);
+                    }
+                }
+                else{
+                    bf(double(i),result);
+                    for(all_channels)
+                        pdd[index(0)]=T(0);
+                }
+                for(all_channels)
+                    pd[index(0)]=pdata[index(i)]-result[index(0)];
+            }
+            else
+                bf(double(i),result);
+            if(fix_direvative&&(i<n||N<=i+n)){
+                for(all_channels){
+                    double local_error=norm(pdata[index(i)]-result[index(0)]);
+                    if(i<n)checked_maximize(fix_errors[0][index(0)],local_error);
+                    if(N<=i+n)checked_maximize(fix_errors[2][index(0)],local_error);
+                }
+            }
+            double ierror=data_header::error_function(pdata+N_Channel*i,result);
+            checked_maximize(max_error,ierror);
+        }
+        // 1/(maximum of (1-x)*smooth_step(x) reached at x~0.58)
+        constexpr double smooth_factor=3.8465409105498827;
+        for(int_t i=0;i<2;++i){
+            double &smooth_range=target.smooth_range[i];
+            smooth_range=1;
+            if(fix_direvative){
+                double *pf=fix_errors[i*2],*pdf=fix_errors[i*2+1];
+                for(all_channels)
+                    filtered_minimize(smooth_range,smooth_factor*pf[index(0)]/pdf[index(0)]);
+                checked_maximize(smooth_range,1/compress_factor);
+            }
+        }
+        target.max_error=max_error;
+        double score=filtered_min<double>(max_error,INFINITY)+epsilon_relative_error;
+        target.reduced_error=score;
+        target.score=compression_score(score,double(data_size));
+        return &target;
+    };
+
+    std::vector<int_t> n_all,i_chs;
+    segment_choices(n_all,N,d);
+    const int_t n_min=n_all.back();
+    const int_t n_max=n_all.front();
+
+    make_fit(n_max);
+    int_t i_current=0,i_left=0,i_right=n_all.size()-1;
+    int_t step=1,dir=0,n_optimal=n_max;
+    n_all.front()=-1;
+
+    for(int_t k=0;k<2;++k){
+        int_t next_dir=dir^k;
+        i_chs.clear();
+        int_t i_next=i_current;
+        do{
+            i_next+=next_dir==0?-1:1;
+            if(i_next<i_left||i_next>i_right)
+                break;
+            if(n_all[i_next]<n_min)
+                continue;
+            i_chs.push_back(i_next);
+        } while(1);
+        if(i_chs.empty())continue;
+        step=dir==next_dir?step*2:std::max<int_t>(1,step/2);
+        step=std::min<int_t>(step,(i_chs.size()+1)/2);
+        dir=next_dir;
+        i_current=i_chs[step-1];
+        int_t &n_chs=n_all[i_current];
+        if(make_fit(n_chs)->score<mfmap[n_optimal].score){
+            n_optimal=n_chs;
+            i_left=i_current;
+            while(i_left>0&&n_all[i_left-1]>=n_min)--i_left;
+            int_t i_max=n_all.size();
+            i_right=i_current;
+            while(i_right+1<i_max&&n_all[i_right+1]>=n_min)++i_right;
+        }
+        else (n_chs<n_optimal?i_right:i_left)=i_current;
+
+        n_chs=-1;
+        k=-1;
+    }
+
+    scored_compress_data &result=mfmap[n_optimal];
+    //fill header
+    data_header &header=*result.pheader;
+    header.relative_error=(float)result.max_error;
+    header.degree=(int16_t)d;
+    header.uformat=~(uint16_t)F;
+    header.n=n_optimal;
+    header.smooth_range[0]=(float)result.smooth_range[0];
+    header.smooth_range[1]=(float)result.smooth_range[1];
+    if(!(header.relative_error<1))
+        result.data.reset();
+    return std::move(result.data);
+}
+
 typedef ephemeris_compressor::interpolator interp_t;
+
+template<typename T,size_t N_Channel>
+void interp_t::smooth(T (&r)[N_Channel],T (&v)[N_Channel],
+    const T (&fix_r)[N_Channel],const T (&fix_v)[N_Channel],
+    double x,double smooth_range) const{
+    double xa=x/smooth_range;
+    double y=1-xa;
+    double dy=-6*xa*y/smooth_range;
+    y*=y*(1+2*xa);
+    double v_factor=n/t_range;
+    for(all_channels){
+        T dr=fix_r[index(0)]+fix_v[index(0)]*x;
+        r[index(0)]+=y*dr;
+        v[index(0)]+=(dy*dr+y*fix_v[index(0)])*v_factor;
+    }
+}
+#undef index
+#undef all_channels
 
 #define CONVERT_IMPLEMENT(F)  template<>        \
 void interp_t::convert<ephemeris_format::F>(    \
@@ -855,6 +865,9 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
 
         SWITCH(f,
             if(fsize!=sizeof(header_type)+(n+degree)*bspline_t::data_size)break;
+            auto *pheader=(header_type*)fdata;
+            static_assert(sizeof(pheader->fix)<=sizeof(fix_data),"No sufficient space in interpolator::fix_data.");
+            memcpy(fix_data,pheader->fix,sizeof(pheader->fix));
             pfitter=new bspline_t((typename bspline_t::data_type*)(fdata+sizeof(header_type)),
                 degree,n,t_range);
             if(!*pfitter){
@@ -925,20 +938,17 @@ void interp_t::operator()(double t,void *state) const{
         return;
 
     double x=t/t_range*n;
-    bool fix_left=std::floor(x)==0;
-    bool fix_right=std::ceil(x)==n;
+    bool fix_left=std::floor(x)==0&&x<smooth_range[0];
+    bool fix_right=std::ceil(x)==n&&n-x<smooth_range[1];
 
     ephemeris_format f=data_format();
     SWITCH(f,
-        typename header_type::data_type r[header_type::data_channel],v[header_type::data_channel];
+        typedef typename header_type::data_type sample_type[header_type::data_channel];
+        sample_type r,v;
         (*pfitter)(t,r,v);
-        if(fix_left){
-
-        }
-        if(fix_right){
-            x=n-x;
-
-        }
+        auto *fix=(sample_type*)fix_data;
+        if(fix_left)smooth(r,v,fix[0],fix[1],x,smooth_range[0]);
+        if(fix_right)smooth(r,v,fix[2],fix[3],n-x,smooth_range[1]);
         convert<FORMAT>((typename header_type::state_type *)state,r,v);
     );
 }

@@ -82,6 +82,7 @@ public:
                             // i.e. first 8 bytes of file is double(NAN) if data is compressed.
                             //      otherwise data was left unchanged as a raw sequence of double.
         int_t n;            // # of segments. total size of data is (n+degree)*data_channel*sizeof(data_type).
+        float smooth_range[2];  //{left, right}, in (0,1], in unit of segments
     };
     template<format_t F>struct header_t;
     template<>struct header_t<STATE_VECTORS>:public header_base{
@@ -100,6 +101,7 @@ public:
         typedef orbital_state_t state_type;
 
         data_type fix[4][data_channel];
+        double GM;
     };
     template<>struct header_t<KEPLERIAN_CIRCULAR>:public header_base{
         typedef double data_type;
@@ -146,7 +148,10 @@ public:
     };
 
     class interpolator:private header_base{
+        typedef header_base base_t;
+
         //auxiliary data
+        char fix_data[192];
         union{
             double sGM;
             mat local_axis;
@@ -156,13 +161,18 @@ public:
         void *pfitter;
         double t_range;
 
-        typedef header_base base_t;
         template<format_t F>
         //convert data to state
         void convert(
             typename header_t<F>::state_type *state,
             const typename header_t<F>::data_type *x,
             const typename header_t<F>::data_type *v) const;
+
+        template<typename T,size_t N_Channel>
+        //assume 0<=x<smooth_range
+        void smooth(T (&r)[N_Channel],T (&v)[N_Channel],
+            const T (&fix_r)[N_Channel],const T (&fix_v)[N_Channel],
+            double x,double smooth_range) const;
     public:
         interpolator(MFILE *fin,double _range);
         interpolator(interpolator &&);
@@ -184,7 +194,7 @@ public:
     };
 private:
     template<format_t F,typename T=typename header_t<F>::data_type,size_t N_Channel=header_t<F>::data_channel>
-    static MFILE compress_data(const T *pdata,int_t N,int_t d);
+    static MFILE compress_data(const T *pdata,int_t N,int_t d,const T fix_direvative[2][N_Channel]=nullptr);
     static int_t select_best(MFILE &mf,std::vector<MFILE> &compressed_results,int_t N,int_t d);
     // for number of datapoints and degree of bspline fitting,
     // fill possible choices of segments of compressed bsplines in decreasing order.

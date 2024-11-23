@@ -364,6 +364,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         ephemeris_interpolator iorb(morb,trange);
         ephemeris_interpolator irot(mrot,trange);
         double max_r=0,max_v=0,max_xz=0,max_w=0;
+        double end_r=0,end_v=0,end_xz=0,end_w=0;
         for(size_t i=0;i<sorb.size();++i){
             orbital_state_t os;
             rotational_state_t rs;
@@ -376,8 +377,16 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
             checked_maximize(max_w,(srot[i].w-rs.w).norm());
             checked_maximize(max_xz,(srot[i].x-rs.x).norm());
             checked_maximize(max_xz,(srot[i].z-rs.z).norm());
+            if(i==0||i+1==sorb.size()){
+                checked_maximize(end_r,(sorb[i].r-os.r).norm());
+                checked_maximize(end_v,(sorb[i].v-os.v).norm());
+                checked_maximize(end_w,(srot[i].w-rs.w).norm());
+                checked_maximize(end_xz,(srot[i].x-rs.x).norm());
+                checked_maximize(end_xz,(srot[i].z-rs.z).norm());
+            }
         }
         printf(" max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
+        printf(" end_errs:[%.6e, %.6e, %.6e, %.6e]\n",end_r,end_v,end_xz,end_w);
         if(ssuborb.empty())continue;
         for(size_t i=0;i<ssuborb.size();++i){
             orbital_state_t os;
@@ -391,8 +400,16 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
             checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
             checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
             checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
+            if(i==0||i+1==ssuborb.size()){
+                checked_maximize(end_r,(ssuborb[i].r-os.r).norm());
+                checked_maximize(end_v,(ssuborb[i].v-os.v).norm());
+                checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
+                checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
+                checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
+            }
         }
         printf("*max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
+        printf("*end_errs:[%.6e, %.6e, %.6e, %.6e]\n",end_r,end_v,end_xz,end_w);
     }
     return error_count;
 }
