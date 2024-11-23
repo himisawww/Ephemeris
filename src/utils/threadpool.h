@@ -3,6 +3,7 @@
 #include<mutex>
 #include<condition_variable>
 #include<deque>
+#include<functional>
 
 class ThreadPool{
 public:
@@ -18,10 +19,13 @@ public:
     class TaskGroup:private std::atomic_size_t{
         friend class ThreadPool;
     public:
+        using std::atomic_size_t::load;
         TaskGroup():std::atomic_size_t(0){}
     };
 
     static constexpr size_t npos_tid=-1;
+    static constexpr double minimum_wait_for=0.015625;
+    static constexpr size_t maximum_default_concurrency=16;
 private:
     struct ThreadTask{
         TaskFunction task_function;
@@ -64,7 +68,7 @@ private:
 
     ThreadPool(ThreadPool&&)=delete;
 public:
-    ThreadPool(size_t n_threads=0);
+    ThreadPool(size_t n_threads=maximum_default_concurrency);
     ~ThreadPool();
 
     //if called, subsequent functions in the same thread can use a thread pool
@@ -109,5 +113,6 @@ public:
     // block until all tasks are done
     // return true when success
     // return false if called from a worker thread of this without specifying a group (to avoid deadwait)
-    bool wait_for_all(TaskGroup *p_group=nullptr);
+    // every wakeup_seconds, callback will be called if present
+    bool wait_for_all(TaskGroup *p_group=nullptr,std::function<void()> callback=nullptr,double wakeup_seconds=minimum_wait_for);
 };

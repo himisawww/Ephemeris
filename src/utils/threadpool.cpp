@@ -119,6 +119,7 @@ void ThreadPool::thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *pc){
 }
 
 ThreadPool::ThreadPool(size_t n_threads){
+    n_threads=std::min<size_t>(n_threads,std::thread::hardware_concurrency());
     m_busy.store(0);
     m_size.store(n_threads);
     resize_unchecked(0,n_threads);
@@ -193,7 +194,7 @@ void ThreadPool::run(){
     m_distribute.notify_all();
 }
 
-bool ThreadPool::wait_for_all(TaskGroup *pc){
+bool ThreadPool::wait_for_all(TaskGroup *pc,std::function<void()> callback,double wakeup_seconds){
     size_t thread_id=get_thread_id();
     if(thread_id!=npos_tid){
         if(!pc)return false;
@@ -206,7 +207,12 @@ bool ThreadPool::wait_for_all(TaskGroup *pc){
     std::unique_lock<std::mutex> lock(m_mutex_collect);
     do{
         if(pc?!pc->load():!busy())break;
-        m_collect.wait(lock);
+        if(callback){
+            m_collect.wait_for(lock,std::chrono::duration<double>(std::max(minimum_wait_for,wakeup_seconds)));
+            callback();
+        }
+        else
+            m_collect.wait(lock);
     } while(1);
     return true;
 }

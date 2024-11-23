@@ -616,7 +616,7 @@ static double norm(const T &x){
 }
 
 template<ephemeris_format F,typename T,size_t N_Channel>
-MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T fix_direvative[2][N_Channel]){
+MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T fix_derivative[2][N_Channel]){
     typedef header_t<F> data_header;
 
     struct scored_compress_data{
@@ -648,11 +648,11 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T
             if(i==0||N==i+1){
                 T *pd=target.pheader->fix[i==0?0:2];
                 T *pdd=target.pheader->fix[i==0?1:3];
-                if(fix_direvative){
+                if(fix_derivative){
                     bf(double(i),result,dres);
                     double *pdf=fix_errors[i==0?1:3];
                     for(all_channels){
-                        pdd[index(0)]=(fix_direvative[i!=0][index(0)]-dres[index(0)])*compress_factor;
+                        pdd[index(0)]=(fix_derivative[i!=0][index(0)]-dres[index(0)])*compress_factor;
                         pdf[index(0)]=norm(pdd[index(0)]);
                     }
                 }
@@ -666,7 +666,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T
             }
             else
                 bf(double(i),result);
-            if(fix_direvative&&(i<n||N<=i+n)){
+            if(fix_derivative&&(i<n||N<=i+n)){
                 for(all_channels){
                     double local_error=norm(pdata[index(i)]-result[index(0)]);
                     if(i<n)checked_maximize(fix_errors[0][index(0)],local_error);
@@ -681,7 +681,7 @@ MFILE ephemeris_compressor::compress_data(const T *pdata,int_t N,int_t d,const T
         for(int_t i=0;i<2;++i){
             double &smooth_range=target.smooth_range[i];
             smooth_range=1;
-            if(fix_direvative){
+            if(fix_derivative){
                 double *pf=fix_errors[i*2],*pdf=fix_errors[i*2+1];
                 for(all_channels)
                     filtered_minimize(smooth_range,smooth_factor*pf[index(0)]/pdf[index(0)]);

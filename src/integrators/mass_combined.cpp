@@ -28,7 +28,7 @@ struct thread_works{
     int_t n_combine;
 };
 
-void do_thread_works(void *pworks,size_t thread_id){
+static void do_thread_works(void *pworks,size_t thread_id){
     const thread_works &w=*(const thread_works*)pworks;
     const auto &idxs=(*w.widxs)[thread_id];
     const auto &mss=*w.pm;

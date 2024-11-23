@@ -1,8 +1,10 @@
+#include<algorithm>
 #include"ephemeris_generator.h"
 #include"configs.h"
 #include"utils/zipio.h"
 #include"utils/logger.h"
 #include"utils/calctime.h"
+#include"utils/threadpool.h"
 #include"modules/ephemeris_compressor.h"
 
 int ephemeris_collector::convert_format(const char *path){
@@ -224,8 +226,132 @@ int ephemeris_collector::convert_format(const char *path){
     return 0;
 }
 
+int_t ephemeris_compressor::compress_work::priority() const{
+    int_t sumsize=morb->size()+mrot->size();
+    if(msuborb)sumsize+=msuborb->size();
+    if(msubrot)sumsize+=msubrot->size();
+    return sumsize;
+}
+
+void ephemeris_compressor::compress_work::run(){
+    const auto &index=*pindex;
+
+    // for debug
+    std::vector<orbital_state_t> sorb,ssuborb;
+    std::vector<rotational_state_t> srot,ssubrot;
+    sorb.insert(sorb.begin(),
+        (orbital_state_t*)morb->data(),
+        (orbital_state_t*)(morb->data()+morb->size()));
+    srot.insert(srot.begin(),
+        (rotational_state_t*)mrot->data(),
+        (rotational_state_t*)(mrot->data()+mrot->size()));
+    if(msuborb)
+        ssuborb.insert(ssuborb.begin(),
+            (orbital_state_t*)msuborb->data(),
+            (orbital_state_t*)(msuborb->data()+msuborb->size()));
+    if(msubrot)
+        ssubrot.insert(ssubrot.begin(),
+            (rotational_state_t*)msubrot->data(),
+            (rotational_state_t*)(msubrot->data()+msubrot->size()));
+
+    //orbital,rotational
+    double trange=double(index.t_end-index.t_start);
+    for(int k=0;k<2;++k){
+        MFILE *&mbase=k==0?morb:mrot;
+        MFILE *&msub=k==0?msuborb:msubrot;
+
+        newsize[k]=oldsize[k]=mbase->size();
+        header_base *&pheader=pheaders[k];
+        pheader=nullptr;
+        int_t target_clevel=1;
+
+        int_t clevel=
+            k==0?compress_orbital_data(*mbase,trange)
+             :compress_rotational_data(*mbase,trange,morb);
+        bool use_substep=false;
+        if(clevel){
+            newsize[k]=mbase->size();
+            pheader=(header_base*)mbase->data();
+            double ecrit=pheader->relative_error;
+            ecrit=std::log10(ecrit/epsilon_relative_error);
+            if(ecrit>0)
+                target_clevel=(int_t)std::ceil(ecrit*ecrit);
+        }
+        if(msub&&clevel<target_clevel){
+            int_t subclevel=
+                k==0?compress_orbital_data(*msub,trange)
+                 :compress_rotational_data(*msub,trange,morb);
+            if(subclevel){
+                auto *psubheader=(header_base*)msub->data();
+                use_substep=!(pheader&&pheader->relative_error<=psubheader->relative_error);
+                if(use_substep){
+                    newsize[k]=msub->size();
+                    pheader=psubheader;
+                    clevel=subclevel;
+                }
+            }
+        }
+        clevels[k]=use_substep?-clevel:clevel;
+        if(!clevel)
+            continue;
+        if(use_substep){
+            std::swap(mbase,msub);
+            mbase->set_name(index.entry_name(k,false));
+        }
+        if(msub){
+            msub->reset();
+            msub->close();
+        }
+    }
+
+    //debug
+    ephemeris_interpolator iorb(morb,trange);
+    ephemeris_interpolator irot(mrot,trange);
+    max_r=max_v=max_xz=max_w=0;
+    end_r=end_v=end_xz=end_w=0;
+    for(size_t i=0;i<sorb.size();++i){
+        orbital_state_t os;
+        rotational_state_t rs;
+        double t=double(i)/(sorb.size()-1)*trange;
+        iorb(t,&os);
+        irot.set_orbital_state(os.r,os.v);
+        irot(t,&rs);
+        checked_maximize(max_r,(sorb[i].r-os.r).norm());
+        checked_maximize(max_v,(sorb[i].v-os.v).norm());
+        checked_maximize(max_w,(srot[i].w-rs.w).norm());
+        checked_maximize(max_xz,(srot[i].x-rs.x).norm());
+        checked_maximize(max_xz,(srot[i].z-rs.z).norm());
+        if(i==0||i+1==sorb.size()){
+            checked_maximize(end_r,(sorb[i].r-os.r).norm());
+            checked_maximize(end_v,(sorb[i].v-os.v).norm());
+            checked_maximize(end_w,(srot[i].w-rs.w).norm());
+            checked_maximize(end_xz,(srot[i].x-rs.x).norm());
+            checked_maximize(end_xz,(srot[i].z-rs.z).norm());
+        }
+    }
+    for(size_t i=0;i<ssuborb.size();++i){
+        orbital_state_t os;
+        rotational_state_t rs;
+        double t=double(i)/(ssuborb.size()-1)*trange;
+        iorb(t,&os);
+        irot.set_orbital_state(os.r,os.v);
+        irot(t,&rs);
+        checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
+        checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
+        checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
+        checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
+        checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
+        if(i==0||i+1==ssuborb.size()){
+            checked_maximize(end_r,(ssuborb[i].r-os.r).norm());
+            checked_maximize(end_v,(ssuborb[i].v-os.v).norm());
+            checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
+            checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
+            checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
+        }
+    }
+}
+
 int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
-    int_t error_count=0;
     struct entry_info{
         int_t entry_id;
         MFILE *pmfile;
@@ -239,10 +365,16 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         }
     };
 
+    MFILE *mf_readme=nullptr;
+
     std::vector<ephemeris_entry> indices;
     std::map<std::string,entry_info> indexmap;
     for(MFILE &mf:ephemeris_data){
         const std::string &namestr=mf.get_name();
+        if(namestr==Configs::SaveNameReadme){
+            mf_readme=&mf;
+            continue;
+        }
         if(namestr!=Configs::SaveNameIndex){
             indexmap[namestr].pmfile=&mf;
             continue;
@@ -269,6 +401,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         }
     }
 
+    std::vector<compress_work> tasks;
     for(const ephemeris_entry &index:indices){
         MFILE *mrot=indexmap[index.entry_name(true,false)].pmfile;
         MFILE *msubrot=indexmap[index.entry_name(true,true)].pmfile;
@@ -278,138 +411,126 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
             LogError("\nError: Missing data for <%s>\n",&index.sid);
             return -1;
         }
+
         morb->publish();
         mrot->publish();
         if(msuborb)msuborb->publish();
         if(msubrot)msubrot->publish();
 
-        // for debug
-        std::vector<orbital_state_t> sorb,ssuborb;
-        std::vector<rotational_state_t> srot,ssubrot;
-        sorb.insert(sorb.begin(),
-            (orbital_state_t*)morb->data(),
-            (orbital_state_t*)(morb->data()+morb->size()));
-        srot.insert(srot.begin(),
-            (rotational_state_t*)mrot->data(),
-            (rotational_state_t*)(mrot->data()+mrot->size()));
-        if(msuborb)
-            ssuborb.insert(ssuborb.begin(),
-                (orbital_state_t*)msuborb->data(),
-                (orbital_state_t*)(msuborb->data()+msuborb->size()));
-        if(msubrot)
-            ssubrot.insert(ssubrot.begin(),
-                (rotational_state_t*)msubrot->data(),
-                (rotational_state_t*)(msubrot->data()+msubrot->size()));
+        auto &work=tasks.emplace_back();
+        work.pindex=&index;
+        work.morb=morb;
+        work.mrot=mrot;
+        work.msuborb=msuborb;
+        work.msubrot=msubrot;
+    }
 
-        //orbital,rotational
-        double trange=double(index.t_end-index.t_start);
-        for(int k=0;k<2;++k){
-            MFILE *&mbase=k==0?morb:mrot;
-            MFILE *&msub=k==0?msuborb:msubrot;
+    const size_t n_tasks=tasks.size();
+    ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
+    if(pthread_pool){
+        std::vector<std::pair<int_t,void*>> priorities;
+        for(auto &w:tasks)
+            priorities.push_back({-w.priority(),&w});
+        std::sort(priorities.begin(),priorities.end());
+        ThreadPool::TaskGroup task_group;
+        for(auto &p:priorities)
+            pthread_pool->add_task(do_compress_work,p.second,&task_group);
+        auto callback=[&](){
+            LogInfo(" Compressing ephemerides. [%llu/%llu]\r",n_tasks-task_group.load(),n_tasks);
+        };
+        pthread_pool->wait_for_all(&task_group,callback,1.5);
+    }
+    else{
+        for(size_t i=0;i<n_tasks;++i){
+            LogInfo(" Compressing ephemerides. [%llu/%llu]\r",i+1,n_tasks);
+            tasks[i].run();
+        }
+    }
 
-            int_t oldsize=mbase->size();
-            int_t newsize=oldsize;
-            header_base *pheader=nullptr;
-            int_t target_clevel=1;
-            double tstart=CalcTime();
-            int_t clevel=
-                k==0?compress_orbital_data(*mbase,trange)
-                 :compress_rotational_data(*mbase,trange,morb);
-            bool use_substep=false;
-            if(clevel){
-                newsize=mbase->size();
-                pheader=(header_base*)mbase->data();
-                double ecrit=pheader->relative_error;
-                ecrit=std::log10(ecrit/epsilon_relative_error);
-                if(ecrit>0)
-                    target_clevel=(int_t)std::ceil(ecrit*ecrit);
-            }
-            if(msub&&clevel<target_clevel){
-                clevel=
-                    k==0?compress_orbital_data(*msub,trange)
-                     :compress_rotational_data(*msub,trange,morb);
-                if(clevel){
-                    auto *psubheader=(header_base*)msub->data();
-                    use_substep=!(pheader&&pheader->relative_error<=psubheader->relative_error);
-                    if(use_substep){
-                        newsize=msub->size();
-                        pheader=psubheader;
+    LogInfo("\n");
+
+    int_t error_count=0;
+
+    std::map<uint64_t,std::vector<size_t>> compress_info_map;
+    std::vector<uint64_t> key_orders;
+    for(size_t it=n_tasks;it>0;){
+        const auto &w=tasks[--it];
+        error_count+=!w.pheaders[0];
+        error_count+=!w.pheaders[1];
+        uint64_t sid=w.pindex->sid;
+        size_t oldsize=compress_info_map.size();
+        compress_info_map[sid].push_back(it);
+        if(compress_info_map.size()>oldsize)
+            key_orders.push_back(sid);
+    }
+
+    do{
+        if(!mf_readme){
+            LogWarning("Warning: Missing %s in ephemerides pack.\n",Configs::SaveNameReadme);
+            break;
+        }
+        mf_readme->publish();
+        const char *pdata=(const char *)mf_readme->data();
+        const std::string readmestr(pdata,pdata+mf_readme->size());
+        const char search_pattern[]="\n"
+            "  Object List (index & sid):  \n";
+        const char *plocate=strstr(readmestr.c_str(),search_pattern);
+        if(!plocate){
+            LogWarning("Warning: Unrecognized %s.\n",Configs::SaveNameReadme);
+            break;
+        }
+        mf_readme->reset();
+        mf_readme->set_name(Configs::SaveNameReadme);
+        fwrite(readmestr.c_str(),1,plocate-readmestr.c_str(),mf_readme);
+        fprintf(mf_readme,"\n"
+            "Object List:\n"
+            "[ index]     sid :\n"
+            "       data_file : method(degree, segments)\n"
+            "                   [(substep*)compress_level, size/original_size, ratio @ original_sample_count in [t_start, t_end]]\n"
+            "                 : relative_error [concat_state_error/max_state_error, concat_rate_error/max_rate_error]:\n");
+        int_t mi=0;
+        for(auto sit=key_orders.rbegin();sit!=key_orders.rend();++sit){
+            uint64_t sid=*sit;
+            const auto &v=compress_info_map.at(sid);
+            fprintf(mf_readme,"[%6lld]%8s :\n",mi,(char*)&sid);
+            ++mi;
+            for(auto it=v.rbegin();it!=v.rend();++it){
+                const auto &w=tasks[*it];
+                const auto &index=*w.pindex;
+                for(int k=0;k<2;++k){
+                    auto *pheader=w.pheaders[k];
+                    if(!pheader){
+                        fprintf(mf_readme,"%12lld%s : %18s(FAILED)\n",
+                            index.fid,k==0?Configs::SaveOrbitalDataExtension:Configs::SaveRotationalDataExtension,
+                            format_name(ephemeris_format::NONE));
+                        LogError("Error: Failed to compress ephemeris file %s\n",index.entry_name(k==1,false).c_str());
+                    }
+                    else{
+                        bool use_substep=w.clevels[k]<0;
+                        int_t clevel=std::abs(w.clevels[k]);
+                        size_t newsize=w.newsize[k],oldsize=w.oldsize[k];
+                        // verbose info
+                        int_t samplesize=(2+k)*sizeof(vec);
+                        fprintf(mf_readme,"%12lld%s : %18s(%d, %lld)\n",
+                            index.fid,k==0?Configs::SaveOrbitalDataExtension:Configs::SaveRotationalDataExtension,
+                            format_name(ephemeris_format(~pheader->uformat)),
+                            (int)pheader->degree,pheader->n);
+                        fprintf(mf_readme,
+                            "                   [%c%3lld, %8llu/%8llu, %6.2f%% @ %6llu in [%lld, %lld]]\n",
+                            use_substep[" *"],clevel,
+                            newsize,oldsize,100.*newsize/oldsize,oldsize/samplesize,
+                            index.t_start,index.t_end);
+                        fprintf(mf_readme,
+                            "                 : %.7e [%.7e/%.7e, %.7e/%.7e]\n",
+                            pheader->relative_error,
+                            k==0?w.end_r:w.end_xz,
+                            k==0?w.max_r:w.max_xz,
+                            k==0?w.end_v:w.end_w,
+                            k==0?w.max_v:w.max_w);
                     }
                 }
             }
-            if(!clevel){
-                ++error_count;
-                LogWarning("\nWarning: Cannot compress %s data for <%s>, ignored.\n",
-                    k==0?"orbital":"rotational",&index.sid);
-                continue;
-            }
-            if(use_substep){
-                std::swap(mbase,msub);
-                mbase->set_name(index.entry_name(k,false));
-            }
-            if(msub){
-                msub->reset();
-                msub->close();
-            }
-            // verbose info
-            int_t samplesize=(2+k)*sizeof(vec);
-            LogInfo("%8s %c:%d[%c%3lld, %8llu/%8llu, %6.2f%% @ %6llu] : %.17e in %fs\n",
-                &index.sid,k["or"],(int)ephemeris_format(~pheader->uformat),use_substep[" *"],clevel,
-                newsize,oldsize,100.*newsize/oldsize,oldsize/samplesize,
-                pheader->relative_error,CalcTime()-tstart
-            );
         }
-
-        //debug
-        ephemeris_interpolator iorb(morb,trange);
-        ephemeris_interpolator irot(mrot,trange);
-        double max_r=0,max_v=0,max_xz=0,max_w=0;
-        double end_r=0,end_v=0,end_xz=0,end_w=0;
-        for(size_t i=0;i<sorb.size();++i){
-            orbital_state_t os;
-            rotational_state_t rs;
-            double t=double(i)/(sorb.size()-1)*trange;
-            iorb(t,&os);
-            irot.set_orbital_state(os.r,os.v);
-            irot(t,&rs);
-            checked_maximize(max_r,(sorb[i].r-os.r).norm());
-            checked_maximize(max_v,(sorb[i].v-os.v).norm());
-            checked_maximize(max_w,(srot[i].w-rs.w).norm());
-            checked_maximize(max_xz,(srot[i].x-rs.x).norm());
-            checked_maximize(max_xz,(srot[i].z-rs.z).norm());
-            if(i==0||i+1==sorb.size()){
-                checked_maximize(end_r,(sorb[i].r-os.r).norm());
-                checked_maximize(end_v,(sorb[i].v-os.v).norm());
-                checked_maximize(end_w,(srot[i].w-rs.w).norm());
-                checked_maximize(end_xz,(srot[i].x-rs.x).norm());
-                checked_maximize(end_xz,(srot[i].z-rs.z).norm());
-            }
-        }
-        printf(" max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
-        printf(" end_errs:[%.6e, %.6e, %.6e, %.6e]\n",end_r,end_v,end_xz,end_w);
-        if(ssuborb.empty())continue;
-        for(size_t i=0;i<ssuborb.size();++i){
-            orbital_state_t os;
-            rotational_state_t rs;
-            double t=double(i)/(ssuborb.size()-1)*trange;
-            iorb(t,&os);
-            irot.set_orbital_state(os.r,os.v);
-            irot(t,&rs);
-            checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
-            checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
-            checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
-            checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
-            checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
-            if(i==0||i+1==ssuborb.size()){
-                checked_maximize(end_r,(ssuborb[i].r-os.r).norm());
-                checked_maximize(end_v,(ssuborb[i].v-os.v).norm());
-                checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
-                checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
-                checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
-            }
-        }
-        printf("*max_errs:[%.6e, %.6e, %.6e, %.6e]\n",max_r,max_v,max_xz,max_w);
-        printf("*end_errs:[%.6e, %.6e, %.6e, %.6e]\n",end_r,end_v,end_xz,end_w);
-    }
+    } while(0);
     return error_count;
 }

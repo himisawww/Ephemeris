@@ -41,6 +41,25 @@ public:
     static constexpr bool is_valid_format(format_t f){ return NONE<f&&f<UNKNOWN; }
     static constexpr bool is_orbital_format(format_t f){ return STATE_VECTORS<=f&&f<=KEPLERIAN_RAW; }
     static constexpr bool is_rotational_format(format_t f){ return AXIAL_OFFSET<=f&&f<=TIDAL_LOCK; }
+    static constexpr const char *format_name(format_t f){
+        switch(f){
+#define FORMAT_NAME_ENTRY(F) case F:return #F
+            FORMAT_NAME_ENTRY(NONE);
+
+            FORMAT_NAME_ENTRY(STATE_VECTORS);
+            FORMAT_NAME_ENTRY(KEPLERIAN_VECTORS);
+            FORMAT_NAME_ENTRY(KEPLERIAN_CIRCULAR);
+            FORMAT_NAME_ENTRY(KEPLERIAN_RAW);
+
+            FORMAT_NAME_ENTRY(AXIAL_OFFSET);
+            FORMAT_NAME_ENTRY(QUATERNION);
+            FORMAT_NAME_ENTRY(TIDAL_LOCK);
+
+            FORMAT_NAME_ENTRY(INVALID);
+#undef FORMAT_NAME_ENTRY
+        }
+        return "UNKNOWN";
+    }
 
     class keplerian:public ephem_orb{
     public:
@@ -194,11 +213,26 @@ public:
     };
 private:
     template<format_t F,typename T=typename header_t<F>::data_type,size_t N_Channel=header_t<F>::data_channel>
-    static MFILE compress_data(const T *pdata,int_t N,int_t d,const T fix_direvative[2][N_Channel]=nullptr);
+    static MFILE compress_data(const T *pdata,int_t N,int_t d,const T fix_derivative[2][N_Channel]=nullptr);
     static int_t select_best(MFILE &mf,std::vector<MFILE> &compressed_results,int_t N,int_t d);
     // for number of datapoints and degree of bspline fitting,
     // fill possible choices of segments of compressed bsplines in decreasing order.
     static void segment_choices(std::vector<int_t> &result,int_t N,int_t d);
+
+    struct compress_work{
+        MFILE *morb,*mrot,*msuborb,*msubrot;
+        const struct ephemeris_entry *pindex;
+
+        // compress informations
+        header_base *pheaders[2];
+        int_t clevels[2];
+        size_t newsize[2],oldsize[2];
+        double max_r,max_v,max_xz,max_w;
+        double end_r,end_v,end_xz,end_w;
+        void run();
+        int_t priority() const;
+    };
+    static void do_compress_work(void *pcw,size_t thread_id){ ((compress_work*)pcw)->run(); }
 public:
     //max possible degree of bspline fitting, must be odd
     //11 is maximum odd number not exceed the degree of RungeKutta integrator
