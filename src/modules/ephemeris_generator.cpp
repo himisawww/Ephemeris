@@ -109,6 +109,7 @@ int ephemeris_generator::make_ephemeris(int dir){
     int_t time_idx=0;
 
     ThreadPool::thread_local_pool_alloc();
+    static bool newline=true;
     do{
         if(time_idx+iunit>isize)iunit=isize-time_idx;
 
@@ -151,7 +152,8 @@ int ephemeris_generator::make_ephemeris(int dir){
                 if(++skip_count>=skip_size||i==iunit){
                     double yr=mst_eph/Constants::year;
                     double t=CalcTime();
-                    LogInfo(" Integrating. t_eph: %.6fyr, time: %.6fs%c",yr,t-s,"\r\n"[i==iunit]);
+                    LogInfo(" Integrating. t_eph: %.6fyr, time: %.6fs\r",yr,t-s);
+                    newline=false;
                     int_t new_skip_size=(int_t)std::round(skip_size/(t-oldt));
                     if(new_skip_size<=0)new_skip_size=1;
                     if(new_skip_size>2*skip_size)new_skip_size=2*skip_size;
@@ -210,6 +212,8 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         io_mutex.lock();
         {
+            if(!newline)LogInfo("\n");
+            newline=true;
             ephemeris_compressor::compress(zms);
             ozippack zp(zckpt);
             zp.swap(zms);
