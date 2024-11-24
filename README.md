@@ -22,14 +22,16 @@ I also rendered an animation of the Moon viewed from the Earth using the results
 
 ## Future goal
 
-- Data Format: For now the output ephemeris are huge and not-space-efficient, 20 years of data can take up to 10GiB. For the ultimate goal of the Great Solar System Ephemerides covering BC 18000 ~ AD 22000, this means 20TiB of storage.
+- **[Done!]** Data Format: <del> For now the output ephemeris are huge and not-space-efficient, 20 years of data can take up to 10GiB. For the ultimate goal of the Great Solar System Ephemerides covering BC 18000 ~ AD 22000, this means 20TiB of storage. </del>
   
-  A good compression/approximation/interpolation method (may be lossy) is needed. 
+  A good compression/approximation/interpolation method (<del> may be </del> lossy) is <del> needed. </del> **implemented!**
 
-- Data Interpolation: For now the output data is just a sequence of state vectors of all bodies at a constant time cadence. An algorithm is needed to interpolate these states to any time point in the range of ephemeris.
+- **[Done!]** Data Interpolation: <del> For now the output data is just a sequence of state vectors of all bodies at a constant time cadence. </del> An algorithm is <del> needed </del> **implemented** to interpolate these states to any time point in the range of ephemeris.
 
 - Second-Stage Integration of Small Body Ephemeris: The program should have ability to use the pre-integrated Solar System Ephemeris to further integrate the trajectory of any given small bodies, like asteriods/commets/minor moons/satellites, and create their ephemerides. The test masses may be given by their initial state vectors at any epoch. This should be relatively efficient. A self-adaptive time step integrator is needed.
 
   Also, to make it possible to refine the ephemeris of pre-integrated bodies with better observational data, physical parameters, or system configuration, without bothering re-integrate the whole Ephemerides, program should provide functionality to exclude the specific pre-integrated bodies when doing second-stage integration, as these are re-introduced as tiny bodies.
+
+- Accessible functionalities to interpolate the generated ephemerides, and create tables of observables/state vectors. These should be implemented as built-in functions that can be invoked by passing command line arguments to the executable.
 
 - ^w^
