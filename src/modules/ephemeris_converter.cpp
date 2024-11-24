@@ -484,15 +484,15 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         fwrite(readmestr.c_str(),1,plocate-readmestr.c_str(),mf_readme);
         fprintf(mf_readme,"\n"
             "Object List:\n"
-            "[ index]     sid :\n"
+            "[    sid]  index :\n"
             "       data_file : method(degree, segments)\n"
             "                   [(substep*)compress_level, size/original_size, ratio @ original_sample_count in [t_start, t_end]]\n"
-            "                 : relative_error [concat_state_error/max_state_error, concat_rate_error/max_rate_error]:\n");
+            "                 : relative_error [endpoints:max_state_error, endpoints:max_rate_error]:\n");
         int_t mi=0;
         for(auto sit=key_orders.rbegin();sit!=key_orders.rend();++sit){
             uint64_t sid=*sit;
             const auto &v=compress_info_map.at(sid);
-            fprintf(mf_readme,"[%6lld]%8s :\n",mi,(char*)&sid);
+            fprintf(mf_readme,"[%7s]%7lld :\n",(char*)&sid,mi);
             ++mi;
             for(auto it=v.rbegin();it!=v.rend();++it){
                 const auto &w=tasks[*it];
@@ -521,12 +521,16 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                             newsize,oldsize,100.*newsize/oldsize,oldsize/samplesize,
                             index.t_start,index.t_end);
                         fprintf(mf_readme,
-                            "                 : %.7e [%.7e/%.7e, %.7e/%.7e]\n",
+                            k==0?"                 : %.3e [%.3e:%.3e m  , %.3e:%.3e m/s  ]\n"
+                                :"                 : %.3e [%.3e:%.3e rad, %.3e:%.3e rad/s]\n",
                             pheader->relative_error,
                             k==0?w.end_r:w.end_xz,
                             k==0?w.max_r:w.max_xz,
                             k==0?w.end_v:w.end_w,
                             k==0?w.max_v:w.max_w);
+                        if(!(pheader->relative_error<relative_error_warning_threshold))
+                            LogWarning("Warning: Relative fit error (%.3e) too large for <%s>\n",
+                                pheader->relative_error,index.entry_name(k==1,false).c_str());
                     }
                 }
             }
