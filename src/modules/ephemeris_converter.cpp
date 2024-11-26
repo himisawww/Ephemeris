@@ -7,7 +7,7 @@
 #include"utils/threadpool.h"
 #include"modules/ephemeris_compressor.h"
 
-int ephemeris_collector::convert_format(const char *path){
+int ephemeris_collector::convert_format(const char *path,int_t fix_interval){
     bool is_broken=false;
     std::string sop=path;
     for(int dir=1;dir>=-1;dir-=2){
@@ -51,7 +51,7 @@ int ephemeris_collector::convert_format(const char *path){
 
             if(mf_mlist.empty()){
                 is_broken=true;
-                continue;
+                break;
             }
 
             if(version==0){//index is timestamps
@@ -70,11 +70,15 @@ int ephemeris_collector::convert_format(const char *path){
                 }
             }
             else if(version==1){
+                if(!fix_interval){
+                    is_broken=true;
+                    break;
+                }
                 ephemeris_collector ephc(ms);
                 int_t mn=ms.size();
                 if(!mn){
                     is_broken=true;
-                    continue;
+                    break;
                 }
 
                 //{fname, fid}
@@ -84,10 +88,9 @@ int ephemeris_collector::convert_format(const char *path){
                 //{t_end, blist over [t_start,t_end]}
                 std::map<int_t,std::vector<barycen>> bss;
                 //[mid]={t_end, fid over [t_start,t_end]}
-                std::vector<std::map<int_t,int_t>> orb_fids(mn);
-                std::vector<int_t> rot_fids(mn);
+                std::vector<std::map<int_t,int_t>> fids(mn);
                 //{fid, fid.dat}
-                std::map<int_t,MFILE*> ephm_files;
+                std::map<int_t,ephemeris_interpolator> ephm_files;
                 do{
                     ephemeris_entry index;
                     if(1!=fread(&index,sizeof(index),1,&mf_index))
@@ -98,20 +101,23 @@ int ephemeris_collector::convert_format(const char *path){
                         msystem::load_barycen_structure(&mf_index,blist);
                     }
                     else{
-                        int_t fid=fidmap.size();
-                        std::string fname=index.fid>0
-                            ?strprintf("%s.%lld%s",&index.sid,index.fid,Configs::SaveOrbitalDataExtension)
-                            :strprintf("%s%s",&index.sid,Configs::SaveRotationalDataExtension);
-                        if(!fidmap.insert({fname,fid}).second)
+                        int_t fid=indices.size();
+                        if(!fidmap.insert({index.entry_name(false,false),fid}).second
+                         ||!fidmap.insert({index.entry_name(true,false),fid+1}).second)
                             is_broken=true;
                         indices[fid]=index;
+                        index.fid=-index.fid;
+                        indices[fid+1]=index;
                     }
                 } while(1);
+
+                if(is_broken)
+                    break;
 
                 typedef vec _orb_t[2];
                 typedef vec _rot_t[3];
                 typedef struct{ _orb_t _orb;_rot_t _rot; } _data_t;
-                int_t t_start,t_end,t_interval=0;
+                int_t t_start=LLONG_MAX,t_end=LLONG_MIN,t_interval=fix_interval;
                 for(auto &mf:mf_mlist){
                     auto itfid=fidmap.find(mf.get_name());
                     if(itfid==fidmap.end())
@@ -120,41 +126,27 @@ int ephemeris_collector::convert_format(const char *path){
                     auto it=indices.find(fid);
                     if(it==indices.end()){
                         is_broken=true;
-                        continue;
+                        break;
                     }
                     ephemeris_entry &index=it->second;
-                    bool is_orb=index.fid>0;
-                    mf.seek(0,SEEK_END);
-                    int_t fsize=mf.tell()/(is_orb?sizeof(_orb_t):sizeof(_rot_t));
-                    mf.seek(0,SEEK_SET);
-                    if(fsize<=1){
-                        is_broken=true;
-                        continue;
-                    }
-                    int_t finterval=(index.t_end-index.t_start)/(fsize-1);
-                    if(t_interval==0){
-                        t_interval=finterval;
-                        t_start=index.t_start;
-                    }
-                    else{
-                        if(t_interval*(fsize-1)!=index.t_end-index.t_start){
-                            is_broken=true;
-                            continue;
-                        }
-                        t_end=index.t_end;
-                    }
+
+                    t_start=std::min(t_start,dir>0?index.t_start:index.t_end);
+                    t_end=std::max(t_end,dir>0?index.t_end:index.t_start);
                     int_t mid=ms.get_mid(index.sid);
-                    if(is_orb)
-                        orb_fids[mid][dir*index.t_end]=fid;
-                    else
-                        rot_fids[mid]=fid;
-                    ephm_files[fid]=&mf;
+                    if(index.fid>0)
+                        fids[mid][dir*index.t_end]=fid;
+                    ephm_files.insert({fid,ephemeris_interpolator(&mf,index.t_end-index.t_start)});
                     index.fid=fid;
                 }
 
-                if(t_interval==0||(t_end-t_start)%t_interval||(t_end-t_start)/t_interval<1){
+                if(is_broken||t_interval<=0||(t_end-t_start)%t_interval||(t_end-t_start)/t_interval<1){
                     is_broken=true;
                     continue;
+                }
+
+                if(dir<0){
+                    t_interval=-t_interval;
+                    std::swap(t_start,t_end);
                 }
 
                 auto it_barycen=bss.end();
@@ -186,23 +178,23 @@ int ephemeris_collector::convert_format(const char *path){
                     }
                     fwrite(&mst_eph,sizeof(double),1,fout);
                     for(int_t i=0;i<mn;++i){
-                        auto it_data=orb_fids[i].lower_bound(dir*it_eph);
-                        if(it_data==orb_fids[i].end()){
+                        auto it_data=fids[i].lower_bound(dir*it_eph);
+                        if(it_data==fids[i].end()){
                             is_broken=true;
                             continue;
                         }
                         ephemeris_entry &oindex=indices[it_data->second];
-                        ephemeris_entry &rindex=indices[rot_fids[i]];
-                        MFILE *fodata=ephm_files[oindex.fid];
-                        MFILE *frdata=ephm_files[rindex.fid];
-                        _data_t &v5=ephm_data[i];
-                        fodata->seek((it_eph-oindex.t_start)/t_interval*sizeof(_orb_t),SEEK_SET);
-                        frdata->seek((it_eph-rindex.t_start)/t_interval*sizeof(_rot_t),SEEK_SET);
-                        if(1!=fread(v5._orb,sizeof(_orb_t),1,fodata)
-                         ||1!=fread(v5._rot,sizeof(_rot_t),1,frdata)){
+                        ephemeris_entry &rindex=indices[it_data->second+1];
+                        ephemeris_interpolator &fodata=ephm_files.at(oindex.fid);
+                        ephemeris_interpolator &frdata=ephm_files.at(rindex.fid);
+                        if(!fodata||!frdata){
                             is_broken=true;
                             continue;
                         }
+                        _data_t &v5=ephm_data[i];
+                        fodata(it_eph-oindex.t_start,&v5._orb);
+                        frdata.set_orbital_state(v5._orb[0],v5._orb[1]);
+                        frdata(it_eph-oindex.t_start,&v5._rot);
                         barycen &b=ephc.blist[tids[i]];
                         b.r=v5._orb[0];
                         b.v=v5._orb[1];

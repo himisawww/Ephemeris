@@ -60,7 +60,7 @@ public:
     void extract(std::vector<MFILE> &ephm_files,bool force);
 
     //convert zips to old data pack
-    static int convert_format(const char *path);
+    static int convert_format(const char *path,int_t fix_interval=0);
 };
 
 class ephemeris_generator{
