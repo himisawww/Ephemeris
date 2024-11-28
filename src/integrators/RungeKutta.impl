@@ -182,6 +182,7 @@ RUNGE_KUTTA{
             
                 if(k==25){
                     xi.s+=xi.Egrad.rotation_matrix(xi.Erot)%fast_mpmat(xi.s);
+                    xi.orthogonalize();
                 }
                 //update
                 xi.GM=xi.GM0+xi.dGM*t;

@@ -124,6 +124,11 @@ public:
     fast_real min_distance;
     fast_real max_influence;
 
+    INLINE void orthogonalize(){
+        fast_mpmat fmis(s);
+        s+=0.5*fmis%(1-fmis.transpose()%fmis);
+    }
+
     //calculate deformation matrix(C_potential) and inertia matrix(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform_by(const std::vector<mass> &mlist);

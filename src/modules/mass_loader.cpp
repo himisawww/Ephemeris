@@ -394,6 +394,7 @@ bool msystem::load(
         m.s.x=x;
         m.s.z=z;
         m.s.y=z*x;
+        m.orthogonalize();
         m.r=r;
         m.v=v;
         m.w=w;
