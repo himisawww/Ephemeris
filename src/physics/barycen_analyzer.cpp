@@ -131,7 +131,9 @@ real msystem::analyse(bool reconstruct){
                 barycen &p=bl[bi.pid];
                 if(p.hid==i||p.gid==i){//is one of binary
                     fast_real r1=dl[bi.pid].minr,r2=r1*r1;
-                    if(r1<dl[p.hid].minr||r1<dl[p.gid].minr){//too close to be a companion of binary
+                    fast_real rmax=std::max(dl[p.hid].minr,dl[p.gid].minr);
+                    if(old_bn)rmax*=std::cbrt(.5);//make existing stucture more stable.
+                    if(r1<rmax){//too close to be a companion of binary
                         bi.pid=-1;
                         di.maxinfl=0;
                     }
@@ -143,7 +145,9 @@ real msystem::analyse(bool reconstruct){
                 else{
                     fast_mpvec r=bi.r_sys-p.r;
                     fast_real r2=r%r,r1=sqrt(r2);
-                    if(r1<dl[bi.pid].minr||r1<dl[i].minr){//too close to be a child of binary
+                    fast_real rmax=std::max(dl[bi.pid].minr,dl[i].minr);
+                    if(old_bn)rmax*=std::cbrt(.5);//make existing stucture more stable.
+                    if(r1<rmax){//too close to be a child of binary
                         bi.pid=-1;
                         di.maxinfl=0;
                     }
