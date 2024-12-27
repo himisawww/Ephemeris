@@ -440,7 +440,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         }
     }
     if(compressed_results.empty()){
-        LogWarning("compress_orbital_data::no available method.\n");
+        //LogWarning("compress_orbital_data::no available method.\n");
         return 0;
     }
 
@@ -558,7 +558,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         if(compressed_results.back().size()<=sizeof(header_t<QUATERNION>))compressed_results.pop_back();
     }
     if(compressed_results.empty()){
-        LogWarning("compress_rotational_data::no available method.\n");
+        //LogWarning("compress_rotational_data::no available method.\n");
         return 0;
     }
 

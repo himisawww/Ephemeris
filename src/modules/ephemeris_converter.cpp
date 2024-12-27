@@ -495,7 +495,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                         fprintf(mf_readme,"%12lld%s : %18s(FAILED)\n",
                             index.fid,k==0?Configs::SaveOrbitalDataExtension:Configs::SaveRotationalDataExtension,
                             format_name(ephemeris_format::NONE));
-                        LogError("Error: Failed to compress ephemeris file %s\n",index.entry_name(k==1,false).c_str());
+                        LogError("Error: Failed to compress ephemeris file <%s>\n",index.entry_name(k==1,false).c_str());
                     }
                     else{
                         bool use_substep=w.clevels[k]<0;
