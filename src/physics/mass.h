@@ -119,6 +119,10 @@ public:
     fast_real Erot;
     fast_mpvec Egrad;
     fast_mpvec idaccel,idtorque;
+    fast_mpvec jdaccel,jdtorque;
+    int_t task_index,task_count;
+    void *pmlist;
+
     //used by msystem::integrate to test if a collision occurred and whether time step is appropriate
     // and by msystem::combined_integrate to test if a capture occurred
     fast_real min_distance;

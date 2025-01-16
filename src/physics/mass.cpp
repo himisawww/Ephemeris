@@ -3,6 +3,7 @@
 #include"physics/ring.h"
 #include"physics/mass.impl"
 #include"utils/logger.h"
+#include"utils/threadpool.h"
 
 void mass::scale(fast_real factor){
 
@@ -77,12 +78,182 @@ void msystem::deform(){
         mi.deform_by(mlist);
     }
 }
+
+static void accel_deform(void *param,size_t){
+    using Constants::c;
+    using Constants::c2;
+
+    mass &mi=*(mass*)param;
+    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    int_t i_start=&mi-mlist.data();
+    int_t i_end=mi.task_index;
+    for(int_t i=i_start;i<i_end;++i){
+        mass &mi=mlist[i];
+
+        int_t max_iter=MAX_ANGULAR_VELOCITY_ITER;
+        do{
+            mi.deform_by(mlist);
+            bool should_break;
+            UPDATE_ANGULAR_VELOCITY;
+            if(should_break)break;
+        } while(--max_iter);
+
+        PREPARE_RELATIVITY;
+
+        mi.daccel=mi.dtorque=mi.gaccel=0;
+    }
+}
+static void accel_mainforce(void *param,size_t){
+    using Constants::c;
+
+    mass &mi=*(mass*)param;
+    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    int_t mn=mlist.size();
+    int_t i_start=&mi-mlist.data();
+    int_t i_end=mi.task_index;
+    for(int_t i=i_start;i<i_end;++i){
+        mass &mi=mlist[i];
+
+        for(int_t j=0;j<mn;++j)if(i!=j){
+            mass &mj=mlist[j];
+            RELATIVITY(mi);
+            checked_maximize(mi.min_distance,rr);
+            checked_maximize(mi.max_influence,tp_dg);
+            ROTATIONAL_TIDAL_DEFORMATION_NANTI_FORCE(mi);
+            LENSE_THIRRING(mi);
+            RADIATION_PRESSURE(mi);
+        }
+    }
+}
+static void accel_geopotential(void *param,size_t){
+    mass &mi=*(mass*)param;
+    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    int_t mn=mlist.size();
+    int_t i=&mi-mlist.data();
+    int_t k=mi.task_index;
+    if(k>=mi.task_count)k-=mi.task_count;
+    int_t j_start=k*mn/mi.task_count;
+    int_t j_end=(k+1)*mn/mi.task_count;
+    struct{
+        fast_mpvec daccel,dtorque;
+    } tpmi;
+    tpmi.daccel=tpmi.dtorque=0;
+    for(int_t j=j_start;j<j_end;++j)if(i!=j){
+        mass &mj=mlist[j];
+        fast_mpvec r=mj.r-mi.r;
+
+        fast_mpmat fmis(mi.s);
+        fast_mpvec lr=fmis.tolocal(r);
+        fast_mpvec an=fmis.toworld(mi.gpmodel->sum(mi.R,lr));
+        APPLY_NONPOINT_FORCE(tpmi);
+    }
+    mi.idaccel+=tpmi.daccel;
+    mi.idtorque+=tpmi.dtorque;
+}
+static void accel_ringmodel(void *param,size_t){
+    mass &mi=*(mass*)param;
+    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    int_t mn=mlist.size();
+    int_t i=&mi-mlist.data();
+    int_t k=mi.task_index+(mi.gpmodel?1:0);
+    if(k>=mi.task_count)k-=mi.task_count;
+    int_t j_start=k*mn/mi.task_count;
+    int_t j_end=(k+1)*mn/mi.task_count;
+    struct{
+        fast_mpvec daccel,dtorque;
+    } tpmi;
+    tpmi.daccel=tpmi.dtorque=0;
+    for(int_t j=j_start;j<j_end;++j)if(i!=j){
+        mass &mj=mlist[j];
+        fast_mpvec r=mj.r-mi.r;
+
+        fast_mpvec migl=mi.GL;
+        fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
+        fast_mpvec lr=fgls.tolocal(r);
+        fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
+        APPLY_NONPOINT_FORCE(tpmi);
+    }
+    mi.jdaccel+=tpmi.daccel;
+    mi.jdtorque+=tpmi.dtorque;
+}
+
 void msystem::accel(){
     int_t mn=mlist.size();
 
     using Constants::c;
     using Constants::c2;
 
+    constexpr int_t n_tasksize=48*48;
+    size_t n_task=std::min(mn,(mn*mn+(n_tasksize-1))/n_tasksize);
+  auto *pthreadpool=n_task>1?ThreadPool::get_thread_pool():nullptr;
+  if(pthreadpool){
+    ThreadPool::TaskGroup g;
+    for(int_t i_task=0;i_task<n_task;++i_task){
+        int_t i_start=i_task*mn/n_task;
+        int_t i_end=(i_task+1)*mn/n_task;
+        mass &mi=mlist[i_start];
+        mi.pmlist=&mlist;
+        mi.task_index=i_end;
+        pthreadpool->add_task(accel_deform,&mi,&g);
+    }
+    pthreadpool->wait_for_all(&g);
+
+    for(int_t i_task=0;i_task<n_task;++i_task){
+        int_t i_start=i_task*mn/n_task;
+        int_t i_end=(i_task+1)*mn/n_task;
+        mass &mi=mlist[i_start];
+        mi.pmlist=&mlist;
+        mi.task_index=i_end;
+        pthreadpool->add_task(accel_mainforce,&mi,&g);
+    }
+    pthreadpool->wait_for_all(&g);
+
+    int_t n_nonpoint=0;
+    for(int_t i=0;i<mn;++i){
+        mass &mi=mlist[i];
+        if(mi.gpmodel){
+            ++n_nonpoint;
+            mi.idaccel=mi.idtorque=0;
+        }
+        if(mi.ringmodel){
+            ++n_nonpoint;
+            mi.jdaccel=mi.jdtorque=0;
+        }
+    }
+
+    for(int_t k=0;k<n_nonpoint;++k){
+        int_t j=0;
+        for(int_t i=0;i<mn;++i){
+            mass &mi=mlist[i];
+            if(!mi.gpmodel&&!mi.ringmodel)continue;
+            mi.pmlist=&mlist;
+            mi.task_index=j+k;
+            mi.task_count=n_nonpoint;
+            if(mi.gpmodel)
+            {
+                ++j;
+                pthreadpool->add_task(accel_geopotential,&mi,&g);
+            }
+            if(mi.ringmodel)
+            {
+                ++j;
+                pthreadpool->add_task(accel_ringmodel,&mi,&g);
+            }
+        }
+        pthreadpool->wait_for_all(&g);
+    }
+    if(n_nonpoint)for(auto &mi:mlist){
+        if(mi.gpmodel){
+            mi.daccel+=mi.idaccel;
+            mi.dtorque+=mi.idtorque;
+        }
+        if(mi.ringmodel){
+            mi.daccel+=mi.jdaccel;
+            mi.dtorque+=mi.jdtorque;
+        }
+    }
+  }
+  else{
     //prepare
     for(int_t i=0;i<mn;++i){
         mass &mi=mlist[i];
@@ -147,6 +318,7 @@ void msystem::accel(){
             }
         }
     }
+  }
 
     //tidal matrix correction
     //Not implemented in GPU version
