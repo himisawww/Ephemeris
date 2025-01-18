@@ -65,6 +65,11 @@ int test_integrator(){
     mcpu.integrate(TEST_DELTA_T,1,0);
     double sgpu=CalcTime();
     scpu=sgpu-scpu;
+    struct thread_pool_guard{
+        thread_pool_guard(){ ThreadPool::thread_local_pool_alloc(); }
+        ~thread_pool_guard(){ ThreadPool::thread_local_pool_free(); }
+    } _;
+    sgpu=CalcTime();
     mgpu.integrate(TEST_DELTA_T,1,1);
     sgpu=CalcTime()-sgpu;
 
