@@ -4,7 +4,7 @@
 
 static double max_relative_error=0;
 // max allowed relative error
-#define TEST_EPSILON 1e-13
+#define TEST_EPSILON 1e-14
 #define TEST_N 71
 
 double test_rv_reproduce(const vec &r,const vec &v){

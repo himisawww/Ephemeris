@@ -47,7 +47,8 @@ double dkep(double x){
 }
 
 ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
-    j=r*v;
+    //precision of j is crutial for further calculation...
+    j=vec(mpvec(r)*mpvec(v));
     double rr=r%r,r0=sqrt(rr);
     //adjust j-direction if j not perpendicular to r due to numerical errors
     j-=(j%r/rr)*r;
