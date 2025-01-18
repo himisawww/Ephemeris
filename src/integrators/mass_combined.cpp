@@ -409,8 +409,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
 
         t_eph=Sc.t_eph;
         update((fast_real)t_eph);
-        if(USE_GPU)Cuda_accel();
-        else accel();
+        accel(USE_GPU);
     }
 }
 

@@ -120,8 +120,8 @@ public:
     fast_mpvec Egrad;
     fast_mpvec idaccel,idtorque;
     fast_mpvec jdaccel,jdtorque;
-    int_t task_index,task_count;
-    void *pmlist;
+    int_t task_index,task_jndex,task_count;
+    void *pmlist,*qmlist;
 
     //used by msystem::integrate to test if a collision occurred and whether time step is appropriate
     // and by msystem::combined_integrate to test if a capture occurred
@@ -242,6 +242,8 @@ private:
     void RungeKutta12(fast_real dt,int_t n_step);
     //Runge-Kutta-12 integrator
     void Cuda_RungeKutta12(fast_real dt,int_t n_step);
+    //same as accel, use GPU
+    void Cuda_accel();
     //update time-variables of mass list to epoch t
     void update(fast_real t);
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
@@ -252,9 +254,11 @@ private:
 
 public:
     //calculate acceleration and solve for angular velocity
-    void accel();
-    //same as accel, use GPU
-    void Cuda_accel();
+    //parallel_option:
+    //-1: CPU single thread;
+    // 0: CPU threadpool when available
+    // 1: GPU
+    void accel(int parallel_option=0);
     //reset all the parameters calculated by accel() to a initial state
     void clear_accel();
 

@@ -3,6 +3,8 @@
 #include"utils/logger.h"
 #include"utils/calctime.h"
 #include"utils/threadpool.h"
+#include"utils/memio.h"
+#include"utils/crc32.h"
 
 #define TEST_DELTA_T        300
 #define TEST_COMBINED_T     28800
@@ -42,6 +44,12 @@ static fast_real msystem_compare(const msystem_err_t &ref_err,const msystem &ms1
     return ret;
 }
 
+static uint32_t msystem_crc32(const msystem &ms,uint32_t crc32val){
+    MFILE fchpt;
+    ms.save_checkpoint(&fchpt);
+    return crc32(fchpt.data(),fchpt.size(),crc32val);
+}
+
 int test_integrator(){
     msystem mcombine=get_test_msystem();
     const size_t n_mass=mcombine.size();
@@ -51,7 +59,7 @@ int test_integrator(){
     mcpu.accel();
     msystem mgpu=mcombine;
     mgpu.clear_accel();
-    mgpu.Cuda_accel();
+    mgpu.accel(1);
 
     double scpu=CalcTime();
     mcpu.integrate(TEST_DELTA_T,1,0);
@@ -87,7 +95,7 @@ int test_integrator(){
 
     std::thread thhalf([&](){
         ThreadPool::thread_local_pool_alloc();
-        mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T);
+        mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T,0);
         ThreadPool::thread_local_pool_free();
         });
 
@@ -103,8 +111,13 @@ int test_integrator(){
         return 3;
     }
 
+    uint32_t mcrc;
+    mcrc=msystem_crc32(mcpu,0);
+    mcrc=msystem_crc32(mgpu,mcrc);
+    mcrc=msystem_crc32(mcombine,mcrc);
+    mcrc=msystem_crc32(mhalfdt,mcrc);
     sgpu=scpu/sgpu;
     scombined=sgpu2/scombined;
-    LogInfo("\n      Passed(%f)[%.2f * %.2f = %.2f], ",max_err,sgpu,scombined,sgpu*scombined);
+    LogInfo("\n      Passed(%f)[%.2f * %.2f = %.2f] @ %08x, ",max_err,sgpu,scombined,sgpu*scombined,mcrc);
     return 0;
 }

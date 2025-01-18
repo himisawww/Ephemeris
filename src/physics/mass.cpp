@@ -125,68 +125,79 @@ static void accel_mainforce(void *param,size_t){
         }
     }
 }
-static void accel_geopotential(void *param,size_t){
-    mass &mi=*(mass*)param;
-    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+static void accel_nonpoint(void *param,size_t){
+    auto end_task=*(uintptr_t*)param;
+    do{
+        if(end_task&1)break;
+        end_task=*(uintptr_t*)end_task;
+    } while(1);
+    auto &mlist=*(std::vector<mass>*)(end_task-1);
     int_t mn=mlist.size();
-    int_t i=&mi-mlist.data();
-    int_t k=mi.task_index;
-    if(k>=mi.task_count)k-=mi.task_count;
-    int_t j_start=k*mn/mi.task_count;
-    int_t j_end=(k+1)*mn/mi.task_count;
-    struct{
-        fast_mpvec daccel,dtorque;
-    } tpmi;
-    tpmi.daccel=tpmi.dtorque=0;
-    for(int_t j=j_start;j<j_end;++j)if(i!=j){
-        mass &mj=mlist[j];
-        fast_mpvec r=mj.r-mi.r;
+    int_t i=((char*)param-(char*)mlist.data())/sizeof(mass);
+    mass &minit=mlist[i];
+    bool is_geopotential=param==&minit.pmlist;
+    int_t k=is_geopotential?minit.task_index:minit.task_jndex;
+    int_t n_task=minit.task_count;
+    if(k>=n_task)k-=n_task;
+    int_t j_start=k*mn/n_task;
+    int_t j_end=(k+1)*mn/n_task;
+    void *next_task;
+    do{
+        mass &mi=mlist[i];
+        struct{
+            fast_mpvec daccel,dtorque;
+        } tpmi;
+        tpmi.daccel=tpmi.dtorque=0;
+        if(is_geopotential){
+            for(int_t j=j_start;j<j_end;++j)if(i!=j){
+                mass &mj=mlist[j];
+                fast_mpvec r=mj.r-mi.r;
 
-        fast_mpmat fmis(mi.s);
-        fast_mpvec lr=fmis.tolocal(r);
-        fast_mpvec an=fmis.toworld(mi.gpmodel->sum(mi.R,lr));
-        APPLY_NONPOINT_FORCE(tpmi);
-    }
-    mi.idaccel+=tpmi.daccel;
-    mi.idtorque+=tpmi.dtorque;
+                fast_mpmat fmis(mi.s);
+                fast_mpvec lr=fmis.tolocal(r);
+                fast_mpvec an=fmis.toworld(mi.gpmodel->sum(mi.R,lr));
+                APPLY_NONPOINT_FORCE(tpmi);
+            }
+            mi.idaccel+=tpmi.daccel;
+            mi.idtorque+=tpmi.dtorque;
+            next_task=mi.pmlist;
+        }
+        else{
+            for(int_t j=j_start;j<j_end;++j)if(i!=j){
+                mass &mj=mlist[j];
+                fast_mpvec r=mj.r-mi.r;
+
+                fast_mpvec migl=mi.GL;
+                fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
+                fast_mpvec lr=fgls.tolocal(r);
+                fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
+                APPLY_NONPOINT_FORCE(tpmi);
+            }
+            mi.jdaccel+=tpmi.daccel;
+            mi.jdtorque+=tpmi.dtorque;
+            next_task=mi.qmlist;
+        }
+        if(uintptr_t(next_task)==end_task)break;
+        i=((char*)next_task-(char*)mlist.data())/sizeof(mass);
+        is_geopotential=next_task==&mlist[i].pmlist;
+    } while(1);
 }
-static void accel_ringmodel(void *param,size_t){
-    mass &mi=*(mass*)param;
-    auto &mlist=*(std::vector<mass>*)mi.pmlist;
-    int_t mn=mlist.size();
-    int_t i=&mi-mlist.data();
-    int_t k=mi.task_index+(mi.gpmodel?1:0);
-    if(k>=mi.task_count)k-=mi.task_count;
-    int_t j_start=k*mn/mi.task_count;
-    int_t j_end=(k+1)*mn/mi.task_count;
-    struct{
-        fast_mpvec daccel,dtorque;
-    } tpmi;
-    tpmi.daccel=tpmi.dtorque=0;
-    for(int_t j=j_start;j<j_end;++j)if(i!=j){
-        mass &mj=mlist[j];
-        fast_mpvec r=mj.r-mi.r;
 
-        fast_mpvec migl=mi.GL;
-        fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
-        fast_mpvec lr=fgls.tolocal(r);
-        fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
-        APPLY_NONPOINT_FORCE(tpmi);
+void msystem::accel(int parallel_option){
+    int_t mn=mlist.size();
+    if(parallel_option>0){
+        Cuda_accel();
+        return;
     }
-    mi.jdaccel+=tpmi.daccel;
-    mi.jdtorque+=tpmi.dtorque;
-}
-
-void msystem::accel(){
-    int_t mn=mlist.size();
 
     using Constants::c;
     using Constants::c2;
 
     constexpr int_t n_tasksize=48*48;
-    size_t n_task=std::min(mn,(mn*mn+(n_tasksize-1))/n_tasksize);
-  auto *pthreadpool=n_task>1?ThreadPool::get_thread_pool():nullptr;
-  if(pthreadpool){
+    int_t n_task=parallel_option|std::min(mn,(mn*mn+(n_tasksize-1))/n_tasksize);
+    ThreadPool *pthreadpool;
+  if(n_task>1&&(pthreadpool=ThreadPool::get_thread_pool())
+  &&(n_task=std::min(n_task,(int_t)pthreadpool->size()))>1){
     ThreadPool::TaskGroup g;
     for(int_t i_task=0;i_task<n_task;++i_task){
         int_t i_start=i_task*mn/n_task;
@@ -221,23 +232,34 @@ void msystem::accel(){
         }
     }
 
-    for(int_t k=0;k<n_nonpoint;++k){
-        int_t j=0;
-        for(int_t i=0;i<mn;++i){
+    n_task=std::min(n_nonpoint,n_task);
+    void *const null_task=(char*)&mlist+1;
+    void *next_task=null_task;
+    for(int_t k=0;k<n_task;++k){
+        int_t j=0,j_start=0;
+        for(int_t i=mn;i>0;){--i;
             mass &mi=mlist[i];
             if(!mi.gpmodel&&!mi.ringmodel)continue;
-            mi.pmlist=&mlist;
-            mi.task_index=j+k;
-            mi.task_count=n_nonpoint;
-            if(mi.gpmodel)
-            {
-                ++j;
-                pthreadpool->add_task(accel_geopotential,&mi,&g);
+            mi.task_count=n_task;
+            if(mi.gpmodel){
+                mi.pmlist=next_task;
+                next_task=&mi.pmlist;
+                if(++j==(j_start+1)*n_nonpoint/n_task){
+                    mi.task_index=j_start+k;
+                    pthreadpool->add_task(accel_nonpoint,next_task,&g);
+                    ++j_start;
+                    next_task=null_task;
+                }
             }
-            if(mi.ringmodel)
-            {
-                ++j;
-                pthreadpool->add_task(accel_ringmodel,&mi,&g);
+            if(mi.ringmodel){
+                mi.qmlist=next_task;
+                next_task=&mi.qmlist;
+                if(++j==(j_start+1)*n_nonpoint/n_task){
+                    mi.task_jndex=j_start+k;
+                    pthreadpool->add_task(accel_nonpoint,next_task,&g);
+                    ++j_start;
+                    next_task=null_task;
+                }
             }
         }
         pthreadpool->wait_for_all(&g);
