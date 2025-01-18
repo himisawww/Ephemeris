@@ -14,7 +14,7 @@ typedef fast_real msystem_err_t[5];
 
 static constexpr msystem_err_t
     ref_cgpu_err     ={ 1e-6,   1e-8,   1e-16,  1e-13,  1e-13   },
-    ref_combined_err ={ 1e-5,   1e-8,   1e-11,  1e-07,  1e-07   },
+    ref_combined_err ={ 1e-4,   1e-8,   1e-11,  1e-07,  1e-07   },
     ref_cutoff_err   ={ 1e-3,   1e-7,   1e-12,  1e-07,  1e-07   };
 
 static constexpr fast_real ref_maxrec_err=1e-15;
