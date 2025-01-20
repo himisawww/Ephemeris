@@ -32,7 +32,9 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.8.props" />
+  </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -178,10 +180,15 @@
     <Text Include="initials\SolarSystem\SolarSystem_Initial.txt" />
   </ItemGroup>
   <ItemGroup>
+    <CudaCompile Include="src\integrators\RungeKutta.cu" />
+  </ItemGroup>
+  <ItemGroup>
     <ResourceCompile Include="Ephemeris.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.8.targets" />
+  </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
       <UserProperties />
