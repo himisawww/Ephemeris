@@ -55,6 +55,10 @@ int test_integrator(){
     const size_t n_mass=mcombine.size();
     msystem mhalfdt=mcombine;
     msystem mcpu=mcombine;
+    struct thread_pool_guard{
+        thread_pool_guard(){ ThreadPool::thread_local_pool_alloc(); }
+        ~thread_pool_guard(){ ThreadPool::thread_local_pool_free(); }
+    } _;
     mcpu.clear_accel();
     mcpu.accel();
     msystem mgpu=mcombine;
