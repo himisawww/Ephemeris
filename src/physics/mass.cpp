@@ -193,11 +193,12 @@ void msystem::accel(int parallel_option){
     using Constants::c;
     using Constants::c2;
 
+    constexpr int_t n_tasklimit=64;
     constexpr int_t n_tasksize=48*48;
     int_t n_task=parallel_option|std::min(mn,(mn*mn+(n_tasksize-1))/n_tasksize);
     ThreadPool *pthreadpool;
-  if(n_task>1&&(pthreadpool=ThreadPool::get_thread_pool())
-  &&(n_task=std::min(n_task,(int_t)pthreadpool->size()))>1){
+  if(n_task>1&&(pthreadpool=ThreadPool::get_thread_pool())){
+    n_task=std::min(n_task,n_tasklimit);
     ThreadPool::TaskGroup g;
     for(int_t i_task=0;i_task<n_task;++i_task){
         int_t i_start=i_task*mn/n_task;
