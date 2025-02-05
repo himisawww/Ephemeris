@@ -117,6 +117,18 @@ int test_geopotential(){
 				checked_maximize(max_norm,gtest.norm());
 				checked_maximize(max_diff,(gtest-gref).norm());
 			}
+			for(int_t iz=-1;iz<=1;iz+=2)for(int_t iphi=0;iphi<=2*TEST_N;++iphi){
+				fast_real xynorm=std::sqrt(DBL_MIN)*(3*ir+5)/(2*ir+4);
+				fast_real xyphi=iphi*pi/TEST_N;
+				fast_mpvec r(xynorm*cos(xyphi),xynorm*sin(xyphi),iz*rn);
+				fast_mpvec grz=gp->sum(REFERENCE_RADIUS,vec(0,0,r.z));
+				do{
+					fast_mpvec gsubr=gp->sum(REFERENCE_RADIUS,r);
+					checked_maximize(max_diff,(gsubr-grz).norm());
+					r.x/=2;
+					r.y/=2;
+				} while(r.x*r.x||r.y*r.y);
+			}
 			checked_maximize(max_rerr,max_diff/max_norm);
 		}
 		geopotential::unload(gp);

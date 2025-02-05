@@ -33,7 +33,7 @@ FUNCTION fast_mpvec geopotential::SUM_FUNCTION(fast_real R,fast_mpvec r) const{
     fast_real cphi=rho1*rr1;
     fast_real sphi=r.z*rr1;
     fast_real cm,sm;
-    if(rho1==0){
+    if(rho2<DBL_MIN){
         cm=1;
         sm=0;
     }
