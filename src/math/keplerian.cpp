@@ -6,16 +6,10 @@ using Constants::epsilon;
 //12(2^-53)^(1/4)
 constexpr double parabolic_threshold=0x.5p-8;
 
-double kep(double x){
+double keplerian::kep(double x){
     double s=x+1;
     double t=x-1;
-
-    if(abs(t)>0.5){
-        double f=1/(s*t);
-        f-=(t>0?acosh(x)*(f*sqrt(f)):acos(x)*(f*sqrt(-f)));
-        return f;
-    }
-
+    if(abs(t)<0.5){
 #define SUM_SERIES             \
     int i=1;                   \
     double df=t/35;            \
@@ -24,26 +18,30 @@ double kep(double x){
         ++i;                   \
         df*=-t*i/(2*i+5);      \
         f+=df;                 \
-    } while(abs(df)>=2e-16)
-    SUM_SERIES;
-
-    return (4.0/3+t*f)/(s*s*s);
+    } while(abs(df)>=epsilon)
+        SUM_SERIES;
+        return (4.0/3+t*f)/(s*s*s);
+    }
+    if(x<128/epsilon){
+        double f=1/(s*t);
+        return f*(1-(t>0?acosh(x)*sqrt(f):acos(x)*sqrt(-f)));
+    }
+    return 1/x/x;
 }
-double dkep(double x){
+double keplerian::dkep(double x){
     double s=x+1;
     double t=x-1;
-
-    if(abs(t)>0.5){
-        double f=1/(s*t);
-        f=f/s-3*x*f*f*(1-(t>0?acosh(x)*sqrt(f):acos(x)*sqrt(-f)));
-        return f;
-    }
-
-    SUM_SERIES;
+    if(abs(t)<0.5){
+        SUM_SERIES;
 #undef SUM_SERIES
-    
-    s*=s;
-    return (t-3*x*f)/(s*s);
+        s*=s;
+        return (t-3*x*f)/(s*s);
+    }
+    if(x<128/epsilon){
+        double f=1/(s*t);
+        return f/s-3*x*f*f*(1-(t>0?acosh(x)*sqrt(f):acos(x)*sqrt(-f)));
+    }
+    return -2/x/(x*x);
 }
 
 keplerian::keplerian(const vec &r,const vec &v){

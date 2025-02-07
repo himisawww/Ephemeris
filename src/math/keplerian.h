@@ -27,5 +27,10 @@ public:
     //note v = velocity / sqrt(GM)
     //     t = (time - t_epoch) * sqrt(GM)
     void rv(double t,vec &r,vec &v) const;
+
+    //kep(x)
+    static double kep(double);
+    //dkep(x)/dx
+    static double dkep(double);
 };
 
