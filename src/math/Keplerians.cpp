@@ -46,7 +46,7 @@ double dkep(double x){
     return (t-3*x*f)/(s*s);
 }
 
-ephem_orb::ephem_orb(double t,const vec &r,const vec &v):t(t){
+ephem_orb::ephem_orb(const vec &r,const vec &v){
     //precision of j is crutial for further calculation...
     j=vec(mpvec(r)*mpvec(v));
     double rr=r%r,r0=sqrt(rr);
@@ -101,7 +101,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
     vec jx=j.asc_node(),jy=j*jx*srjj;
 
     //current modified mean anomaly
-    double mp=m+(t-this->t)*srjj*rjj;
+    double mp=m+t*srjj*rjj;
     
     //restore e and q=e^2-1 from modified q-parameter
     double e0=q;
@@ -207,7 +207,7 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
     v=jx*(vx*ce-vy*se)+jy*(vx*se+vy*ce);
 }
 
-ephem_rot::ephem_rot(double t,const mat &s,const vec &_w):t(t),w(_w){
+ephem_rot::ephem_rot(const mat &s,const vec &_w):w(_w){
     double ww=w%w;
     if(ww==0){
         //if ww==0, use finite-pseudo-w to avoid singularity
@@ -241,7 +241,7 @@ void ephem_rot::sw(double t,mat &s,vec &w) const{
     s.roty(-ptheta).rotz(-pphi);
 
     //current rotation angle
-    double theta=angle+(t-this->t)*sww;
+    double theta=angle+t*sww;
 
     double cth=cos(theta),sth=sin(theta);
     s.x+=(s.x-wz%s.x*wz)*(cth-1)+wz*s.x*sth;

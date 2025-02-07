@@ -6,7 +6,7 @@
 class ephem_orb{
 public:
     //t = (time relative to epoch) * sqrt(GM)
-    double t;
+    //double t;
     //j = (angular momentum per mass) / sqrt(GM)
     vec j;
     //q = e-1 , defined to reduce numeric error at e~0 and e~1
@@ -21,7 +21,7 @@ public:
     //convert r and v to orbital parameters
     //note v = velocity / sqrt(GM)
     //     t = (time - t_epoch) * sqrt(GM)
-    ephem_orb(double t,const vec &r,const vec &v);
+    ephem_orb(const vec &r,const vec &v);
 
     //convert orbital parameters to r and v
     //note v = velocity / sqrt(GM)
@@ -32,7 +32,7 @@ public:
 class ephem_rot{
 public:
     //t = time relative to epoch
-    double t;
+    //double t;
     //rotational angular velocity
     vec w;
     //polar wandering in surface-frame
@@ -42,7 +42,7 @@ public:
 
     ephem_rot()=default;
     //convert surface-frame and w to rotational parameters
-    ephem_rot(double t,const mat &s,const vec &w);
+    ephem_rot(const mat &s,const vec &w);
 
     //convert rotational parameters to surface-frame and w
     void sw(double t,mat &s,vec &w) const;

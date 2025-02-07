@@ -73,9 +73,10 @@ int main_fun(int argc,const char **argv){
         "   exe_name  .\\SolarSystem\\SolarSystem_Config.txt  .\\results\\dat  20\n\n"
         "   // resume previous run, integrate 20 years backward (1960~1980):\n"
         "   exe_name  .\\results\\dat  -20\n\n"
-        "press Enter to exit..."
+        "press Enter to exit, or input [t/T] to run tests:"
     );
-    getchar();
+    if(int i=getchar();i=='t'||i=='T')
+        return test_all();
     return 0;
 }
 

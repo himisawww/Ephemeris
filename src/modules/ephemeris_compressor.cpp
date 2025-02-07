@@ -20,7 +20,8 @@ kep_t::keplerian(const ephem_orb &other):ephem_orb(other){
     }
 }
 kep_t::keplerian(const double *p,bool circular){
-    t=1;
+    double &w=circular?q:ml;
+    w=1;
     j.x=p[0];
     j.y=p[1];
     j.z=p[2];
@@ -53,7 +54,8 @@ bool kep_t::interpolatable(bool circular,const kep_t &k1,const kep_t &k2){
 }
 
 void kep_t::blend_initialize(bool circular){
-    t=0;//w
+    double &w=circular?q:ml;
+    w=0;
     j=0;
     if(circular){
         ex=0;
@@ -69,7 +71,7 @@ void kep_t::blend_initialize(bool circular){
     }
 }
 void kep_t::blend_add(bool circular,const keplerian &ki,double ws){
-    double &w=t;
+    double &w=circular?q:ml;
     if(circular){
         double &last_ml=earg;
         w+=ws;
@@ -94,7 +96,7 @@ void kep_t::blend_add(bool circular,const keplerian &ki,double ws){
     }
 }
 void kep_t::blend_finalize(bool circular){
-    double &w=t;
+    double &w=circular?q:ml;
     w=1/w;
     j*=w;
     if(circular){
@@ -123,11 +125,9 @@ void kep_t::blend_finalize(bool circular){
             ml=el+m*s;
         }
     }
-    w=0;
 }
 
 ephemeris_compressor::axial::axial(const double *a){
-    t=0;
     w.x=a[0];
     w.y=a[1];
     w.z=a[2];
@@ -264,7 +264,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     if(GM>=Constants::G){
         ostates.reserve(N);
         for(int_t i=0;i<N;++i)
-            ostates.emplace_back(ephem_orb(0,pdata[i].r,pdata[i].v*vfac));
+            ostates.emplace_back(ephem_orb(pdata[i].r,pdata[i].v*vfac));
     }
     bool can_kepler=!ostates.empty();
 
@@ -380,6 +380,17 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         max_errs.serr:filtered_min(max_errs.serr,min_kep_err*(1<<d));
     double use_kepler=min_kep_err<epsilon_relative_error?
         min_kep_err:filtered_min(max_errs.serr,min_kep_err);
+#if 0//force keplerian for test
+    if(max_errs.krerr==max_errs.krerr){
+        max_errs.krerr=use_kepler;
+        max_errs.kcerr=NAN;
+        max_errs.serr=NAN;
+    }
+    else if(max_errs.kcerr==max_errs.kcerr){
+        max_errs.kcerr=use_kepler;
+        max_errs.serr=NAN;
+    }
+#endif
     std::vector<MFILE> compressed_results;
     if(max_errs.serr==use_state){
         //{x,y,z}=vec[1]
@@ -481,7 +492,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         for(int_t i=0;i<N;++i){
             mat s=mat(pdata[i].x,0,pdata[i].z);
             mat saxis(s.toworld(local_axis.x),s.toworld(local_axis.y),s.toworld(local_axis.z));
-            ephem_rot ri(0,saxis,pdata[i].w);
+            ephem_rot ri(saxis,pdata[i].w);
             double py=std::sin(ri.ptheta);
             double pz=std::cos(ri.ptheta);
             py*=std::sin(ri.pphi);

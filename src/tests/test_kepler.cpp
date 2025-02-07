@@ -9,7 +9,7 @@ static double max_relative_error=0;
 
 double test_rv_reproduce(const vec &r,const vec &v){
     vec nr,nv;
-    ephem_orb k(0,r,v);
+    ephem_orb k(r,v);
     k.rv(0,nr,nv);
     double rn=r.norm();
     double vref=checked_max(1/std::sqrt(rn),v.norm());
