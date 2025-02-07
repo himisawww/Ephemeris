@@ -1,140 +1,10 @@
 #include"ephemeris_compressor.h"
 #include<map>
 #include"math/interp.h"
+#include"math/state_parameters.h"
 #include"utils/logger.h"
 
 #define HALF 0.5
-typedef ephemeris_compressor::keplerian kep_t;
-
-kep_t::keplerian(const ephem_orb &other):ephem_orb(other){
-    el=earg+j.asc_node().phi();
-    ex=(q+1)*std::cos(el);
-    ey=(q+1)*std::sin(el);
-    if(q>=0)
-        ml=NAN;
-    else{
-        double s=-q*(q+2);
-        s*=std::sqrt(s);
-        ml=el+m*s;
-        //ml=angle_reduce(ml);
-    }
-}
-kep_t::keplerian(const double *p,bool circular){
-    double &w=circular?q:ml;
-    w=1;
-    j.x=p[0];
-    j.y=p[1];
-    j.z=p[2];
-    if(circular){
-        ex=p[3];
-        ey=p[4];
-        ml=p[5];
-    }
-    else{
-        q=p[3];
-        el=p[4];
-        m=p[5];
-    }
-    blend_finalize(circular);
-}
-
-bool kep_t::interpolatable(bool circular,const kep_t &k1,const kep_t &k2){
-    if(circular){
-        double mq=checked_max(k1.q,k2.q);
-        if(!(mq<0))return false;
-        double rdq=std::abs(k1.q-k2.q)/mq;
-        if(!(rdq<1))return false;
-    }
-    else{
-        if(!(k2.m>k1.m))return false;
-        double del=angle_reduce(k2.el-k1.el);
-        if(!(del<1))return false;
-    }
-    return (k2.j-k1.j).normsqr()/checked_min(k1.j.normsqr(),k2.j.normsqr())<1;
-}
-
-void kep_t::blend_initialize(bool circular){
-    double &w=circular?q:ml;
-    w=0;
-    j=0;
-    if(circular){
-        ex=0;
-        ey=0;
-        ml=0;
-        earg=NAN;//last_ml;
-    }
-    else{
-        q=0;
-        el=0;
-        m=0;
-        earg=NAN;//last_el;
-    }
-}
-void kep_t::blend_add(bool circular,const keplerian &ki,double ws){
-    double &w=circular?q:ml;
-    if(circular){
-        double &last_ml=earg;
-        w+=ws;
-        j+=ws*ki.j;
-        ex+=ws*ki.ex;
-        ey+=ws*ki.ey;
-        double mli=ki.ml;
-        if(last_ml==last_ml)mli=last_ml+angle_reduce(mli-last_ml);
-        ml+=ws*mli;
-        last_ml=mli;
-    }
-    else{
-        double &last_el=earg;
-        w+=ws;
-        j+=ws*ki.j;
-        q+=ws*ki.q;
-        m+=ws*ki.m;
-        double eli=ki.el;
-        if(last_el==last_el)eli=last_el+angle_reduce(eli-last_el);
-        el+=ws*eli;
-        last_el=eli;
-    }
-}
-void kep_t::blend_finalize(bool circular){
-    double &w=circular?q:ml;
-    w=1/w;
-    j*=w;
-    if(circular){
-        ex*=w;
-        ey*=w;
-        ml*=w;
-        q=std::sqrt(ex*ex+ey*ey)-1;
-        el=std::atan2(ey,ex);
-        double s=-q*(q+2);
-        s*=std::sqrt(s);
-        m=(ml-el)/s;
-        earg=el-j.asc_node().phi();
-    }
-    else{
-        q*=w;
-        m*=w;
-        el*=w;
-        earg=el-j.asc_node().phi();
-        ex=(q+1)*std::cos(el);
-        ey=(q+1)*std::sin(el);
-        if(q>=0)
-            ml=NAN;
-        else{
-            double s=-q*(q+2);
-            s*=std::sqrt(s);
-            ml=el+m*s;
-        }
-    }
-}
-
-ephemeris_compressor::axial::axial(const double *a){
-    w.x=a[0];
-    w.y=a[1];
-    w.z=a[2];
-    pphi=std::asin(a[3]/std::sqrt(1-a[4]*a[4]));
-    ptheta=std::acos(a[4]);
-    angle=a[5];
-}
 
 double ephemeris_compressor::infer_GM_from_data(const orbital_state_t *pdata,int_t N){
     std::vector<double> angles(N);
@@ -206,21 +76,21 @@ double ephemeris_compressor::absolute_state_error(const vec *r,const vec *rp){
 };
 double ephemeris_compressor::circular_kepler_error(const double *k,const double *kp){
     vec r,rp,v;
-    kep_t(k,true).rv(0,r,v);
-    kep_t(kp,true).rv(0,rp,v);
+    orbital_param_t(k,true).rv(0,r,v);
+    orbital_param_t(kp,true).rv(0,rp,v);
     return std::sqrt((rp-r).normsqr()/r.normsqr());
 }
 double ephemeris_compressor::raw_kepler_error(const double *k,const double *kp){
     vec r,rp,v;
-    kep_t(k,false).rv(0,r,v);
-    kep_t(kp,false).rv(0,rp,v);
+    orbital_param_t(k,false).rv(0,r,v);
+    orbital_param_t(kp,false).rv(0,rp,v);
     return std::sqrt((rp-r).normsqr()/r.normsqr());
 }
 double ephemeris_compressor::axial_rotation_error(const double *a,const double *ap){
     mat s,sp;
     vec w;
-    axial(a).sw(0,s,w);
-    axial(ap).sw(0,sp,w);
+    rotational_param_t(a).sw(0,s,w);
+    rotational_param_t(ap).sw(0,sp,w);
     quat q(s),qp(sp);
     return quaterion_rotation_error(&q,&qp);
 }
@@ -256,7 +126,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     std::vector<fit_err_t> fiterrs(N);
     memset(fiterrs.data(),-1,N*sizeof(fit_err_t));
 
-    std::vector<kep_t> ostates;
+    std::vector<orbital_param_t> ostates;
     double GM=infer_GM_from_data(pdata,N);
     const double tfac=std::sqrt(GM);
     const double vfac=1/tfac;
@@ -264,7 +134,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     if(GM>=Constants::G){
         ostates.reserve(N);
         for(int_t i=0;i<N;++i)
-            ostates.emplace_back(ephem_orb(pdata[i].r,pdata[i].v*vfac));
+            ostates.emplace_back(keplerian(pdata[i].r,pdata[i].v*vfac));
     }
     bool can_kepler=!ostates.empty();
 
@@ -273,10 +143,10 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     if(dtest<1){//N==2 here
         if(can_kepler){
             vec r0,v0,r1,v1;
-            kep_t kmix;
+            orbital_param_t kmix;
             for(int k=0;k<2;++k){
                 const bool circ=k==0;
-                if(!kep_t::interpolatable(circ,ostates[0],ostates[1]))
+                if(!orbital_param_t::interpolatable(circ,ostates[0],ostates[1]))
                     continue;
                 kmix.blend_initialize(circ);
                 kmix.blend_add(circ,ostates[0],HALF);
@@ -306,8 +176,8 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
         std::vector<bool> can_interp_c(N,can_kepler),can_interp_r(N,can_kepler);
         if(can_kepler){
             for(int_t i=0;i+1<N;++i){
-                can_interp_c[i]=kep_t::interpolatable(1,ostates[i],ostates[i+1]);
-                can_interp_r[i]=kep_t::interpolatable(0,ostates[i],ostates[i+1]);
+                can_interp_c[i]=orbital_param_t::interpolatable(1,ostates[i],ostates[i+1]);
+                can_interp_r[i]=orbital_param_t::interpolatable(0,ostates[i],ostates[i+1]);
             }
             for(int_t i=N-1;i>0;--i){
                 can_interp_c[i]=can_interp_c[i]&&can_interp_c[i-1];
@@ -323,7 +193,7 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
                 do_interp_r=do_interp_r&&can_interp_r[j];
 
             vec r,v;
-            kep_t kmix;
+            orbital_param_t kmix;
             for(int k=0;k<2;++k){
                 const bool circ=k==0;
                 if(!(circ?do_interp_c:do_interp_r))continue;
@@ -492,7 +362,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         for(int_t i=0;i<N;++i){
             mat s=mat(pdata[i].x,0,pdata[i].z);
             mat saxis(s.toworld(local_axis.x),s.toworld(local_axis.y),s.toworld(local_axis.z));
-            ephem_rot ri(saxis,pdata[i].w);
+            rotational_param_t ri(saxis,pdata[i].w);
             double py=std::sin(ri.ptheta);
             double pz=std::cos(ri.ptheta);
             py*=std::sin(ri.pphi);
@@ -797,17 +667,17 @@ CONVERT_IMPLEMENT(KEPLERIAN_VECTORS){
     pstate->v=*v;
 }
 CONVERT_IMPLEMENT(KEPLERIAN_CIRCULAR){
-    kep_t k(x,true);
+    orbital_param_t k(x,true);
     k.rv(0,pstate->r,pstate->v);
     pstate->v*=sGM;
 }
 CONVERT_IMPLEMENT(KEPLERIAN_RAW){
-    kep_t k(x,false);
+    orbital_param_t k(x,false);
     k.rv(0,pstate->r,pstate->v);
     pstate->v*=sGM;
 }
 CONVERT_IMPLEMENT(AXIAL_OFFSET){
-    axial a(x);
+    rotational_param_t a(x);
     mat saxis;
     a.sw(0,saxis,pstate->w);
     saxis%=local_axis;

@@ -1,10 +1,10 @@
-﻿#include"Keplerians.h"
+﻿#include"keplerian.h"
 
 using Constants::pi;
+using Constants::epsilon;
 
 //12(2^-53)^(1/4)
-static const double parabolic_threshold=0.00123;
-static const double epsilon=1e-16;
+constexpr double parabolic_threshold=0x.5p-8;
 
 double kep(double x){
     double s=x+1;
@@ -46,7 +46,7 @@ double dkep(double x){
     return (t-3*x*f)/(s*s);
 }
 
-ephem_orb::ephem_orb(const vec &r,const vec &v){
+keplerian::keplerian(const vec &r,const vec &v){
     //precision of j is crutial for further calculation...
     j=vec(mpvec(r)*mpvec(v));
     double rr=r%r,r0=sqrt(rr);
@@ -96,7 +96,7 @@ ephem_orb::ephem_orb(const vec &r,const vec &v){
     //adjust definition of q to avoid numeric error at e=0
     q/=e0+1;
 }
-void ephem_orb::rv(double t,vec &r,vec &v) const{
+void keplerian::rv(double t,vec &r,vec &v) const{
     double jj=j%j,rjj=1/jj,srjj=sqrt(rjj);
     vec jx=j.asc_node(),jy=j*jx*srjj;
 
@@ -205,46 +205,4 @@ void ephem_orb::rv(double t,vec &r,vec &v) const{
     double ce=cos(earg),se=sin(earg);
     r=jx*( x*ce- y*se)+jy*( x*se+ y*ce);
     v=jx*(vx*ce-vy*se)+jy*(vx*se+vy*ce);
-}
-
-ephem_rot::ephem_rot(const mat &s,const vec &_w):w(_w){
-    double ww=w%w;
-    if(ww==0){
-        //if ww==0, use finite-pseudo-w to avoid singularity
-        w=s.z*epsilon;
-        ww=w%w;
-    }
-
-    double sww=sqrt(ww),srww=1/sww;
-    mat wm(w.asc_node(),0,w*srww);
-    vec wz=wm.z;
-
-    s.thetaphi(wz,ptheta,pphi);
-    wm.roty(-ptheta).rotz(-pphi);
-
-    vec za,zb;
-    if(abs(ptheta-pi/2)<pi/4){
-        za=wz*wm.z;
-        zb=wz*s.z;
-    }
-    else{
-        za=wz*wm.x;
-        zb=wz*s.x;
-    }
-    angle=atan2(za*zb%wz,za%zb);
-}
-void ephem_rot::sw(double t,mat &s,vec &w) const{
-    w=this->w;
-    double sww=sqrt(w%w),srww=1/sww;
-    s=mat(w.asc_node(),0,w*srww);
-    vec wz=s.z;
-    s.roty(-ptheta).rotz(-pphi);
-
-    //current rotation angle
-    double theta=angle+t*sww;
-
-    double cth=cos(theta),sth=sin(theta);
-    s.x+=(s.x-wz%s.x*wz)*(cth-1)+wz*s.x*sth;
-    s.y+=(s.y-wz%s.y*wz)*(cth-1)+wz*s.y*sth;
-    s.z+=(s.z-wz%s.z*wz)*(cth-1)+wz*s.z*sth;
 }

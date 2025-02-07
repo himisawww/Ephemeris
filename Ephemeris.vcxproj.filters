@@ -66,7 +66,7 @@
     <ClCompile Include="src\utils\zipio.cpp">
       <Filter>utils</Filter>
     </ClCompile>
-    <ClCompile Include="src\math\Keplerians.cpp">
+    <ClCompile Include="src\math\keplerian.cpp">
       <Filter>math</Filter>
     </ClCompile>
     <ClCompile Include="src\physics\mass.cpp">
@@ -129,6 +129,9 @@
     <ClCompile Include="src\tests\test_math.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\math\state_parameters.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
@@ -175,7 +178,7 @@
     <ClInclude Include="src\utils\memio.h">
       <Filter>utils</Filter>
     </ClInclude>
-    <ClInclude Include="src\math\Keplerians.h">
+    <ClInclude Include="src\math\keplerian.h">
       <Filter>math</Filter>
     </ClInclude>
     <ClInclude Include="src\physics\mass.impl">
@@ -216,6 +219,9 @@
     </ClInclude>
     <ClInclude Include="src\modules\ephemeris_compressor.h">
       <Filter>modules</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\state_parameters.h">
+      <Filter>math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

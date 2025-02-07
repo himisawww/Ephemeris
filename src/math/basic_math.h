@@ -23,6 +23,9 @@ constexpr double G=6.67430E-11;
 //  1 year = 8766 h, Julian
 constexpr double year=365.25*86400;
 
+//minimum differece between 1.0 and *nearest* floating point number,
+//that is, 2^-53, half of DBL_EPSILON
+constexpr double epsilon=0x1p-53;
 }
 
 // return nan if one of parameters is nan

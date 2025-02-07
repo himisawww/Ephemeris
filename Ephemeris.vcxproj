@@ -105,8 +105,9 @@
     <ClCompile Include="src\integrators\RungeKutta.cpp" />
     <ClCompile Include="src\math\basic_math.cpp" />
     <ClCompile Include="src\math\interp.cpp" />
-    <ClCompile Include="src\math\Keplerians.cpp" />
+    <ClCompile Include="src\math\keplerian.cpp" />
     <ClCompile Include="src\math\random.cpp" />
+    <ClCompile Include="src\math\state_parameters.cpp" />
     <ClCompile Include="src\modules\ephemeris_compressor.cpp" />
     <ClCompile Include="src\modules\ephemeris_converter.cpp" />
     <ClCompile Include="src\modules\ephemeris_generator.cpp" />
@@ -148,8 +149,9 @@
     <ClInclude Include="src\math\dfloat_t.h" />
     <ClInclude Include="src\math\distribute.h" />
     <ClInclude Include="src\math\interp.h" />
-    <ClInclude Include="src\math\Keplerians.h" />
+    <ClInclude Include="src\math\keplerian.h" />
     <ClInclude Include="src\math\random.h" />
+    <ClInclude Include="src\math\state_parameters.h" />
     <ClInclude Include="src\math\vec_t.h" />
     <ClInclude Include="src\modules\ephemeris_compressor.h" />
     <ClInclude Include="src\modules\ephemeris_generator.h" />

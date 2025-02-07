@@ -1,5 +1,5 @@
 #pragma once
-#include"math/Keplerians.h"
+#include"definitions.h"
 #include"utils/memio.h"
 
 class ephemeris_compressor{
@@ -60,38 +60,6 @@ public:
         }
         return "UNKNOWN";
     }
-
-    class keplerian:public ephem_orb{
-    public:
-        //longitude of ascending node + earg
-        double el;
-        //eccentricity vector
-        //e * sincos(el)
-        double ex,ey;
-        //mean longitude
-        //el + mean anomaly
-        double ml;
-
-        keplerian()=default;
-        keplerian(const ephem_orb &other);
-        keplerian(const double *k,bool circular);
-
-        // test if two states are interpolatable
-        static bool interpolatable(bool circular,const keplerian &k1,const keplerian &k2);
-
-        //blend multiple keplerians by weights
-        void blend_initialize(bool circular);
-        void blend_add(bool circular,const keplerian &component,double weight);
-        void blend_finalize(bool circular);
-
-    };
-
-    class axial:public ephem_rot{
-    public:
-        axial()=default;
-        axial(const ephem_rot &other):ephem_rot(other){}
-        axial(const double *a);
-    };
 
     struct header_base{
         float relative_error;

@@ -1,4 +1,4 @@
-#include"math/Keplerians.h"
+#include"math/keplerian.h"
 #include"math/random.h"
 #include"utils/logger.h"
 
@@ -9,7 +9,7 @@ static double max_relative_error=0;
 
 double test_rv_reproduce(const vec &r,const vec &v){
     vec nr,nv;
-    ephem_orb k(r,v);
+    keplerian k(r,v);
     k.rv(0,nr,nv);
     double rn=r.norm();
     double vref=checked_max(1/std::sqrt(rn),v.norm());
