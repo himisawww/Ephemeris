@@ -99,7 +99,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
     vec jx=j.asc_node(),jy=j*jx*srjj;
 
     //current modified mean anomaly
-    double mp=m+t*srjj*rjj;
+    double mm=m+srjj*rjj*t;
     
     //restore e and q=e^2-1 from modified q-parameter
     double e0=q;
@@ -108,18 +108,20 @@ void keplerian::rv(double t,vec &r,vec &v) const{
 
     double sq3=std::abs(q),sq=sqrt(sq3);
     sq3*=sq;
-    if(q<0){
+    double mp=mm*sq3;
+    if(q<0&&std::abs(mp)>pi){
         //period folding for elliptic orbit
-        double p=2*pi/sq3;
-        mp-=p*round(mp/p);
+        mp=angle_reduce(mp);
+        mm=mp/sq3;
     }
 
-    bool msign=mp<0;
-    if(msign)mp=-mp;
+    bool msign=mm<0;
+    if(msign){
+        mm=-mm;
+        mp=-mp;
+    }
 
-    double x=NAN,y=NAN;
-
-    y=3*mp;
+    double x=NAN,y=3*mm;
     y=cbrt(y+sqrt(1+y*y));
     y-=1/y;
 
@@ -133,7 +135,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
             yy=y*y;
             y4=yy*yy;
             x=sqrt(1+q*yy);
-            diff=y/(1+e0)+y*yy*kep(x)-mp;
+            diff=y/(1+e0)+y*yy*kep(x)-mm;
             if(!(std::abs(diff)<std::abs(olddiff)))break;
             oldx=x;
             oldy=y;
@@ -146,7 +148,6 @@ void keplerian::rv(double t,vec &r,vec &v) const{
     }
     else if(q>0){
         //hyperbolic orbit
-        mp*=sq3;
 
         //solve e0*sh(ea)-ea==mp
         double ea=mp<pi?cbrt(6*mp):asinh(mp/e0);
@@ -167,7 +168,6 @@ void keplerian::rv(double t,vec &r,vec &v) const{
     }
     else{
         //elliptic orbit
-        mp*=sq3;
 
         //solve ea-e0*sin(ea)==mp
         double ea=cbrt(6*mp);
@@ -190,11 +190,9 @@ void keplerian::rv(double t,vec &r,vec &v) const{
 
     if(msign)y=-y;
 
-    double rr=x*x+y*y;
-    double vx=-y,vy,vv=1/sqrt(jj*rr);
+    double vv=1/sqrt(jj*(x*x+y*y));
     //adjust vy for higher precision (when e->+inf)
-    if(q>0)vy=sqrt(1+q*y*y);
-    else vy=e0-q*x;
+    double vx=-y,vy=q<0?e0-q*x:sqrt(1+q*y*y);
     vx*=vv;
     vy*=vv;
     x*=jj;
