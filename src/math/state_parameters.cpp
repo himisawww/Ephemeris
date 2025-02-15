@@ -19,7 +19,7 @@ rotational_param_t::rotational_param_t(const mat &s,const vec &_w):w(_w){
     wm.roty(-ptheta).rotz(-pphi);
 
     vec za,zb;
-    if(abs(ptheta-pi/2)<pi/4){
+    if(std::abs(ptheta-pi/2)<pi/4){
         za=wz*wm.z;
         zb=wz*s.z;
     }

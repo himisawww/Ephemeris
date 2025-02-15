@@ -9,7 +9,7 @@ constexpr double parabolic_threshold=0x.5p-8;
 double keplerian::kep(double x){
     double s=x+1;
     double t=x-1;
-    if(abs(t)<0.5){
+    if(std::abs(t)<0.5){
 #define SUM_SERIES             \
     int i=1;                   \
     double df=t/35;            \
@@ -18,7 +18,7 @@ double keplerian::kep(double x){
         ++i;                   \
         df*=-t*i/(2*i+5);      \
         f+=df;                 \
-    } while(abs(df)>=epsilon)
+    } while(std::abs(df)>=epsilon)
         SUM_SERIES;
         return (4.0/3+t*f)/(s*s*s);
     }
@@ -31,7 +31,7 @@ double keplerian::kep(double x){
 double keplerian::dkep(double x){
     double s=x+1;
     double t=x-1;
-    if(abs(t)<0.5){
+    if(std::abs(t)<0.5){
         SUM_SERIES;
 #undef SUM_SERIES
         s*=s;
@@ -106,7 +106,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
     double q=e0*(e0+2);
     e0+=1;
 
-    double sq3=abs(q),sq=sqrt(sq3);
+    double sq3=std::abs(q),sq=sqrt(sq3);
     sq3*=sq;
     if(q<0){
         //period folding for elliptic orbit
@@ -123,7 +123,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
     y=cbrt(y+sqrt(1+y*y));
     y-=1/y;
 
-    if(abs((3+y*y)*q)<parabolic_threshold){
+    if(std::abs((3+y*y)*q)<parabolic_threshold){
         //parabolic orbit
 
         //solve y
@@ -134,7 +134,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
             y4=yy*yy;
             x=sqrt(1+q*yy);
             diff=y/(1+e0)+y*yy*kep(x)-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
+            if(!(std::abs(diff)<std::abs(olddiff)))break;
             oldx=x;
             oldy=y;
             y-=diff/((1+yy)/2+q*(q-2+(5*q*yy-6)*y4)/16);
@@ -155,7 +155,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
             double c=cosh(ea);
             double s=sinh(ea);
             diff=s*(q/(1+e0)+s*s*kep(c))-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
+            if(!(std::abs(diff)<std::abs(olddiff)))break;
             x=c;
             y=s;
             ea-=diff/(e0*c-1);
@@ -176,7 +176,7 @@ void keplerian::rv(double t,vec &r,vec &v) const{
             double c=cos(ea);
             double s=sin(ea);
             diff=(c<0?ea-e0*s:s*(-q/(1+e0)+s*s*kep(c)))-mp;
-            if(!(abs(diff)<abs(olddiff)))break;
+            if(!(std::abs(diff)<std::abs(olddiff)))break;
             x=c;
             y=s;
             ea-=diff/(1-e0*c);
