@@ -83,7 +83,17 @@ int main_fun(int argc,const char **argv){
 
 int main(int argc,const char **argv){
 #if 0
-    ephemeris_collector::convert_format("F:\\Temp\\ephm\\Ephemeris\\v0.3\\testold",3600);
+    std::vector<const char*> subset{
+        "10", "199", "299", "301", "399", "401", "402", "499", "501", "502",
+        "503", "504", "505", "514", "515", "516", "599", "601", "602", "603",
+        "604", "605", "606", "607", "608", "610", "611", "612", "613", "614",
+        "615", "616", "617", "618", "632", "633", "634", "635", "649", "653",
+        "699", "701", "702", "703", "704", "705", "706", "707", "708", "709",
+        "710", "711", "712", "713", "714", "715", "725", "726", "727", "799",
+        "801", "803", "804", "805", "806", "807", "808", "814", "899", "901",
+        "999", "N01", "N01S1", "N02", "N02S1", "N02S2"
+    };
+    ephemeris_collector::convert_format("F:\\Temp\\ephm\\Ephemeris\\EphemerisCompressed\\SolarSystem",3600,&subset);
     return 0;
 #endif
     return main_fun(argc,argv);

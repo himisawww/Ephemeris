@@ -7,7 +7,7 @@
 #include"utils/threadpool.h"
 #include"modules/ephemeris_compressor.h"
 
-int ephemeris_collector::convert_format(const char *path,int_t fix_interval){
+int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std::vector<const char*> *psid_subset){
     bool is_broken=false;
     std::string sop=path;
     for(int dir=1;dir>=-1;dir-=2){
@@ -16,6 +16,10 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval){
         std::string zckpt;
         size_t cur_index=0;
         MFILE *fout=mopen(sop+"."+fwdbak,MFILE_STATE::WRITE_FILE);
+        if(!fout){
+            LogError("Error: Cannot open %s for write!\n",(sop+"."+fwdbak).c_str());
+            break;
+        }
         do{
             ++cur_index;
             zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
@@ -206,11 +210,20 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval){
                         v5._orb[0]=vec(b.r);
                         v5._orb[1]=vec(b.v);
                     }
-                    fwrite(ephm_data.data(),sizeof(_data_t),mn,fout);
+                    if(!psid_subset)
+                        fwrite(ephm_data.data(),sizeof(_data_t),mn,fout);
+                    else for(auto ssid:*psid_subset){
+                        int_t mid=ms.get_mid(ssid);
+                        if(mid<0){
+                            is_broken=true;
+                            break;
+                        }
+                        fwrite(&ephm_data[mid],sizeof(_data_t),1,fout);
+                    }
                 }
             }
 
-        } while(1);
+        } while(!is_broken);
         fclose(fout);
     }
     if(is_broken)
