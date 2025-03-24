@@ -99,7 +99,7 @@ int test_geopotential(){
 		geopotential_reference gpref;
 		gpref.data.push_back({n,m,c,s});
 		MFILE gpmf;
-		fprintf(&gpmf,"%lld\t%lld\n",m?0:n,m?n:0);
+		fprintf(&gpmf,"%lld\t%lld\n",n,m?n:0);
 		fprintf(&gpmf,"%lld\t%lld\t%.16le\t%.16le\n",n,m,c,s);
 		gpmf.publish(TEST_MEMPATH);
 		const geopotential *gp=geopotential::load(TEST_MEMPATH,REFERENCE_RADIUS_FACTOR,2);

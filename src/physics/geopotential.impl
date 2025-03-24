@@ -14,7 +14,14 @@
 
 #endif
 
+//we support at most order 8 harmonics...
+static const int_t Max_N=8;
 #define do_swap(v1,v2) do{fast_real _v;_v=v1;v1=v2;v2=_v;}while(0)
+//static const int_t Precompute_Table_size[1+Max_N]={0, 0, 5, 12, 21, 32, 45, 60, 77};
+#define Precompute_Table_size(n) ((n)*((n)+2)-3)
+#define J(n) ((n)*(n)-4)
+#define C(n,m) (J(n)+2*(m)-1)
+#define S(n,m) (J(n)+2*(m))
 
 FUNCTION fast_mpvec geopotential::SUM_FUNCTION(fast_real R,fast_mpvec r) const{
     fast_real rho2=r.x*r.x+r.y*r.y;
@@ -34,56 +41,60 @@ FUNCTION fast_mpvec geopotential::SUM_FUNCTION(fast_real R,fast_mpvec r) const{
         cm=r.x/rho1;
         sm=r.y/rho1;
     }
+    fast_real pnm[Max_N],pn1m[Max_N];
+    pnm[0]=0;
+    pn1m[0]=1;
+    fast_real ppn=1,pn=1,pn1=sphi;
 
     fast_real zx=0,zz=0;// zonal
-    fast_real ppn=1,pn=1,pn1=sphi;
-    const fast_real *JCSn=c_table+Nt*(Nt+1)-2;
+    fast_mpvec t(0);// tesseral
+
     for(int_t n=2;n<=Nz;++n){
         rbn*=rb1;
+        const fast_real *JCSn=c_table+J(n);
+
+        //zonal
         pn=((2*n-1)*sphi*pn1-(n-1)*pn)/n;
         ppn=sphi*ppn+n*pn1;
         fast_real z1=JCSn[0]*rbn;
         zx+=(n+1)*z1*pn;
         zz-=z1*ppn;
-        JCSn+=1;
         do_swap(pn,pn1);
-    }
 
-    fast_mpvec t(0);// tesseral
-    if(Nt>1){
-        fast_real smm=sm,cmm=cm,smm1=0,cmm1=1;
-        fast_real pnm=0,pn1m=1,pmm=pn1m;
-        fast_real rbm=rb1;
-
-        for(int_t m=1;m<=Nt;++m){
-            rbn=rbm;
-            if(m>1)
-            {
+        if(n>Nt)continue;
+        //tesseral
+        fast_mpvec f(0);
+        fast_real m1=(2*n-1)*sphi;
+        fast_real m2=-n*sphi;
+        fast_real smm,cmm,smm1,cmm1;
+        for(int_t m=1;m<=n;++m){
+            if(m==n){
+                pn1m[m-1]=0;
+                pnm[m-1]=(2*n-1)*cphi*pnm[m-2];
+            }
+            else pnm[m-1]=(m1*pn1m[m-1]-(n+m-1)*pnm[m-1])/(n-m);
+            if(m==1){
+                smm=sm;
+                cmm=cm;
+                smm1=0;
+                cmm1=1;
+            }
+            else{
                 smm=2*cm*smm1-smm;
                 cmm=2*cm*cmm1-cmm;
-                rbm*=rb1;
-                pn1m=0;
-                pnm=pmm=(2*m-1)*cphi*pmm;
             }
-            JCSn=c_table+(Nt-m+1)*(Nt-m);
-            for(int_t n=m+(m==1);n<=Nt;++n){
-                rbn*=rb1;
-                if(n>m)
-                    pnm=((2*n-1)*sphi*pn1m-(n+m-1)*pnm)/(n-m);
-                fast_real t1=JCSn[1]*smm+JCSn[0]*cmm;
-                fast_real t2=JCSn[1]*cmm-JCSn[0]*smm;
-                fast_real ppnm=(n+m)*pn1m-n*sphi*pnm;
-                t1*=rbn;
-                t2*=rbn;
-                t.x+=t1*pnm*(n+1);
-                t.y+=m*t2*pnm;
-                t.z+=t1*ppnm;
-                JCSn+=2;
-                do_swap(pnm,pn1m);
-            }
+            fast_real t1=JCSn[2*m]*smm+JCSn[2*m-1]*cmm;
+            fast_real t2=JCSn[2*m]*cmm-JCSn[2*m-1]*smm;
+            fast_real ppnm=m2*pnm[m-1]+(n+m)*pn1m[m-1];
+            f.x+=t1*pnm[m-1];
+            f.y+=m*t2*pnm[m-1];
+            f.z+=t1*ppnm;
             do_swap(cmm,cmm1);
             do_swap(smm,smm1);
+            do_swap(pnm[m-1],pn1m[m-1]);
         }
+        f.x*=n+1;
+        t+=rbn*f;
     }
 
     t.x=zx-cphi*t.x;
