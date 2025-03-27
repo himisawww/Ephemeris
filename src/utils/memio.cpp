@@ -343,8 +343,7 @@ std::string vstrprintf(const char *format,va_list _arg_list){
         if(req_size>max_size){
             result.resize(req_size);
             int ret2=vsnprintf(result.data(),req_size,format,vcopy);
-            if(ret2!=ret)result.clear();
-            result.resize(ret);
+            result.resize(ret2!=ret?0:ret);
         }
         else result=buffer;
     }

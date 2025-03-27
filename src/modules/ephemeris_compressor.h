@@ -18,7 +18,7 @@ private:
     static double circular_kepler_error(const double *k,const double *kp);
     static double raw_kepler_error(const double *k,const double *kp);
     static double axial_rotation_error(const double *a,const double *ap);
-    static double quaterion_rotation_error(const quat *q,const quat *qp);
+    static double quaternion_rotation_error(const quat *q,const quat *qp);
 
     //minimizing this will achieve a balance between relative error and file size
     static double compression_score(double relative_error,double compressed_size);
@@ -33,8 +33,8 @@ public:
         KEPLERIAN_RAW       =4,     // double[6], use j, q, el, m , raw_kepler_error
         //rotational
         AXIAL_OFFSET        =5,     // double[6], use w, py,pz,ang, axial_rotation_error
-        QUATERNION          =6,     // quat[1]  , use q(s)        , quaterion_rotation_error
-        TIDAL_LOCK          =7,     // quat[1]  , use q(s in -r0j), quaterion_rotation_error
+        QUATERNION          =6,     // quat[1]  , use q(s)        , quaternion_rotation_error
+        TIDAL_LOCK          =7,     // quat[1]  , use q(s in -r0j), quaternion_rotation_error
         UNKNOWN               ,     // last enum
         INVALID             =255
     };
@@ -120,7 +120,7 @@ public:
     template<>struct header_t<QUATERNION>:public header_base{
         typedef quat data_type;
         static constexpr size_t data_channel=1;
-        static constexpr auto error_function=quaterion_rotation_error;
+        static constexpr auto error_function=quaternion_rotation_error;
         typedef rotational_state_t state_type;
 
         data_type fix[4][data_channel];
@@ -129,7 +129,7 @@ public:
         typedef rotational_state_t state_type;
         typedef quat data_type;
         static constexpr size_t data_channel=1;
-        static constexpr auto error_function=quaterion_rotation_error;
+        static constexpr auto error_function=quaternion_rotation_error;
 
         data_type fix[4][data_channel];
     };

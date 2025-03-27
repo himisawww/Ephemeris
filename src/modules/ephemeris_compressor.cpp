@@ -92,9 +92,9 @@ double ephemeris_compressor::axial_rotation_error(const double *a,const double *
     rotational_param_t(a).sw(0,s,w);
     rotational_param_t(ap).sw(0,sp,w);
     quat q(s),qp(sp);
-    return quaterion_rotation_error(&q,&qp);
+    return quaternion_rotation_error(&q,&qp);
 }
-double ephemeris_compressor::quaterion_rotation_error(const quat *q,const quat *qp){
+double ephemeris_compressor::quaternion_rotation_error(const quat *q,const quat *qp){
     return std::sqrt(checked_min((*q-*qp).normsqr(),(*q+*qp).normsqr()));
 }
 
