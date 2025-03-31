@@ -21,12 +21,12 @@ public:
     INLINE dfloat_impl_t<T> &operator*=(const dfloat_impl_t<T> &x){ return (*this=*this*x); }
     INLINE dfloat_impl_t<T> &operator/=(const dfloat_impl_t<T> &x){ return (*this=*this/x); }
 
-    INLINE bool operator> (const dfloat_impl_t<T> &x){ return T(*this-x)> 0; }
-    INLINE bool operator< (const dfloat_impl_t<T> &x){ return T(*this-x)< 0; }
-    INLINE bool operator==(const dfloat_impl_t<T> &x){ return T(*this-x)==0; }
-    INLINE bool operator>=(const dfloat_impl_t<T> &x){ return T(*this-x)>=0; }
-    INLINE bool operator<=(const dfloat_impl_t<T> &x){ return T(*this-x)<=0; }
-    INLINE bool operator!=(const dfloat_impl_t<T> &x){ return T(*this-x)!=0; }
+    INLINE bool operator> (const dfloat_impl_t<T> &x) const{ return T(*this-x)> 0; }
+    INLINE bool operator< (const dfloat_impl_t<T> &x) const{ return T(*this-x)< 0; }
+    INLINE bool operator==(const dfloat_impl_t<T> &x) const{ return T(*this-x)==0; }
+    INLINE bool operator>=(const dfloat_impl_t<T> &x) const{ return T(*this-x)>=0; }
+    INLINE bool operator<=(const dfloat_impl_t<T> &x) const{ return T(*this-x)<=0; }
+    INLINE bool operator!=(const dfloat_impl_t<T> &x) const{ return T(*this-x)!=0; }
 
     friend INLINE dfloat_impl_t<T> operator+(dfloat_impl_t<T> x,dfloat_impl_t<T> y){
         dfloat_impl_t<T> re;
