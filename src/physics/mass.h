@@ -116,7 +116,6 @@ public:
     fast_mpmat GI,C_potential;
 
     //temporary variables used by integrators
-    fast_real Erot;
     fast_mpvec Egrad;
     fast_mpvec idaccel,idtorque;
     fast_mpvec jdaccel,jdtorque;
@@ -142,7 +141,7 @@ public:
 };
 
 constexpr auto mass_auxiliary_variables=&mass::phi;
-constexpr auto mass_temporary_variables=&mass::Erot;
+constexpr auto mass_temporary_variables=&mass::Egrad;
 
 //short mass used in Runge-Kutta-integrators
 struct mass_state{

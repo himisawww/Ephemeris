@@ -112,6 +112,7 @@ RUNGE_KUTTA{
     for(int_t i_step=0;i_step<CONFIG n_step;++i_step){
         FORALL_MASS{
             x0[i]=x[i];
+            x[i].Egrad=x[i].dtorque;
         }FORALL_MASS_END
 
         fast_real dt_k;
@@ -126,22 +127,16 @@ RUNGE_KUTTA{
                 fi.dtorque=xi.dtorque;
 
                 if(k==25){
-                    fast_mpvec j(xi.GL),&w=xi.w;
-                    fast_mpvec wxj=w*j;
-                    fast_real wxj2=wxj%wxj;
-                    if(wxj2!=0){
-                        fast_mpmat ir=xi.GI.inverse();
-                        fast_real dt2=dt*dt;
-                        fast_real e=w%j*(fast_real(1)/2);
-                        fast_real de=(ir%w)%((ir%wxj)*j+w*wxj);
-                        de*=e*dt2*dt2/(36*wxj2);
-                        xi.Erot=de;
-                        xi.Egrad=wxj;
-                    }
-                    else{
-                        xi.Erot=0;
-                        xi.Egrad=0;
-                    }
+                    fast_mpmat ir=xi.GI.inverse();
+                    fast_real irdet=ir.det();
+                    fast_real dt2=dt*dt;
+                    fast_mpvec tq=xi.dtorque*dt2;
+                    fast_mpvec tqdot=dt2*(xi.dtorque-xi.Egrad);
+                    fast_mpvec j(xi.GL),w=xi.w*dt;
+                    fast_mpvec irtq=ir%tq;
+                    j*=dt;
+                    xi.Egrad=w%j*(ir%w+xi.GI%j*irdet)+w*irtq+ir%(j*irtq-2*(w*tq)+tqdot);
+                    xi.Egrad*=w;
                 }
 
                 xi.v=0;
@@ -181,7 +176,7 @@ RUNGE_KUTTA{
                 xi.GL=xi0.GL+mpvec(dt*xi.dtorque);
             
                 if(k==25){
-                    xi.s+=xi.Egrad.rotation_matrix(xi.Erot)%fast_mpmat(xi.s);
+                    xi.s+=xi.Egrad.rotation_matrix(fast_real(1)/72)%fast_mpmat(xi.s);
                     xi.orthogonalize();
                 }
                 //update
