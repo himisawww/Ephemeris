@@ -67,7 +67,7 @@ int test_conservation(){
                 const ring &mr=*m.ringmodel;
                 p.translational+=dm*(mr.GM_ratio/(1-mr.GM_ratio));
                 p.angular+=da*(mr.GM_ratio/(1-mr.GM_ratio));
-                p.angular+=(mGL/mGL.norm())*(mr.GL_R2*m.GM*m.R2);
+                p.angular+=mGL.unit()*(mr.GL_R2*m.GM*m.R2);
 
                 //changing direction of disk will also produce an angular momentum
                 //however this cannot be modeled ...

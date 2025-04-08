@@ -1,8 +1,92 @@
 #pragma once
 #include<cmath>//for trigs
+#include<cfloat>
+#include<tuple>
 #ifndef INLINE
 #define INLINE inline
 #endif
+
+template<typename T>
+struct hypot_traits;
+
+template<>
+struct hypot_traits<float>{
+    typedef float float_t;
+    static constexpr float_t high=0x1p100;
+    static constexpr float_t mul=0x1p96;
+};
+
+template<>
+struct hypot_traits<double>{
+    typedef double float_t;
+    static constexpr float_t high=0x1p960;
+    static constexpr float_t mul=0x1p768;
+};
+
+// make hypot_traits<dfloat_t<T>> same as hypot_traits<T>
+template<typename T,template<typename> typename V>
+struct hypot_traits<V<T>>:public hypot_traits<T>{};
+
+template<typename T>
+class hypot_t:private hypot_traits<T>{
+    typedef hypot_traits<T> base_t;
+    using typename base_t::float_t;
+    using base_t::high;
+    using base_t::mul;
+    static constexpr float_t div=1/mul;
+    static constexpr float_t low=1/high;
+    template<typename ...Args>
+    static INLINE T _length(Args ...x){
+        T r=(...+(x*x));
+        if(r<low){
+            ((x*=mul),...);
+            r=(...+(x*x));
+            return div*sqrt(r);
+        }
+        if(!(r<high)){
+            ((x*=div),...);
+            r=(...+(x*x));
+            return mul*sqrt(r);
+        }
+        return sqrt(r);
+    }
+    template<typename ...Args,size_t ...Is>
+    static INLINE T _normalize(std::integer_sequence<size_t,Is...>,Args &..._x){
+        std::tuple<Args...> x{_x...};
+        T r=(...+(std::get<Is>(x)*std::get<Is>(x)));
+        if(r<low){
+            ((std::get<Is>(x)*=mul),...);
+            r=(...+(std::get<Is>(x)*std::get<Is>(x)));
+            if(r==0){
+                ((_x=Is+1==sizeof...(Args)),...);
+                return r;
+            }
+            T s=sqrt(r),rs=1/s;
+            ((_x=std::get<Is>(x)*rs),...);
+            return div*s;
+        }
+        if(!(r<high)){
+            ((std::get<Is>(x)*=div),...);
+            r=(...+(std::get<Is>(x)*std::get<Is>(x)));
+            T s=sqrt(r),rs=1/s;
+            ((_x=std::get<Is>(x)*rs),...);
+            return mul*s;
+        }
+        T s=sqrt(r),rs=1/s;
+        ((_x=std::get<Is>(x)*rs),...);
+        return s;
+    }
+public:
+    template<typename ...Args>
+    static INLINE T length(const Args &...x){
+        return _length(T(x)...);
+    }
+    template<typename ...Args>
+    static INLINE T normalize(Args &...x){
+        static_assert((...&&(std::is_same_v<T,Args>)),"All parameters should be T &");
+        return _normalize(std::index_sequence_for<Args...>{},x...);
+    }
+};
 
 template<typename T>
 class mat_t;
@@ -47,13 +131,13 @@ public:
         return *this;
     }
     INLINE T theta() const{
-        return atan2(sqrt(x*x+y*y),z);
+        return atan2(hypot_t<T>::length(x,y),z);
     }
     INLINE T phi() const{
         return atan2(y,x);
     }
     INLINE T norm() const{
-        return sqrt(x*x+y*y+z*z);
+        return hypot_t<T>::length(x,y,z);
     }
     INLINE T normsqr() const{
         return x*x+y*y+z*z;
@@ -62,19 +146,12 @@ public:
     //  *this = (0,0,1) for (0,0,0)
     //  return norm()
     INLINE T normalize(){
-        const T r=norm();
-        if(r==0){
-            x=0;
-            y=0;
-            z=1;
-        }
-        else{
-            T rr=1/r;
-            x*=rr;
-            y*=rr;
-            z*=rr;
-        }
-        return r;
+        return hypot_t<T>::normalize(x,y,z);
+    }
+    INLINE vec_t<T> unit() const{
+        vec_t<T> result(x,y,z);
+        result.normalize();
+        return result;
     }
 
     INLINE vec_t<T> &operator =(const T &a){
@@ -128,13 +205,7 @@ public:
     //  return exactly same vectors for multiple calls from exactly same vectors
     INLINE vec_t<T> asc_node() const{
         vec_t<T> p(-y,x,0);
-        T r=x*x+y*y;
-        if(r==0)p.x=1;
-        else{
-            r=1/sqrt(r);
-            p.x*=r;
-            p.y*=r;
-        }
+        hypot_t<T>::normalize(p.y,p.x);
         return p;
     }
 
@@ -298,6 +369,10 @@ public:
     INLINE T normsqr() const{
         return x.normsqr()+y.normsqr()+z.normsqr();
     }
+    //Frobenius norm
+    INLINE T norm() const{
+        return hypot_t<T>::length(x.x,x.y,x.z,y.x,y.y,y.z,z.x,z.y,z.z);
+    }
     INLINE mat_t<T> adjoint() const{
         return mat_t<T>(
             vec_t<T>(y.y*z.z-y.z*z.y,z.y*x.z-x.y*z.z,x.y*y.z-x.z*y.y),
@@ -380,13 +455,10 @@ public:
 
 template<typename T>
 INLINE mat_t<T> vec_t<T>::rotation_matrix(const T &t) const{
-    T w2=normsqr();
-    if(w2==0)return 0;
-    
-    T w1=sqrt(w2),wt=w1*t,wr=1/w1;
+    T _x=x,_y=y,_z=z;
+    T wt=hypot_t<T>::normalize(_x,_y,_z)*t;
     T st=sin(wt),st222=sin(wt/2);
     st222*=2*st222;
-    T _x=x*wr,_y=y*wr,_z=z*wr;
     mat_t<T> dr(
         vec_t<T>(_x*_x-1,_x*_y,_x*_z),
         vec_t<T>(_x*_y,_y*_y-1,_y*_z),
@@ -453,11 +525,7 @@ public:
                 z=z*(m.x.y-m.y.x);
             }
         } while(0);
-        T r=T(1)/sqrt(x*x+y*y+z*z+w*w);
-        x*=r;
-        y*=r;
-        z*=r;
-        w*=r;
+        normalize();
     }
     explicit INLINE operator mat_t<T>() const{
         T xx=x*x,yy=y*y,zz=z*z,ww=w*w;
@@ -473,7 +541,7 @@ public:
     }
 
     INLINE T norm() const{
-        return sqrt(x*x+y*y+z*z+w*w);
+        return hypot_t<T>::length(x,y,z,w);
     }
     INLINE T normsqr() const{
         return x*x+y*y+z*z+w*w;
@@ -482,21 +550,12 @@ public:
     //  *this = (0,0,0,1) for (0,0,0,0)
     //  return norm()
     INLINE T normalize(){
-        const T r=norm();
-        if(r==0){
-            x=0;
-            y=0;
-            z=0;
-            w=1;
-        }
-        else{
-            T rr=1/r;
-            x*=rr;
-            y*=rr;
-            z*=rr;
-            w*=rr;
-        }
-        return r;
+        return hypot_t<T>::normalize(x,y,z,w);
+    }
+    INLINE quat_t<T> unit() const{
+        quat_t<T> result(x,y,z,w);
+        result.normalize();
+        return result;
     }
 
     INLINE quat_t<T> &operator =(const T &a){
@@ -699,24 +758,15 @@ public:
     }
 
     friend INLINE quat_t<T> exp(const quat_t<T> &q){
-        T qv=sqrt(q.x*q.x+q.y*q.y+q.z*q.z);
+        T qv=hypot_t<T>::length(q.x,q.y,q.z);
         T ew=exp(q.w);
         T sincqv=(qv==0?1:sin(qv)/qv)*ew;
         return quat_t<T>(q.x*sincqv,q.y*sincqv,q.z*sincqv,cos(qv)*ew);
     }
     friend INLINE quat_t<T> log(const quat_t<T> &q){
         vec_t<T> v=vec_t<T>(q);
-        T qv=v.normsqr();
-        T qn=sqrt(qv+q.w*q.w);
-        if(qv==0){
-            v.x=1;
-            v.y=0;
-            v.z=0;
-        }
-        else{
-            qv=sqrt(qv);
-            v/=qv;
-        }
+        T qv=hypot_t<T>::normalize(v.z,v.y,v.x);
+        T qn=hypot_t<T>::length(qv,q.w);
         return quat_t<T>(v*atan2(qv,q.w),log(qn));
     }
 };

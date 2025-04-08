@@ -28,7 +28,7 @@ double ephemeris_compressor::infer_GM_from_data(const orbital_state_t *pdata,int
             const vec &v0=pdata[l].v;
             const vec &r1=pdata[r].r;
             const vec &v1=pdata[r].v;
-            vec drn=r0/r0.norm()-r1/r1.norm();
+            vec drn=r0.unit()-r1.unit();
             vec dvj=v0*(r0*v0)-v1*(r1*v1);
             double dweight=drn.normalize();
             double dmu=dvj%drn;
@@ -408,7 +408,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
             double r2=r.normsqr();
             vec w=r*j/r2;
             r/=-std::sqrt(r2);
-            mat jframe(r,0,w/w.norm());
+            mat jframe(r,0,w.unit());
             mat js(jframe.tolocal(pdata[i].x),0,jframe.tolocal(pdata[i].z));
             if(!(js.x.x>HALF)){
                 fdata.clear();
@@ -700,7 +700,7 @@ CONVERT_IMPLEMENT(TIDAL_LOCK){
     double r2=r.normsqr();
     vec w=r*orb.v/r2;
     r/=-std::sqrt(r2);
-    mat jframe(r,0,w/w.norm());
+    mat jframe(r,0,w.unit());
     pstate->x=jframe.toworld(pstate->x);
     pstate->z=jframe.toworld(pstate->z);
     pstate->w=jframe.toworld(pstate->w)+w;

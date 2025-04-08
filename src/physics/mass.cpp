@@ -168,7 +168,7 @@ static void accel_nonpoint(void *param,size_t){
                 fast_mpvec r=mj.r-mi.r;
 
                 fast_mpvec migl=mi.GL;
-                fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
+                fast_mpmat fgls(migl.asc_node(),0,migl.unit());
                 fast_mpvec lr=fgls.tolocal(r);
                 fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
                 APPLY_NONPOINT_FORCE(tpmi);
@@ -334,7 +334,7 @@ void msystem::accel(int parallel_option){
             //start ring gravity model
             if(mi.ringmodel){
                 fast_mpvec migl=mi.GL;
-                fast_mpmat fgls(migl.asc_node(),0,migl/migl.norm());
+                fast_mpmat fgls(migl.asc_node(),0,migl.unit());
                 fast_mpvec lr=fgls.tolocal(r);
                 fast_mpvec an=fgls.toworld(mi.ringmodel->sum(mi.R,lr));
                 APPLY_NONPOINT_FORCE(mi);

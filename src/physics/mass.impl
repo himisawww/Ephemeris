@@ -71,7 +71,7 @@ mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
 #define UPDATE_ANGULAR_VELOCITY                        \
 fast_mpvec oldw=mi.w;                                  \
 mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));              \
-should_break=((mi.w-oldw).norm()<1e-9*oldw.norm());
+should_break=((mi.w-oldw).normsqr()<1e-18*oldw.normsqr());
 
 #define MAX_ANGULAR_VELOCITY_ITER 4
 

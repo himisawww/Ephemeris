@@ -72,7 +72,8 @@ public:
 
     friend INLINE dfloat_impl_t<T> sqrt(dfloat_impl_t<T> x){
         dfloat_impl_t<T> re=sqrt(x.hi);
-        re-=(re-x/re)/2;
+        if(re.hi>0)
+            re-=(re-x/re)/2;
         return re;
     }
 

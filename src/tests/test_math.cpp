@@ -237,10 +237,61 @@ int test_quaternion(){
     } while(++n_test<TEST_N);
     return 0;
 }
+template<typename T>
+int test_hypot(){
+    typedef typename hypot_traits<T>::float_t float_t;
+    typedef std::numeric_limits<float_t> limits;
+    constexpr float_t ref_error=8*limits::epsilon();
+    for(int_t i=0;i<TEST_N;){
+        auto f=limits::denorm_min();
+        do{
+            {
+                vec_t<T> v=randomdirection()*randomreal();
+                v*=f;
+                vec_t<T> u=v.unit();
+                T n=v.norm();
+                if(v.normalize()!=n)
+                    return 1;
+                if(u.x!=v.x||u.y!=v.y||u.z!=v.z)
+                    return 2;
+                double diff=std::abs(float_t(v.normsqr()-1))/ref_error;
+                if(!(diff<1))
+                    return 3;
+                checked_maximize(max_relative_error,diff);
+            }
+            {
+                quat_t<T> q(randomdirection(),randomreal());
+                q*=randomreal();
+                q*=f;
+                quat_t<T> u=q.unit();
+                T n=q.norm();
+                if(q.normalize()!=n)
+                    return 4;
+                if(u.x!=q.x||u.y!=q.y||u.z!=q.z||u.w!=q.w)
+                    return 5;
+                double diff=std::abs(float_t(q.normsqr()-1))/ref_error;
+                if(!(diff<1))
+                    return 6;
+                checked_maximize(max_relative_error,diff);
+            }
+            f*=2;
+            i+=sizeof(T);
+        } while(f!=INFINITY);
+    }
+    return 0;
+}
 
 int test_math(){
     int ret;
     ret=test_quaternion();
+    if(ret)return ret;
+    ret=test_hypot<float>();
+    if(ret)return ret;
+    ret=test_hypot<double>();
+    if(ret)return ret;
+    ret=test_hypot<dfloat_t<float>>();
+    if(ret)return ret;
+    ret=test_hypot<dfloat_t<double>>();
     if(ret)return ret;
 
     LogInfo("\n      Passed(%f), ",max_relative_error);
