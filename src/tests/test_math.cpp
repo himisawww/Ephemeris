@@ -241,7 +241,7 @@ template<typename T>
 int test_hypot(){
     typedef typename hypot_traits<T>::float_t float_t;
     typedef std::numeric_limits<float_t> limits;
-    constexpr float_t ref_error=8*limits::epsilon();
+    constexpr float_t ref_error=8*limits::epsilon()*(sizeof(float_t)==sizeof(T)?1:limits::epsilon());
     for(int_t i=0;i<TEST_N;){
         auto f=limits::denorm_min();
         do{
