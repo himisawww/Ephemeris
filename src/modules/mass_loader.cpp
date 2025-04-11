@@ -411,7 +411,7 @@ bool msystem::load(
 
         //Calculate initial GI and GL
         fast_mpmat fmis(m.s);
-        m.GI=2*m.R2/3*(fast_mpmat(m.A)-fmis.toworld(m.C_static));
+        m.GI=fast_real(-2)/3*m.R2*(fmis.toworld(m.C_static)-m.A);
         m.GL=m.GI%m.w;
 
         mlist.push_back(m);
@@ -780,9 +780,6 @@ int_t msystem::get_mid(uint64_t sid) const{
 
     return -1;
 }
-const mass &msystem::operator [](const char *ssid) const{
-    return mlist[get_mid(ssid)];
-}
 
 void msystem::copy_params(const msystem &other){
     if(this==&other)return;
@@ -846,7 +843,7 @@ void msystem::scale_geopotential(int_t mid,fast_real factor){
     mi.k2r*=factor;
     mi.exJ2*=factor;
     mi.dJ2*=factor;
-    mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+    mi.GI=fast_real(-2)/3*mi.R2*(mi.C_potential-mi.A);
     mi.GL=mi.GI%mi.w;
 }
 void msystem::scale_ring(int_t mid,fast_real factor){

@@ -6,6 +6,8 @@ static double max_relative_error=0;
 
 #define TEST_EPSILON_QUATERNION     2e-14
 #define TEST_N                      1048576
+#define TEST_AXES_MAX               1e150
+#define TEST_EPSILON_AXES           3e-15
 
 int test_quaternion(){
     double max_err=0;
@@ -237,6 +239,7 @@ int test_quaternion(){
     } while(++n_test<TEST_N);
     return 0;
 }
+
 template<typename T>
 int test_hypot(){
     typedef typename hypot_traits<T>::float_t float_t;
@@ -254,10 +257,14 @@ int test_hypot(){
                     return 1;
                 if(u.x!=v.x||u.y!=v.y||u.z!=v.z)
                     return 2;
-                double diff=std::abs(float_t(v.normsqr()-1))/ref_error;
-                if(!(diff<1))
+                float_t diff=std::abs(float_t(v.normsqr()-1));
+                if(!(diff<ref_error)){
+                    LogError(
+                        "\nMax Rel. Error %.16le Too Large",
+                        double(diff));
                     return 3;
-                checked_maximize(max_relative_error,diff);
+                }
+                checked_maximize(max_relative_error,double(diff/ref_error));
             }
             {
                 quat_t<T> q(randomdirection(),randomreal());
@@ -269,10 +276,14 @@ int test_hypot(){
                     return 4;
                 if(u.x!=q.x||u.y!=q.y||u.z!=q.z||u.w!=q.w)
                     return 5;
-                double diff=std::abs(float_t(q.normsqr()-1))/ref_error;
-                if(!(diff<1))
+                float_t diff=std::abs(float_t(q.normsqr()-1));
+                if(!(diff<ref_error)){
+                    LogError(
+                        "\nMax Rel. Error %.16le Too Large",
+                        double(diff));
                     return 6;
-                checked_maximize(max_relative_error,diff);
+                }
+                checked_maximize(max_relative_error,double(diff/ref_error));
             }
             f*=2;
             i+=sizeof(T);
@@ -281,18 +292,74 @@ int test_hypot(){
     return 0;
 }
 
+int test_axes(){
+    vec x,y;
+    double max_err=0;
+    auto ltest=[&](const mat::orthogonalizer &oy,const mat &m,vec mat::*px,vec mat::*py,vec mat::*pz){
+        checked_maximize(max_err,m.det()-1);
+        checked_maximize(max_err,m.x.normsqr()-1);
+        checked_maximize(max_err,m.y.normsqr()-1);
+        checked_maximize(max_err,m.z.normsqr()-1);
+        checked_maximize(max_err,(m.x*m.y-m.z).norm());
+        checked_maximize(max_err,(m.y*m.z-m.x).norm());
+        checked_maximize(max_err,(m.z*m.x-m.y).norm());
+        checked_maximize(max_err,(x.unit()-m.*px).norm());
+        double xn=x.norm();
+        if(xn>0)
+            checked_maximize(max_err,std::abs(oy.axis_norm-xn)/xn);
+        double xyref=xn*y.norm();
+        checked_maximize(xyref,DBL_MIN);
+        vec c=x*y;
+        checked_maximize(max_err,std::abs(c%m.*px)/xyref);
+        checked_maximize(max_err,std::abs(c%m.*py)/xyref);
+        checked_maximize(max_err,std::abs(oy.cross_norm-c.norm())/xyref);
+    };
+
+    int_t i=0;
+    double fx=TEST_AXES_MAX,fy=TEST_AXES_MAX;
+    do{
+        x=randomdirection()*fx;
+        y=randomdirection()*fy;
+        if(i%2)y+=x;
+        mat::orthogonalizer oy(y);
+        ltest(oy,mat(x,oy,0),&mat::x,&mat::y,&mat::z);
+        ltest(oy,mat(oy,x,0),&mat::y,&mat::x,&mat::z);
+        ltest(oy,mat(x,0,oy),&mat::x,&mat::z,&mat::y);
+        ltest(oy,mat(oy,0,x),&mat::z,&mat::x,&mat::y);
+        ltest(oy,mat(0,x,oy),&mat::y,&mat::z,&mat::x);
+        ltest(oy,mat(0,oy,x),&mat::z,&mat::y,&mat::x);
+        if(!(max_err<TEST_EPSILON_AXES)){
+            LogError(
+                "\nMax Rel. Error %.16le Too Large",
+                max_err);
+            return 2;
+        }
+        ++i;
+        if(fy==0){
+            fy=TEST_AXES_MAX;
+            fx/=17+randomreal();
+        }
+        else
+            fy/=17+randomreal();
+    } while(fx);
+    checked_maximize(max_relative_error,max_err/TEST_EPSILON_AXES);
+    return 0;
+}
+
 int test_math(){
     int ret;
     ret=test_quaternion();
     if(ret)return ret;
+    ret=test_axes();
+    if(ret)return ret;
     ret=test_hypot<float>();
-    if(ret)return ret;
+    if(ret)return 10+ret;
     ret=test_hypot<double>();
-    if(ret)return ret;
+    if(ret)return 20+ret;
     ret=test_hypot<dfloat_t<float>>();
-    if(ret)return ret;
+    if(ret)return 30+ret;
     ret=test_hypot<dfloat_t<double>>();
-    if(ret)return ret;
+    if(ret)return 40+ret;
 
     LogInfo("\n      Passed(%f), ",max_relative_error);
     return 0;

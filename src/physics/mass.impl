@@ -10,8 +10,8 @@ M.naccel+=tp_dg*r;                               \
                                                  \
 fast_real fmj=-3*tp_dg;                          \
 fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
-fast_real dw2=dw%dw,dw1=sqrt(dw2),               \
-    dwt=dw1*mi.tide_delay*mj.tide_delay_factor;  \
+fast_real dwt=dw.normalize();                    \
+dwt*=mi.tide_delay*mj.tide_delay_factor;         \
 fast_real                                        \
 ecwt2=1+4*dwt*dwt,                               \
 secwt2=sqrt(ecwt2),                              \
@@ -19,12 +19,8 @@ x0=sqrt((1+secwt2)/(2*ecwt2)),                   \
 y0=dwt*sqrt(2/(ecwt2*(1+secwt2))),               \
 z02=dwt*dwt*(2/(ecwt2+secwt2));                  \
 fast_mpvec                                       \
-dr=r*x0+dw*r*(y0/dw1);                           \
-M.C_potential+=(                                 \
-    fast_mpmat(fast_real(1)/3-z02)               \
-    -fast_mpmat(dr*rr2,dr)                       \
-    +fast_mpmat(dw*(z02/dw2),dw)                 \
-    )*(fmj*mi.k2);
+dr=r*x0+dw*r*y0;                                 \
+M.C_potential-=(fast_mpmat(dr*rr2,dr)-fast_mpmat(dw*z02,dw)+(z02-fast_real(1)/3))*(fmj*mi.k2);
 
 #define DAMPED_TIDAL_DEFORMATION_MATRIX_NDELAY(M)\
 fast_mpvec r=mj.r-mi.r;                          \
@@ -37,12 +33,7 @@ fast_real tp_dg=rr2*tp_dphi;                     \
 M.naccel+=tp_dg*r;                               \
                                                  \
 fast_real fmj=-3*tp_dg;                          \
-fast_mpvec dw=r*(mi.w*r-v)*rr2;                  \
-fast_real dw2=dw%dw,dw1=sqrt(dw2);               \
-M.C_potential+=(                                 \
-    fast_mpmat(fast_real(1)/3)                   \
-    -fast_mpmat(r*rr2,r)                         \
-    )*(fmj*mi.k2);
+M.C_potential-=(fast_mpmat(r*rr2,r)-fast_real(1)/3)*(fmj*mi.k2);
 
 #define DAMPED_TIDAL_DEFORMATION_MATRIX_NK2(M)\
 fast_mpvec r=mj.r-mi.r;                       \
@@ -54,19 +45,20 @@ fast_real tp_dg=rr2*tp_dphi;                  \
 M.phi-=tp_dphi;                               \
 M.naccel+=tp_dg*r;
 
-#define UPDATE_HARMONICS                                               \
-fast_real w2=mi.w%mi.w;                                                \
-mi.C_potential+=fast_mpmat(w2*mi.k2r/3)-fast_mpmat(mi.w*mi.k2r,mi.w);  \
-mi.C_potential*=mi.R*mi.R2/(2*mi.GM);                                  \
-                                                                       \
-fast_mpmat fmis(mi.s);                                                 \
-fast_mpmat mc(mi.C_static);                                            \
-mc.x.x+=mi.exJ2/2;                                                     \
-mc.y.y+=mi.exJ2/2;                                                     \
-mc.z.z-=mi.exJ2;                                                       \
-mc=fmis.toworld(mc);                                                   \
-mi.C_potential+=mc;                                                    \
-mi.GI=2*mi.R2/3*(fast_mpmat(mi.A)-mi.C_potential);
+#define UPDATE_HARMONICS                               \
+fast_real w2=mi.w%mi.w;                                \
+mi.C_potential+=w2*mi.k2r/3;                           \
+mi.C_potential-=fast_mpmat(mi.w*mi.k2r,mi.w);          \
+mi.C_potential*=mi.R*mi.R2/(2*mi.GM);                  \
+                                                       \
+fast_mpmat fmis(mi.s);                                 \
+fast_mpmat mc(mi.C_static);                            \
+mc.x.x+=mi.exJ2/2;                                     \
+mc.y.y+=mi.exJ2/2;                                     \
+mc.z.z-=mi.exJ2;                                       \
+mc=fmis.toworld(mc);                                   \
+mi.C_potential+=mc;                                    \
+mi.GI=fast_real(-2)/3*mi.R2*(mi.C_potential-mi.A);
 
 #define UPDATE_ANGULAR_VELOCITY                        \
 fast_mpvec oldw=mi.w;                                  \
@@ -147,9 +139,8 @@ mass &m=mi;                                           \
 const ring &mr=*m.ringmodel;                          \
 m.daccel-=(m.gaccel+m.daccel+m.naccel)*mr.GM_ratio;   \
 fast_mpvec mGL=m.GL;                                  \
-fast_real rmGL2=1/(mGL%mGL),rmGL=sqrt(rmGL2);         \
-fast_mpvec ptorque=m.dtorque;                         \
-ptorque=ptorque%mGL*rmGL2*mGL;                        \
+fast_real rmGL=mGL.normalize();                       \
+fast_mpvec ptorque=m.dtorque%mGL*mGL;                 \
 fast_mpvec dtorque=m.dtorque-ptorque;                 \
-dtorque*=1/(1+rmGL*mr.GL_R2*m.R2);                    \
+dtorque*=rmGL/(rmGL+mr.GL_R2*m.R2);                   \
 m.dtorque=dtorque+ptorque;

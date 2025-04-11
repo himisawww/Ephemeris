@@ -166,29 +166,21 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                     //CombineCorrector
                     //assume dr.dv==0
                     fast_mpvec dr=mj.r-mci.r;
-                    fast_mpvec dv=mj.v-mci.v;
-                    fast_mpvec dj=dr*dv;
+                    fast_mpmat::orthogonalizer dv(mj.v-mci.v);
+                    fast_mpmat mrot(dr,dv,0);
+                    fast_mpvec dj=mrot.z*dv.cross_norm;
                     mci.GL+=(fast_mpvec(mj.GL)+dj)*(mj.GM/mi.GM);
+                    fast_real r2=dv.axis_norm*dv.axis_norm;
+                    fast_real dw=dv.cross_norm/r2;
+                    fast_real t=dt_long*dw;
+                    fast_real st=sin(t),ct=cos(t),sit=t==0?3:3*st/t;
+                    fast_mpmat dh(
+                        fast_mpvec((-1-sit*ct)/2,-sit*st/2,0),
+                        fast_mpvec(-sit*st/2,(-1+sit*ct)/2,0),
+                        fast_mpvec(0,0,1)
+                    );
+                    dh=mrot.toworld(dh);
 
-                    fast_real r2=dr%dr,rr=1/sqrt(r2);
-                    fast_real j2=dj%dj;
-                    fast_mpmat dh;
-                    if(j2==0){
-                        dh=fast_mpmat(1)-fast_mpmat((3/r2)*dr,dr);
-                    }
-                    else{
-                        fast_real rj=1/sqrt(j2);
-                        fast_mpmat mrot(dr*rr,0,dj*rj);
-                        fast_real dw=1/(r2*rj);
-                        fast_real t=dt_long*dw;
-                        fast_real st=sin(t),ct=cos(t),sit=3*st/t;
-                        dh=fast_mpmat(
-                            fast_mpvec((-1-sit*ct)/2,-sit*st/2,0),
-                            fast_mpvec(-sit*st/2,(-1+sit*ct)/2,0),
-                            fast_mpvec(0,0,1)
-                        );
-                        dh=mrot.toworld(dh);
-                    }
                     fast_real dhnorm=mj.GM+mci.GM;
                     dhnorm=-r2*mj.GM*mci.GM/(dhnorm*dhnorm*2*mci.R2);
                     dh*=dhnorm;
@@ -258,9 +250,9 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                     rm+=vm*(dt_long/2);
                     fast_real rr2=1/(rm%rm),rr=sqrt(rr2);
                     fast_real tmatn=-mj.GM0*rr2*rr;
-                    sn.tidal_matrix+=fast_mpmat(tmatn)-fast_mpmat(
+                    sn.tidal_matrix-=fast_mpmat(
                         (3*tmatn*rr2)*rm,rm
-                    );
+                    )-tmatn;
                 }
             }
             sn.t_eph=t_eph;

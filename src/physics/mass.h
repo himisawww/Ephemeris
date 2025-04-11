@@ -316,13 +316,17 @@ public:
     auto end() const{ return mlist.end(); }
     auto size() const{ return mlist.size(); }
     const mass &operator [](int_t mid) const{ return mlist[mid]; }
-    const mass &operator [](const char *ssid) const;
+    const mass &operator [](const char *ssid) const{ return mlist[get_mid(ssid)]; }
 
     //functions modifying mass of the system; once called,
     //  accel() must be called to restore correct internal state of msystem.
     void scale(int_t mid,fast_real factor);
     void scale_geopotential(int_t mid,fast_real factor);
     void scale_ring(int_t mid,fast_real factor);
+    auto begin(){ return mlist.begin(); }
+    auto end(){ return mlist.end(); }
+    mass &operator [](int_t mid){ return mlist[mid]; }
+    mass &operator [](const char *ssid){ return mlist[get_mid(ssid)]; }
 
     // t_eph should always be integers
     int_t ephemeris_time() const;

@@ -251,14 +251,52 @@ class mat_t{
 public:
     vec_t<T> x,y,z;
     INLINE mat_t(){}
+    //scaled identity matrix
     INLINE mat_t(const T &a):x(a,0,0),y(0,a,0),z(0,0,a){}
+    //outer product
     INLINE mat_t(const vec_t<T> &a,const vec_t<T> &b):x(a*b.x),y(a*b.y),z(a*b.z){}
     INLINE mat_t(const vec_t<T> &x0,const vec_t<T> &y0,const vec_t<T> &z0):x(x0),y(y0),z(z0){}
+    //assume input params are orthogonal & normalized
     INLINE mat_t(const vec_t<T> &x0,const vec_t<T> &y0,int):x(x0),y(y0){ z=x*y; }
     INLINE mat_t(const vec_t<T> &x0,int,const vec_t<T> &z0):x(x0),z(z0){ y=z*x; }
     INLINE mat_t(int,const vec_t<T> &y0,const vec_t<T> &z0):y(y0),z(z0){ x=y*z; }
     template<typename T2>
     INLINE mat_t(const mat_t<T2> &a):x(a.x),y(a.y),z(a.z){}
+
+    class orthogonalizer{
+        const vec_t<T> _v;
+        friend class mat_t<T>;
+
+        template<bool invert>
+        INLINE void make_axes(const vec_t<T> &x0,vec_t<T> &x,vec_t<T> &y,vec_t<T> &z){
+            x=x0;
+            z=x0*_v;
+            axis_norm=x.normalize();
+            vec_t<T> xx=x.asc_node(),xy=x*xx;
+            T zx=xx%z,zy=xy%z;
+            cross_norm=hypot_t<T>::normalize(zy,zx);
+            z=zx*xx+zy*xy;
+            if constexpr(invert)
+                y=zx*xy-zy*xx;
+            else
+                y=zy*xx-zx*xy;
+        }
+    public:
+        explicit orthogonalizer(const vec_t<T> &v):_v(v){}
+
+        T axis_norm,cross_norm;
+    };
+    //construct mat_t from an axis (vec_t v) and orthogonalizer (o), s.t.,
+    // result axis v is input v normalized,
+    // result axis int is parallel with v*o, its direction ensures result is right-handed and,
+    // result axis o is on the same side with input o, that is, their dot product is not less than 0.
+    //after construction, v.norm() and (v*o).norm() can be find by o.axis_norm and o.cross_norm.
+    INLINE mat_t(const vec_t<T> &x0,orthogonalizer &y0,int){ y0.make_axes<0>(x0,x,y,z); }
+    INLINE mat_t(orthogonalizer &x0,const vec_t<T> &y0,int){ x0.make_axes<1>(y0,y,x,z); }
+    INLINE mat_t(orthogonalizer &x0,int,const vec_t<T> &z0){ x0.make_axes<0>(z0,z,x,y); }
+    INLINE mat_t(const vec_t<T> &x0,int,orthogonalizer &z0){ z0.make_axes<1>(x0,x,z,y); }
+    INLINE mat_t(int,const vec_t<T> &y0,orthogonalizer &z0){ z0.make_axes<0>(y0,y,z,x); }
+    INLINE mat_t(int,orthogonalizer &y0,const vec_t<T> &z0){ y0.make_axes<1>(z0,z,y,x); }
 
     //converts a world vec_t to local
     INLINE vec_t<T> tolocal(const vec_t<T> &a) const{ return a%(*this); }
