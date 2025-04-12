@@ -282,7 +282,7 @@ public:
                 y=zy*xx-zx*xy;
         }
     public:
-        explicit orthogonalizer(const vec_t<T> &v):_v(v){}
+        explicit INLINE orthogonalizer(const vec_t<T> &v):_v(v){}
 
         T axis_norm,cross_norm;
     };
