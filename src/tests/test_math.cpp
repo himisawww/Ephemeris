@@ -335,13 +335,14 @@ int test_axes(){
             return 2;
         }
         ++i;
+        if(fx==0)break;
         if(fy==0){
             fy=TEST_AXES_MAX;
             fx/=17+randomreal();
         }
         else
             fy/=17+randomreal();
-    } while(fx);
+    } while(1);
     checked_maximize(max_relative_error,max_err/TEST_EPSILON_AXES);
     return 0;
 }

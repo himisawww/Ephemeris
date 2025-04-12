@@ -4,16 +4,9 @@ using Constants::pi;
 using Constants::epsilon;
 
 rotational_param_t::rotational_param_t(const mat &s,const vec &_w):w(_w){
-    double ww=w%w;
-    if(ww==0){
-        //if ww==0, use finite-pseudo-w to avoid singularity
-        w=s.z*epsilon;
-        ww=w%w;
-    }
-
-    double sww=sqrt(ww),srww=1/sww;
-    mat wm(w.asc_node(),0,w*srww);
-    vec wz=wm.z;
+    vec wz=w;
+    wz.normalize();
+    mat wm(w.asc_node(),0,wz);
 
     s.thetaphi(wz,ptheta,pphi);
     wm.roty(-ptheta).rotz(-pphi);
@@ -31,9 +24,9 @@ rotational_param_t::rotational_param_t(const mat &s,const vec &_w):w(_w){
 }
 void rotational_param_t::sw(double t,mat &s,vec &w) const{
     w=this->w;
-    double sww=sqrt(w%w),srww=1/sww;
-    s=mat(w.asc_node(),0,w*srww);
-    vec wz=s.z;
+    vec wz=w;
+    double sww=wz.normalize();
+    s=mat(w.asc_node(),0,wz);
     s.roty(-ptheta).rotz(-pphi);
 
     //current rotation angle

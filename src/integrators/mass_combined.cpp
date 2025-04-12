@@ -173,7 +173,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                     fast_real r2=dv.axis_norm*dv.axis_norm;
                     fast_real dw=dv.cross_norm/r2;
                     fast_real t=dt_long*dw;
-                    fast_real st=sin(t),ct=cos(t),sit=t==0?3:3*st/t;
+                    fast_real st=sin(t),ct=cos(t),sit=t==0?3:3*(st/t);
                     fast_mpmat dh(
                         fast_mpvec((-1-sit*ct)/2,-sit*st/2,0),
                         fast_mpvec(-sit*st/2,(-1+sit*ct)/2,0),
