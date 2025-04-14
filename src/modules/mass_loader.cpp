@@ -179,6 +179,15 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
         break;
     }
 
+    //correct time variables to t_eph 0 (see update())
+    for(auto &m:mlist){
+        m.GM0=m.GM-m.dGM*t_eph.hi;
+        fast_real dexJ2=m.dJ2*t_eph.hi;
+        m.C_static.x.x-=dexJ2/2;
+        m.C_static.y.y-=dexJ2/2;
+        m.C_static.z.z+=dexJ2;
+    }
+
     //check config
     if(!sanity(delta_t)||!sanity(data_cadence)||!sanity(max_ephm_length)||!sanity(combined_delta_t)){
         LogError("Delta_t/Cadence/Max_Ephemeris_Length/Combined_Delta_t_Max should be finite positive real numbers.\n");
