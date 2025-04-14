@@ -182,10 +182,10 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     //correct time variables to t_eph 0 (see update())
     for(auto &m:mlist){
         m.GM0=m.GM-m.dGM*t_eph.hi;
-        fast_real dexJ2=m.dJ2*t_eph.hi;
-        m.C_static.x.x-=dexJ2/2;
-        m.C_static.y.y-=dexJ2/2;
-        m.C_static.z.z+=dexJ2;
+        m.exJ2=m.dJ2*t_eph.hi;
+        m.C_static.x.x-=m.exJ2/2;
+        m.C_static.y.y-=m.exJ2/2;
+        m.C_static.z.z+=m.exJ2;
     }
 
     //check config
