@@ -21,6 +21,7 @@ void mass::scale(fast_real factor){
 
     lum*=f2;        //luminosity scales with surface
     recpt*=factor;  //receptance scales to not influence acceleration
+    rR2G_4c*=f3;
 }
 
 void msystem::update(fast_real t){

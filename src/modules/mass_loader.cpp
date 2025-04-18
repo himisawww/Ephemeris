@@ -409,9 +409,7 @@ bool msystem::load(
         m.w=w;
         m.A=3*m.inertia/2;
         m.R2=m.R*m.R;
-        using Constants::c;
-        using Constants::G;
-        m.rR2_4Mc=m.recpt*m.R2/(4*m.GM*c/G);
+        m.rR2G_4c=0;
         m.C_static=fast_mpmat(
             fast_mpvec(3*c22+j2/2,3*s22,3*c21/2),
             fast_mpvec(3*s22,-3*c22+j2/2,3*s21/2),
@@ -474,6 +472,9 @@ bool msystem::load(
             }
             else if(0==strcmp(sname,"Receptance")){
                 m.recpt=param;
+                using Constants::c;
+                using Constants::G;
+                m.rR2G_4c=m.recpt*m.R2*(G/(4*c));
             }
             else if(0==strcmp(sname,"J2Rate")){
                 m.dJ2=param;

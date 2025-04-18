@@ -91,8 +91,8 @@ public:
     //auxiliary constants:
     //A = 3*inertia/2
     //R2 = R^2
-    //rR2_4Mc = recpt*R^2/(4*GM*c/G)
-    fast_real A,R2,rR2_4Mc;
+    //rR2G_4c = recpt*R^2*G/(4*c)
+    fast_real A,R2,rR2G_4c;
     //static deformation of potential in surface frame
     fast_mpmat C_static;
 

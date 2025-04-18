@@ -100,7 +100,7 @@ fast_mpvec GLj=mj.GL;                            \
 M.daccel+=(rcr32*(GLj-3*(GLj%r)*rr2*r))*b;
 
 #define RADIATION_PRESSURE(M)            \
-M.daccel+=mj.lum*mi.rR2_4Mc*rr3*r;
+M.daccel+=mj.lum*mi.rR2G_4c*rr3/mi.GM*r;
 
 #define ROTATIONAL_TIDAL_DEFORMATION                 \
 fast_mpvec Cr=mi.C_potential%r;                      \
