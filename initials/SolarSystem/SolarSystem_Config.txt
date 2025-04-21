@@ -16,7 +16,7 @@ Integrator          COMBINED_RK12
 Delta_t             300
 
 #output data cadence (seconds)
-Cadence             3600
+Cadence             7200
 
 #max length of a single output file (seconds)
 #631152000 == 20 years

@@ -250,7 +250,7 @@ void msystem::reset_params(){
     t_eph=0;
     delta_t=300;//5min
     integrator=int_t(COMBINED_RK12);
-    data_cadence=3600;//1h
+    data_cadence=7200;//2h
     max_ephm_length=631152000;//20yr
     combined_delta_t=28800;//8h
     GM_max_parent=2E17;

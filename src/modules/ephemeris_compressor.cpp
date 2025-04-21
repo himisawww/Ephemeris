@@ -378,7 +378,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
             double angle=ri.angle;
             angle=last_angle+angle_reduce(angle-last_angle);
             fdata.push_back(angle);
-            last_angle=angle;
+            last_angle=angle+pdata[i].w.norm()*delta_t;
         }
 
         if(fdata.empty())
