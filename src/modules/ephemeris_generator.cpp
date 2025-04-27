@@ -428,7 +428,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     //record blist for [t_start,t_end]
     ephemeris_entry idat;
     idat.fid=0;
-    idat.sid=blist.size();
+    idat.sid=pold_blist->size();
     idat.t_start=t_start;
     idat.t_end=t_eph;
     fwrite(&idat,sizeof(idat),1,findex);
