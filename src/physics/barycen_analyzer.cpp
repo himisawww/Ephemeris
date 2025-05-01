@@ -237,7 +237,7 @@ real msystem::analyse(bool reconstruct){
             dl.push_back(bdata());
             barycen &bk=bl[k];
             bdata &dk=dl[k];
-            bk.pid=-1;
+            bk.pid=old_bn&&blist[i].pid==blist[j].pid?blist[i].pid:-1;
             bk.hid=i;
             bk.gid=j;
             bk.mid=-1;
