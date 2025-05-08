@@ -3,7 +3,7 @@
 namespace Configs{
 
 const int_t CheckPointMagic=0x53484c486d687045;
-const int_t CheckPointVersion=3;
+const int_t CheckPointVersion=4;
 const int_t DataFormatVersion=2;
 
 const int ExportHeaderCount=4;

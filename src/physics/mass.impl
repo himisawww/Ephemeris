@@ -1,7 +1,7 @@
 #define DAMPED_TIDAL_DEFORMATION_MATRIX(M)       \
 fast_mpvec r=mj.r-mi.r;                          \
 fast_mpvec v=mj.v-mi.v;                          \
-fast_real rr2=1/(r%r);                           \
+fast_real rr2=1/std::max(r%r,mi.sR2+mj.sR2);     \
 fast_real rr=sqrt(rr2);                          \
 fast_real tp_dphi=rr*mj.GM;                      \
 M.phi-=tp_dphi;                                  \
@@ -25,7 +25,7 @@ M.C_potential-=(fast_mpmat(dr*rr2,dr)-fast_mpmat(dw*z02,dw)+(z02-fast_real(1)/3)
 #define DAMPED_TIDAL_DEFORMATION_MATRIX_NDELAY(M)\
 fast_mpvec r=mj.r-mi.r;                          \
 fast_mpvec v=mj.v-mi.v;                          \
-fast_real rr2=1/(r%r);                           \
+fast_real rr2=1/std::max(r%r,mi.sR2+mj.sR2);     \
 fast_real rr=sqrt(rr2);                          \
 fast_real tp_dphi=rr*mj.GM;                      \
 M.phi-=tp_dphi;                                  \
@@ -38,7 +38,7 @@ M.C_potential-=(fast_mpmat(r*rr2,r)-fast_real(1)/3)*(fmj*mi.k2);
 #define DAMPED_TIDAL_DEFORMATION_MATRIX_NK2(M)\
 fast_mpvec r=mj.r-mi.r;                       \
 fast_mpvec v=mj.v-mi.v;                       \
-fast_real rr2=1/(r%r);                        \
+fast_real rr2=1/std::max(r%r,mi.sR2+mj.sR2);  \
 fast_real rr=sqrt(rr2);                       \
 fast_real tp_dphi=rr*mj.GM;                   \
 fast_real tp_dg=rr2*tp_dphi;                  \
@@ -75,7 +75,7 @@ mi.naccel/=c2;
 
 #define RELATIVITY(M)                                 \
 fast_mpvec r=mj.r-mi.r;                               \
-fast_real rr2=1/(r%r);                                \
+fast_real rr2=1/std::max(r%r,mi.sR2+mj.sR2);          \
 fast_real rr=sqrt(rr2);                               \
 fast_real rr3=rr*rr2;                                 \
                                                       \

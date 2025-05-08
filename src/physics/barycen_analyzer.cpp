@@ -176,9 +176,10 @@ real msystem::analyse(bool reconstruct){
                 barycen &bj=bl[j];
                 bdata &dj=dl[j];
                 if(dj.del)continue;
+                if(bj.mid>=0&&mlist[bj.mid].R<0)continue;//soft mass shall not be parent
                 fast_mpvec r=bj.r-bi.r;
                 fast_real r2=r%r,r1=sqrt(r2);
-                if(r1<di.minr||r1<dj.minr)continue;
+                if(!(r1>di.minr&&r1>dj.minr))continue;
                 fast_real infl=fast_real(bj.GM)/(r2*r1);
                 int_t tj=j,tp=bj.pid;
                 // if j is one of a binary-system, and i is distant from the system-center

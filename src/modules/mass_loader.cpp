@@ -10,8 +10,57 @@
 
 const char *default_path=".";
 
-bool sanity(double dt){
+static bool sanity(double dt){
     return dt>0&&dt!=INFINITY;
+}
+
+bool mass::sanity(bool alert) const{
+    std::vector<const char*> errs;
+    constexpr fast_real eps2=Constants::epsilon*Constants::epsilon;
+    constexpr fast_real large_finite=1/eps2;
+
+    if(!(fast_mpvec(r).normsqr()<large_finite)||!(fast_mpvec(v).normsqr()<Constants::c2))
+        errs.push_back("position/velocity not finite\n");
+
+    fast_mpmat fmis(s);
+    if(!((1-fmis.transpose()%fmis).normsqr()<64*eps2)||!(fmis.det()>0))
+        errs.push_back("rotation not normalized\n");
+
+    if(!(w.normsqr()*R2<Constants::c2))
+        errs.push_back("rotation too fast\n");
+
+    if(!(eps2<GM0&&GM0<large_finite))
+        errs.push_back("invalid gravititional parameter\n");
+
+    if(!(2*GM0<Constants::c2*std::abs(R)))
+        errs.push_back("invalid radius\n");
+
+    if(!(0<inertia&&inertia<=1))
+        errs.push_back("invalid inertia factor\n");
+
+    if(!(0<=k2&&k2<=1&&0<=k2r&&k2r<=1))
+        errs.push_back("invalid tidal/rotational deformation factor\n");
+
+    if(!(0<=tide_delay&&tide_delay<large_finite&&0<=tide_delay_factor&&tide_delay_factor<=large_finite))
+        errs.push_back("invalid tidal delay time/factor\n");
+
+    fast_real j2,c21,c22,s21,s22;
+    C_static.to_harmonics(j2,c21,c22,s21,s22);
+    if(!(0<=j2&&j2+6*std::abs(c22)<3*inertia&&std::abs(c21)<inertia&&std::abs(s21)<inertia&&std::abs(s22)*2<inertia))
+        errs.push_back("invalid static harmonics\n");
+
+    if(R<0&&(k2||k2r||j2||dJ2||c21||c22||s21||s22||gpmodel||ringmodel||tide_delay))
+        errs.push_back("soft mass shall not have non-point components(harmonics/deformations/geopotential/ring)\n");
+
+    if(errs.empty())
+        return true;
+    
+    if(alert){
+        LogError("Error when loading <%s>:\n",(char*)&sid);
+        for(const char *estr:errs)
+            LogError("    %s",estr);
+    }
+    return false;
 }
 
 bool msystem::load(const char *fconfig,const char *fcheckpoint){
@@ -409,17 +458,17 @@ bool msystem::load(
         m.w=w;
         m.A=3*m.inertia/2;
         m.R2=m.R*m.R;
+        m.sR2=m.R<0?m.R2:0;
         m.rR2G_4c=0;
-        m.C_static=fast_mpmat(
-            fast_mpvec(3*c22+j2/2,3*s22,3*c21/2),
-            fast_mpvec(3*s22,-3*c22+j2/2,3*s21/2),
-            fast_mpvec(3*c21/2,3*s21/2,-j2)
-        );
+        m.C_static.from_harmonics(j2,c21,c22,s21,s22);
 
         //Calculate initial GI and GL
         fast_mpmat fmis(m.s);
         m.GI=fast_real(-2)/3*m.R2*(fmis.toworld(m.C_static)-m.A);
         m.GL=m.GI%m.w;
+
+        if(!m.sanity(true))
+            failed=true;
 
         mlist.push_back(m);
     }

@@ -75,7 +75,8 @@ public:
     //GM0: GM at epoch 0.
     //dGM: dGM/dt, mass loss rate, should be <0 for stars
     //dJ2: dJ2/dt, J2 rate
-    //R: mean radius
+    //R: volumetric mean radius, also reference radius for geopotential/ring
+    //   if negative, use soft gravity(prop. to r when r < |R|)
     //inertia: mean moment of inertia factor, default to 0.4
     //k2: degree 2 tidal love number, default to 0
     //k2r: degree 2 rotational love number, default to k2
@@ -91,8 +92,9 @@ public:
     //auxiliary constants:
     //A = 3*inertia/2
     //R2 = R^2
+    //sR2 = R^2*(R<0), present for soft mass
     //rR2G_4c = recpt*R^2*G/(4*c)
-    fast_real A,R2,rR2G_4c;
+    fast_real A,R2,sR2,rR2G_4c;
     //static deformation of potential in surface frame
     fast_mpmat C_static;
 
@@ -138,6 +140,8 @@ public:
     //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
+    //check sanity of states & params
+    bool sanity(bool alert=false) const;
 };
 
 constexpr auto mass_auxiliary_variables=&mass::phi;

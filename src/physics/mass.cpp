@@ -12,6 +12,7 @@ void mass::scale(fast_real factor){
     R*=factor;
 
     R2*=f2;
+    sR2*=f2;
     GL*=f2;
     GI*=f2;
 

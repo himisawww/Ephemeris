@@ -489,6 +489,23 @@ public:
         T reca=1/a;
         return mat_t<T>(b.x*reca,b.y*reca,b.z*reca);
     }
+
+    INLINE mat_t<T> &from_harmonics(const T &j2,const T &c21,const T &c22,const T &s21,const T &s22){
+        x.x=3*c22+j2/2;
+        y.x=x.y=3*s22;
+        z.x=x.z=3*c21/2;
+        y.y=-3*c22+j2/2;
+        z.y=y.z=3*s21/2;
+        z.z=-j2;
+        return *this;
+    }
+    INLINE void to_harmonics(T &j2,T &c21,T &c22,T &s21,T &s22) const{
+        j2=-z.z;
+        c21=(x.z+z.x)/3;
+        c22=(x.x-y.y)/6;
+        s21=(y.z+z.y)/3;
+        s22=(x.y+y.x)/6;
+    }
 };
 
 template<typename T>
