@@ -289,6 +289,8 @@ public:
     static bool load_barycen_structure(MFILE *fin,std::vector<barycen> &blist);
     static void save_barycen_structure(MFILE *fout,const std::vector<barycen> &blist);
 
+    //load internal system, optional save to a checkpoint
+    bool load_internal(const char *fcheckpoint=nullptr);
     //load system from config file, optional save to a checkpoint
     bool load(const char *fconfig,const char *fcheckpoint=nullptr);
     //load system from checkpoint file

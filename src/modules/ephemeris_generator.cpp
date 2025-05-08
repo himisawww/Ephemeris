@@ -50,6 +50,8 @@ int ephemeris_generator::make_ephemeris(int dir){
     else if(ip){
         ms.load(ip,ickpt.c_str());
     }
+    else
+        ms.load_internal(ickpt.c_str());
 
     if(!ms.mlist.size()){
         LogCritical(

@@ -8,7 +8,7 @@
 
 #define TEST_LIBRARY_DIR "__internal/"
 
-int publish_resource(int resource_id,const char *filename){
+static int publish_resource(int resource_id,const char *filename){
     HINSTANCE hInst=NULL;
     HRSRC hResInfo=FindResource(hInst,MAKEINTRESOURCE(resource_id),RT_HTML);
     if(hResInfo==NULL)return 1;
@@ -41,8 +41,7 @@ msystem get_test_subsystem(std::vector<const char *> sids){
     return msdst;
 }
 
-int test_prepare(){
-
+static int publish_resource(){
 #define PUBLISH(IDR,PATH) do{                            \
     int ret=publish_resource(IDR,TEST_LIBRARY_DIR PATH); \
     if(ret)return ret;                                   \
@@ -59,8 +58,16 @@ int test_prepare(){
     PUBLISH(IDR_GPUranus    ,"Geopotentials/799.txt"          );
     PUBLISH(IDR_GPNeptune   ,"Geopotentials/899.txt"          );
 #undef PUBLISH
-    bool success=ms.load(TEST_LIBRARY_DIR "SolarSystem_Config.txt");
-    if(!success)
+    return 0;
+}
+
+bool msystem::load_internal(const char *fckpt){
+    static int publish_all=publish_resource();
+    return load(TEST_LIBRARY_DIR "SolarSystem_Config.txt",fckpt);
+}
+
+int test_prepare(){
+    if(!ms.load_internal())
         return 1;
     
     LogInfo("      Passed, ");
