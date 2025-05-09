@@ -37,6 +37,9 @@ int main_fun(int argc,const char **argv){
         t_years=-1;
         if(1!=sscanf(t_str,"%lf",&t_years)||t_years<0)break;
         
+        if(argc==4&&strcmp(argv[1],"CONVERT_FORMAT")==0&&fix_dir>=0&&t_years>0)
+            return ephemeris_collector::convert_format(argv[2],t_years);
+
         egen.ip=argc>3?argv[argc-3]:nullptr;
         egen.op=argv[argc-2];
 
