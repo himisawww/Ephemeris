@@ -62,8 +62,8 @@ static int publish_resource(){
 }
 
 bool msystem::load_internal(const char *fckpt){
-    static int publish_all=publish_resource();
-    return load(TEST_LIBRARY_DIR "SolarSystem_Config.txt",fckpt);
+    static int publish_failed=publish_resource();
+    return !publish_failed&&load(TEST_LIBRARY_DIR "SolarSystem_Config.txt",fckpt);
 }
 
 int test_prepare(){

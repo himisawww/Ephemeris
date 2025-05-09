@@ -19,7 +19,7 @@ bool mass::sanity(bool alert) const{
     constexpr fast_real eps2=Constants::epsilon*Constants::epsilon;
     constexpr fast_real large_finite=1/eps2;
 
-    if(!(fast_mpvec(r).normsqr()<large_finite)||!(fast_mpvec(v).normsqr()<Constants::c2))
+    if(!(fast_mpvec(r).normsqr()<large_finite*large_finite)||!(fast_mpvec(v).normsqr()<Constants::c2))
         errs.push_back("position/velocity not finite\n");
 
     fast_mpmat fmis(s);
@@ -35,7 +35,7 @@ bool mass::sanity(bool alert) const{
     if(!(2*GM0<Constants::c2*std::abs(R)))
         errs.push_back("invalid radius\n");
 
-    if(!(0<inertia&&inertia<=1))
+    if(!(eps2<inertia&&inertia<=1))
         errs.push_back("invalid inertia factor\n");
 
     if(!(0<=k2&&k2<=1&&0<=k2r&&k2r<=1))
@@ -467,9 +467,6 @@ bool msystem::load(
         m.GI=fast_real(-2)/3*m.R2*(fmis.toworld(m.C_static)-m.A);
         m.GL=m.GI%m.w;
 
-        if(!m.sanity(true))
-            failed=true;
-
         mlist.push_back(m);
     }
     fclose(fin);
@@ -549,7 +546,10 @@ bool msystem::load(
         fast_mpmat ncp=fmis.toworld(m.C_static);
         m.C_static-=fmis.tolocal(m.C_potential)-m.C_static;
         m.C_potential=ncp;
+        if(!m.sanity(true))
+            failed=true;
     }
+    if(failed)return false;
 
     //Calculate initial accel
     accel();
