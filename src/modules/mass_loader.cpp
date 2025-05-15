@@ -273,14 +273,12 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
             zp.push_back(initdir+ringpath+"/",{});
         for(const auto &m:mlist){
             if(m.gpmodel){
-                zp.push_back(
-                    initdir+gppath+"/"+(const char *)&m.sid+".txt",
-                    MFILE(dirstr+gppath+"\\"+(const char *)&m.sid+".txt"));
+                std::string gname=gppath+"/"+(const char *)&m.sid+".txt";
+                zp.push_back(initdir+gname,MFILE(dirstr+gname));
             }
             if(m.ringmodel){
-                zp.push_back(
-                    initdir+ringpath+"/"+(const char *)&m.sid+".txt",
-                    MFILE(dirstr+ringpath+"\\"+(const char *)&m.sid+".txt"));
+                std::string rname=ringpath+"/"+(const char *)&m.sid+".txt";
+                zp.push_back(initdir+rname,MFILE(dirstr+rname));
             }
         }
         LogInfo("Saving checkpoint %s\n",fcheckpoint);
@@ -746,67 +744,67 @@ bool msystem::save_checkpoint(MFILE *fout) const{
     return true;
 }
 
-void print_string(MFILE *mf,int_t level,const std::string &str){
-    if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
-        //indent
-        std::string indent(level,' ');
-        fwrite(indent.data(),indent.size(),1,mf);
-    }
-    fwrite(str.data(),str.size(),1,mf);
-}
-void msystem::print_structure(MFILE *mf,int_t root,int_t level) const{
-    const msystem &ms=*this;
+void barycen_structure_printer::_print_structure(MFILE *mf,int_t root,int_t level) const{
     if(root<0){
-        root=ms.blist.size();
+        root=blist.size();
         do{
             if(--root<0)return;
-        } while(!(ms.blist[root].pid<0));
+        } while(!(blist[root].pid<0));
     }
 
-    const barycen& br=ms.blist[root];
+    const barycen& br=blist[root];
     int_t cn=br.children.size();
     std::string barycen_name;
 
+    auto print_string=[mf,level](const std::string &str){
+        if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
+            //indent
+            std::string indent(level,' ');
+            fwrite(indent.data(),indent.size(),1,mf);
+        }
+        fwrite(str.data(),str.size(),1,mf);
+    };
+
     if(br.hid<0){
-        barycen_name=(const char *)&ms.mlist[br.mid].sid;
+        barycen_name=(const char *)&ms[br.mid].sid;
         if(cn==0){
-            print_string(mf,level,"\""+barycen_name+"\"");
+            print_string("\""+barycen_name+"\"");
             return;
         }
-        print_string(mf,level,"{\n");
-        print_string(mf,level,"       \"ID\":\""+barycen_name+"\"");
+        print_string("{\n");
+        print_string("       \"ID\":\""+barycen_name+"\"");
     }
     else{
         barycen_name="Barycenter[";
-        barycen_name+=(const char *)&ms.mlist[ms.blist[br.hid].mid].sid;
-        if(ms.blist[br.hid].hid>=0)barycen_name+=" System";
+        barycen_name+=(const char *)&ms[blist[br.hid].mid].sid;
+        if(blist[br.hid].hid>=0)barycen_name+=" System";
         barycen_name+=", ";
-        barycen_name+=(const char *)&ms.mlist[ms.blist[br.gid].mid].sid;
-        if(ms.blist[br.gid].hid>=0)barycen_name+=" System";
+        barycen_name+=(const char *)&ms[blist[br.gid].mid].sid;
+        if(blist[br.gid].hid>=0)barycen_name+=" System";
         barycen_name+="]";
-        print_string(mf,level,"{\n");
-        print_string(mf,level,"       \"ID\":\""+barycen_name+"\",\n");
-        print_string(mf,level,"  \"Primary\":");
-        print_structure(mf,br.hid,level+12);
-        print_string(mf,level,",\n");
-        print_string(mf,level,"\"Secondary\":");
-        print_structure(mf,br.gid,level+12);
+        print_string("{\n");
+        print_string("       \"ID\":\""+barycen_name+"\",\n");
+        print_string("  \"Primary\":");
+        _print_structure(mf,br.hid,level+12);
+        print_string(",\n");
+        print_string("\"Secondary\":");
+        _print_structure(mf,br.gid,level+12);
     }
 
     if(cn){
-        print_string(mf,level,",\n");
-        print_string(mf,level," \"Children\":[\n");
+        print_string(",\n");
+        print_string(" \"Children\":[\n");
         for(int_t i=0;i<cn;){
-            print_structure(mf,br.children[i],level+16);
-            print_string(mf,level,(++i==cn)+",\n");
+            _print_structure(mf,br.children[i],level+16);
+            print_string((++i==cn)+",\n");
         }
 
-        print_string(mf,level,"            ]\n");
+        print_string("            ]\n");
     }
     else{
-        print_string(mf,level,"\n");
+        print_string("\n");
     }
-    print_string(mf,level,"}");
+    print_string("}");
 }
 
 void msystem::build_mid(){

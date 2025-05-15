@@ -49,6 +49,14 @@ public:
     static int_t compose(std::vector<barycen> &blist,int_t bid=-1);
 };
 
+class barycen_structure_printer{
+    const msystem &ms;
+    const std::vector<barycen> &blist;
+    void _print_structure(MFILE *mf,int_t root,int_t level) const;
+public:
+    barycen_structure_printer(const msystem &_ms,const std::vector<barycen> &_blist):ms(_ms),blist(_blist){}
+    void print_structure(MFILE *mf) const{ _print_structure(mf,-1,0); }
+};
 
 //celestial object
 class mass{
@@ -297,8 +305,6 @@ public:
     bool load_checkpoint(MFILE *fcp);
     //save system as checkpoint
     bool save_checkpoint(MFILE *fcp) const;
-    //print barycenter structure as json file
-    void print_structure(MFILE *mf,int_t root=-1,int_t level=0) const;
 
     void build_mid();
     //get index of mass from sid, return -1 if not found

@@ -173,7 +173,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         MFILE &mf_index=zms[0];
         MFILE &mf_ckpt=zms[1];
         MFILE &mf_readme=zms[2];
-        MFILE &mf_struct=zms[3];
+        MFILE &mf_datdir=zms[3];
 
         //prepare checkpoint/readme/structure files
         ms.save_checkpoint(&mf_ckpt);
@@ -193,13 +193,11 @@ int ephemeris_generator::make_ephemeris(int dir){
             "      Data Format: version %lld\n\n"
             "  Object List (index & sid):  \n",
             CheckPointVersion,DataFormatVersion);
-
-        ms.print_structure(&mf_struct);
         
         mf_index.set_name(SaveNameIndex);
         mf_ckpt.set_name(SaveNameCheckpoint);
         mf_readme.set_name(SaveNameReadme);
-        mf_struct.set_name(SaveNameStructure);
+        mf_datdir.set_name(SaveNameDirectory);
 
         for(int_t mi=0;mi<mn;++mi){
             fprintf(&mf_readme,
@@ -389,24 +387,24 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
         idat.t_end=d.t_end;
         fwrite(&idat,sizeof(idat),1,&ephm_files[0]);
 
-        d.orbital_data.set_name(idat.entry_name(false,false));
+        d.orbital_data.set_name(Configs::SaveNameDirectory+idat.entry_name(false,false));
         ephm_files.push_back(std::move(d.orbital_data));
 
-        d.rotational_data.set_name(idat.entry_name(true,false));
+        d.rotational_data.set_name(Configs::SaveNameDirectory+idat.entry_name(true,false));
         ephm_files.push_back(std::move(d.rotational_data));
-        
+
         //save substep data, if exist
         auto it=m_substeper.subdata.find(m.sid);
         if(it!=m_substeper.subdata.end()){
             MFILE *morb=&it->second.orbital_data;
             if((morb->size()/fast_real(2*sizeof(vec))-1)*m_substeper.t_substep==idat.t_end-idat.t_start){
-                morb->set_name(idat.entry_name(false,true));
+                morb->set_name(Configs::SaveNameDirectory+idat.entry_name(false,true));
                 ephm_files.push_back(std::move(*morb));
             }
             morb->reset();
             MFILE *mrot=&it->second.rotational_data;
             if((mrot->size()/fast_real(3*sizeof(vec))-1)*m_substeper.t_substep==idat.t_end-idat.t_start){
-                mrot->set_name(idat.entry_name(true,true));
+                mrot->set_name(Configs::SaveNameDirectory+idat.entry_name(true,true));
                 ephm_files.push_back(std::move(*mrot));
             }
             mrot->reset();
@@ -434,8 +432,11 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     idat.t_start=t_start;
     idat.t_end=t_eph;
     fwrite(&idat,sizeof(idat),1,findex);
-
     msystem::save_barycen_structure(findex,*pold_blist);
+
+    MFILE &mf_struct=ephm_files.emplace_back();
+    barycen_structure_printer(ms,*pold_blist).print_structure(&mf_struct);
+    mf_struct.set_name(strprintf("structure[%lld,%lld].json",idat.t_start,idat.t_end));
 
     t_start=t_eph;
 }

@@ -43,6 +43,8 @@ int fclose(MFILE *_Stream);
 
 std::string readline(MFILE *mem);
 bool file_exist(const std::string &path);
+std::string get_file_name(const std::string &path);
+std::string get_file_extension(const std::string &path);
 
 class MFILE{
 public:

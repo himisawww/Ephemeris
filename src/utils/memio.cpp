@@ -10,6 +10,13 @@ FILE *fopen(const std::string &fname,bool is_read){
 bool file_exist(const std::string &path){
     return MFILE(path).is_valid();
 }
+std::string get_file_name(const std::string &path){
+    return path.substr(1+path.find_last_of("/\\"));
+}
+std::string get_file_extension(const std::string &path){
+    auto subpos=path.rfind('.')+1;
+    return path.substr(subpos&&!(path.find_first_of("/\\",subpos)+1)?subpos:path.size());
+}
 
 static std::map<std::string,std::vector<MFILE::byte_t>> mem_library;
 static bool s_publish_invalid_ofile=false;

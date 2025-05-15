@@ -30,27 +30,29 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
             MFILE mf_index;
             int version=-1;
             std::vector<MFILE> mf_mlist;
-            int_t mi=-Configs::ExportHeaderCount;
-            for(const auto &zf:zp){
-                std::string zfn=zf.name();
-                if(mi>=0){
-                    mf_mlist.resize(mi+1);
-                    zf.dumpfile(mf_mlist[mi]);
-                }
-                else if(zfn==Configs::SaveNameTimestamps){
+            for(const izipfile &zf:zp){
+                const std::string &zfn=zf.name();
+                if(zfn==Configs::SaveNameTimestamps){
                     zf.dumpfile(mf_index);
                     version=0;
+                    continue;
                 }
-                else if(zfn==Configs::SaveNameIndex){
+                if(zfn==Configs::SaveNameIndex){
                     zf.dumpfile(mf_index);
                     version=1;
+                    continue;
                 }
-                else if(zfn==Configs::SaveNameCheckpoint){
+                if(zfn==Configs::SaveNameCheckpoint){
+                    if(version<1)continue;
                     MFILE mf_ckpt;
                     zf.dumpfile(mf_ckpt);
                     ms.load_checkpoint(&mf_ckpt);
+                    continue;
                 }
-                ++mi;
+                std::string fext=get_file_extension(zfn);
+                if(fext=="json"||fext=="txt")
+                    continue;
+                zf.dumpfile(mf_mlist.emplace_back());
             }
 
             if(mf_mlist.empty()){
@@ -78,7 +80,6 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                     is_broken=true;
                     break;
                 }
-                ephemeris_collector ephc(ms);
                 int_t mn=ms.size();
                 if(!mn){
                     is_broken=true;
@@ -123,7 +124,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                 typedef struct{ _orb_t _orb;_rot_t _rot; } _data_t;
                 int_t t_start=LLONG_MAX,t_end=LLONG_MIN,t_interval=fix_interval;
                 for(auto &mf:mf_mlist){
-                    auto itfid=fidmap.find(mf.get_name());
+                    auto itfid=fidmap.find(get_file_name(mf.get_name()));
                     if(itfid==fidmap.end())
                         continue;
                     int_t fid=itfid->second;
@@ -154,6 +155,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                 }
 
                 auto it_barycen=bss.end();
+                std::vector<barycen> curblist;
                 std::vector<int_t> tids(mn),bids(mn);
                 std::vector<_data_t> ephm_data(mn);
                 t_end+=t_interval;
@@ -168,12 +170,12 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         break;
                     }
                     if(it!=it_barycen){
-                        ephc.blist=it->second;
-                        barycen::update_barycens(ms,ephc.blist);
+                        curblist=it->second;
+                        barycen::update_barycens(ms,curblist);
                         it_barycen=it;
-                        int_t bn=ephc.blist.size();
+                        int_t bn=curblist.size();
                         for(int_t i=0;i<bn;++i){
-                            auto &b=ephc.blist[i];
+                            auto &b=curblist[i];
                             if(b.hid<0){
                                 tids[b.mid]=b.tid;
                                 bids[b.mid]=i;
@@ -199,13 +201,13 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         fodata(it_eph-oindex.t_start,&v5._orb);
                         frdata.set_orbital_state(v5._orb[0],v5._orb[1]);
                         frdata(it_eph-oindex.t_start,&v5._rot);
-                        barycen &b=ephc.blist[tids[i]];
+                        barycen &b=curblist[tids[i]];
                         b.r=v5._orb[0];
                         b.v=v5._orb[1];
                     }
-                    barycen::compose(ephc.blist);
+                    barycen::compose(curblist);
                     for(int_t i=0;i<mn;++i){
-                        barycen &b=ephc.blist[bids[i]];
+                        barycen &b=curblist[bids[i]];
                         _data_t &v5=ephm_data[i];
                         v5._orb[0]=vec(b.r);
                         v5._orb[1]=vec(b.v);
@@ -301,7 +303,7 @@ void ephemeris_compressor::compress_work::run(){
             continue;
         if(use_substep){
             std::swap(mbase,msub);
-            mbase->set_name(index.entry_name(k,false));
+            mbase->set_name(Configs::SaveNameDirectory+index.entry_name(k,false));
         }
         if(msub){
             msub->reset();
@@ -375,7 +377,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
     std::vector<ephemeris_entry> indices;
     std::map<std::string,entry_info> indexmap;
     for(MFILE &mf:ephemeris_data){
-        const std::string &namestr=mf.get_name();
+        std::string namestr=get_file_name(mf.get_name());
         if(namestr==Configs::SaveNameReadme){
             mf_readme=&mf;
             continue;
