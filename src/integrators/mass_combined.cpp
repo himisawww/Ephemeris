@@ -248,7 +248,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
                     fast_mpvec rm=mj.r-mp.r;
                     fast_mpvec vm=mj.v-mp.v;
                     rm+=vm*(dt_long/2);
-                    fast_real rr2=1/(rm%rm),rr=sqrt(rr2);
+                    fast_real rr2=1/std::max(rm%rm,mj.sR2),rr=sqrt(rr2);
                     fast_real tmatn=-mj.GM0*rr2*rr;
                     sn.tidal_matrix-=fast_mpmat(
                         (3*tmatn*rr2)*rm,rm
