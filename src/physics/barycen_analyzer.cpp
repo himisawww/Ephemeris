@@ -172,6 +172,7 @@ real msystem::analyse(bool reconstruct){
                 if(bl[pid].hid==i)cid=bl[pid].gid;
                 if(bl[pid].gid==i)cid=bl[pid].hid;
             }
+            fast_real soft_r2=bi.mid>=0?mlist[bi.mid].sR2:0;
             for(int_t j=0;j<bn;++j)if(i!=j&&pid!=j&&cid!=j){//pass self, parent and companion
                 barycen &bj=bl[j];
                 bdata &dj=dl[j];
@@ -179,6 +180,7 @@ real msystem::analyse(bool reconstruct){
                 if(bj.mid>=0&&mlist[bj.mid].R<0)continue;//soft mass shall not be parent
                 fast_mpvec r=bj.r-bi.r;
                 fast_real r2=r%r,r1=sqrt(r2);
+                if(!(r2>soft_r2))continue;//soft mass shall not be parented to its inner mass
                 if(!(r1>di.minr&&r1>dj.minr))continue;
                 fast_real infl=fast_real(bj.GM)/(r2*r1);
                 int_t tj=j,tp=bj.pid;
