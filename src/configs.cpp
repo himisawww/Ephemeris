@@ -15,7 +15,7 @@ const char *SaveRotationalDataExtension=".rot";
 const char *SaveOrbitalDataExtension=".pos";
 const char *SaveSubstepDataExtension="x";
 const char *SaveNameInitialDirectory="system_initial";
-const char *VersionString="v0.4.0";
+const char *VersionString="v0.4.1";
 const char AuthorName[]={104, 105, 109, 196, 171, 197, 155, 196, 129, 0};
 
 //deprecated
