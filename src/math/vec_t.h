@@ -59,6 +59,9 @@ class hypot_t:private hypot_traits<T>{
             r=(...+(std::get<Is>(x)*std::get<Is>(x)));
             if(r==0){
                 ((_x=Is+1==sizeof...(Args)),...);
+                T s=(...+_x);
+                if(s!=1)
+                    ((_x=Is+1==sizeof...(Args)?1/sqrt(s):0),...);
                 return r;
             }
             T s=sqrt(r),rs=1/s;
