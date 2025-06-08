@@ -1,5 +1,6 @@
 #include"definitions.h"
 #include<vector>
+#include"utils/memio.h"
 
 // maximum implemented degree d for bspline_* series functions
 int_t bspline_basis_max_degree();
@@ -36,8 +37,14 @@ double bspline_basis_chebyshev(int_t d,double x,double *pdb);
 template<typename T,size_t N_Channel>
 class bspline_fitter{
     const int_t d,n;
-    double range;
+    const double range;
+    //offset of bspline_coefs in mdata in bytes
+    const size_t mdata_offset;
+    MFILE *const mdata;
+    //offset of bsplines.data() in bspline_coefs in data_size
+    int_t bsplines_offset;
     std::vector<T> bsplines;
+    //if present, full bspline_coefs are dumped to bsplines and expanded to chebyshevs
     std::vector<T> chebyshevs;
     bool is_valid;
 
@@ -55,7 +62,8 @@ public:
     //need n>=1 && d>0 && n+d<=mn+1
     //Note with high degree d, the problem may be ill-conditioned when n+d is close to mn+1,
     // thence the fitting may be very poor or result to nan.
-    bspline_fitter(int_t _d,int_t _n,const T *source_data,const int_t mn):d(_d),n(_n),range(double(mn)){
+    bspline_fitter(int_t _d,int_t _n,const T *source_data,const int_t mn)
+        :d(_d),n(_n),range(double(mn)),mdata_offset(0),mdata(nullptr){
         is_valid=n>0&&d>0&&mn+1>=n+d;
         if(!is_valid)return;
 
@@ -140,7 +148,8 @@ public:
 
     //Construct from fitted coefficients T bspline_coefs[n+d][N_Channel].
     //need n>=1 && d>0 && range!=0,+-inf
-    bspline_fitter(const T *bspline_coefs,int_t _d,int_t _n,double _range):d(_d),n(_n),range(_range){
+    bspline_fitter(const T *bspline_coefs,int_t _d,int_t _n,double _range)
+        :d(_d),n(_n),range(_range),mdata_offset(0),mdata(nullptr){
         is_valid=n>0&&d>0&&(range!=0&&range*0==0);
         if(!is_valid)return;
         std::vector<T>(bspline_coefs,bspline_coefs+N_Channel*(n+d)).swap(bsplines);
@@ -149,6 +158,54 @@ public:
         if(d==1)expand();
     }
 
+    //Construct from fitted coefficients T bspline_coefs[n+d][N_Channel] that stored in _file at _offset.
+    // caller must ensure _file is valid during lifetime of bspline_fitter
+    //need n>=1 && d>0 && range!=0,+-inf
+    bspline_fitter(MFILE *_file,size_t _offset,int_t _d,int_t _n,double _range)
+        :d(_d),n(_n),range(_range),mdata_offset(_offset),mdata(_file){
+        is_valid=false;
+        do{
+            if(!(n>0&&d>0&&(range!=0&&range*0==0)))return;
+            if(!(mdata&&mdata->is_read()))return;
+            fseek(mdata,0,SEEK_END);
+            size_t fsize=ftell(mdata);
+            size_t max_size=data_size*(n+d);
+            if(_offset>=fsize||_offset+max_size>fsize)return;
+        } while(0);
+        is_valid=true;
+        bsplines_offset=0;
+        //must expand for d==1
+        //otherwise discrete derivative will lead to errors on edge cases
+        if(d==1)expand();
+    }
+
+private:
+    //assume valid, 0<=i_begin<i_end<=n+d
+    const T *load_data(int_t i_begin,int_t i_end) const{
+        if(!mdata)return bsplines.data();
+        int_t old_size=bsplines.size()/N_Channel;
+        if(bsplines_offset<=i_begin&&i_end<=bsplines_offset+old_size)
+            return bsplines.data()-bsplines_offset*N_Channel;
+        int_t load_size=std::max((i_end-i_begin)*3+6*d,old_size);
+        int_t load_begin=(i_begin+i_end-load_size)/2;
+        int_t load_excess=load_begin+load_size-(n+d);
+        if(load_excess>0)
+            load_begin-=load_excess;
+        if(load_begin<0){
+            load_begin=0;
+            load_size=std::min(load_size,n+d);
+        }
+        auto &new_bspline=(std::vector<T>&)bsplines;
+        new_bspline.resize(load_size*N_Channel);
+        (int_t&)bsplines_offset=load_begin;
+        fseek(mdata,mdata_offset+load_begin*data_size,SEEK_SET);
+        fread(new_bspline.data(),data_size,load_size,mdata);
+        return new_bspline.data()-load_begin*N_Channel;
+    }
+    const T *load_data(int_t i_begin=0) const{
+        return load_data(i_begin,n+d);
+    }
+public:
     operator bool() const{ return is_valid; }
 
     //convert bspline coefs to chebyshev coefs to accelerate future samplings
@@ -157,7 +214,7 @@ public:
         chebyshevs.resize(0);
         chebyshevs.resize(N_Channel*(d+1)*n,T(0));
         T *cdata=chebyshevs.data();
-        const T *bdata=bsplines.data();
+        const T *bdata=load_data();
         for(int_t xi=0;xi<n;++xi){
             for(int_t k=0;k<=d;++k)for(int_t j=0;j<=d;++j){
                 const double c=bspline_basis_chebyshev_coef(d,k,j);
@@ -170,7 +227,7 @@ public:
 
     //return fitted T bspline_coefs[n+d][N_Channel]
     const T *get_fitted_data() const{
-        return is_valid?bsplines.data():nullptr;
+        return is_valid?load_data():nullptr;
     }
 
     //fit original data[mn] at a position in [0,mn]
@@ -187,7 +244,7 @@ public:
             int_t i_max=std::min<int_t>(n,(int_t)std::ceil(x))+d-1;
             for(all_channels)
                 result[index(0)]=T(0);
-            const T *bdata=bsplines.data();
+            const T *bdata=load_data(i_min,i_max+1);
             for(int_t i=i_min;i<=i_max;++i){
                 const double b_coef=bspline_basis_chebyshev(d,x-i);
                 for(all_channels)
@@ -234,7 +291,7 @@ public:
                 result[index(0)]=T(0);
             for(all_channels)
                 derivative[index(0)]=T(0);
-            const T *bdata=bsplines.data();
+            const T *bdata=load_data(i_min,i_max+1);
             for(int_t i=i_min;i<=i_max;++i){
                 double db_coef;
                 const double b_coef=bspline_basis_chebyshev(d,x-i,&db_coef);

@@ -1,4 +1,5 @@
 #include"math/interp.h"
+#include"math/random.h"
 #include"utils/logger.h"
 
 static double max_relative_error=0;
@@ -48,6 +49,8 @@ double bspline_fit_tests::do_test() const{
     bspline_fitter<double,2> bfitter(d,n,xy.data(),mn);
     bspline_fitter<double,2> cfitter(bfitter.get_fitted_data(),d,n,mn);
     cfitter.expand();
+    MFILE mdata(bfitter.get_fitted_data(),bfitter.data_size*(n+d));
+    bspline_fitter<double,2> mfitter(&mdata,0,d,n,mn);
 
     double max_expand_err=0;
     double max_fit_err=0;
@@ -56,7 +59,7 @@ double bspline_fit_tests::do_test() const{
     auto ltest=[&](double x){
         double f[2],df[2],fd[2],bdf[2];
         for(int k=0;k<2;++k){
-            auto &fitter=k==0?bfitter:cfitter;
+            auto &fitter=k==0?bfitter:random64()&1?mfitter:cfitter;
             fitter(x,f);
             if(k==1){
                 checked_maximize(max_expand_err,std::abs(f[0]-fd[0]));
