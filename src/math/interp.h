@@ -39,8 +39,8 @@ class bspline_fitter{
     const int_t d,n;
     const double range;
     //offset of bspline_coefs in mdata in bytes
-    const size_t mdata_offset;
-    MFILE *const mdata;
+    size_t mdata_offset;
+    MFILE *mdata;
     //offset of bsplines.data() in bspline_coefs in data_size
     int_t bsplines_offset;
     std::vector<T> bsplines;
@@ -63,7 +63,7 @@ public:
     //Note with high degree d, the problem may be ill-conditioned when n+d is close to mn+1,
     // thence the fitting may be very poor or result to nan.
     bspline_fitter(int_t _d,int_t _n,const T *source_data,const int_t mn)
-        :d(_d),n(_n),range(double(mn)),mdata_offset(0),mdata(nullptr){
+        :d(_d),n(_n),range(double(mn)),mdata(nullptr){
         is_valid=n>0&&d>0&&mn+1>=n+d;
         if(!is_valid)return;
 
@@ -149,7 +149,7 @@ public:
     //Construct from fitted coefficients T bspline_coefs[n+d][N_Channel].
     //need n>=1 && d>0 && range!=0,+-inf
     bspline_fitter(const T *bspline_coefs,int_t _d,int_t _n,double _range)
-        :d(_d),n(_n),range(_range),mdata_offset(0),mdata(nullptr){
+        :d(_d),n(_n),range(_range),mdata(nullptr){
         is_valid=n>0&&d>0&&(range!=0&&range*0==0);
         if(!is_valid)return;
         std::vector<T>(bspline_coefs,bspline_coefs+N_Channel*(n+d)).swap(bsplines);
@@ -181,8 +181,9 @@ public:
 
 private:
     //assume valid, 0<=i_begin<i_end<=n+d
-    const T *load_data(int_t i_begin,int_t i_end) const{
-        if(!mdata)return bsplines.data();
+    const T *load_data(int_t i_begin,int_t i_end){
+        MFILE *fdata=mdata;
+        if(!fdata)return bsplines.data();
         int_t old_size=bsplines.size()/N_Channel;
         if(bsplines_offset<=i_begin&&i_end<=bsplines_offset+old_size)
             return bsplines.data()-bsplines_offset*N_Channel;
@@ -191,19 +192,21 @@ private:
         int_t load_excess=load_begin+load_size-(n+d);
         if(load_excess>0)
             load_begin-=load_excess;
-        if(load_begin<0){
+        if(load_begin<=0){
             load_begin=0;
-            load_size=std::min(load_size,n+d);
+            if(load_size>=n+d){
+                load_size=n+d;
+                mdata=nullptr;
+            }
         }
-        auto &new_bspline=(std::vector<T>&)bsplines;
-        new_bspline.resize(load_size*N_Channel);
-        (int_t&)bsplines_offset=load_begin;
-        fseek(mdata,mdata_offset+load_begin*data_size,SEEK_SET);
-        fread(new_bspline.data(),data_size,load_size,mdata);
-        return new_bspline.data()-load_begin*N_Channel;
+        bsplines.resize(load_size*N_Channel);
+        bsplines_offset=load_begin;
+        fseek(fdata,mdata_offset+load_begin*data_size,SEEK_SET);
+        fread(bsplines.data(),data_size,load_size,fdata);
+        return bsplines.data()-load_begin*N_Channel;
     }
-    const T *load_data(int_t i_begin=0) const{
-        return load_data(i_begin,n+d);
+    const T *load_data(){
+        return load_data(0,n+d);
     }
 public:
     operator bool() const{ return is_valid; }
@@ -226,12 +229,12 @@ public:
     }
 
     //return fitted T bspline_coefs[n+d][N_Channel]
-    const T *get_fitted_data() const{
+    const T *get_fitted_data(){
         return is_valid?load_data():nullptr;
     }
 
     //fit original data[mn] at a position in [0,mn]
-    void operator ()(double position,T result[N_Channel]) const{
+    void operator ()(double position,T result[N_Channel]){
         double x=position/range*n;
         if(!(is_valid&&0<=x&&x<=n)){
             for(all_channels)
@@ -273,7 +276,7 @@ public:
     }
 
     //fit original data[mn] at a position in [0,mn], with derivative
-    void operator ()(double position,T result[N_Channel],T derivative[N_Channel]) const{
+    void operator ()(double position,T result[N_Channel],T derivative[N_Channel]){
         double x=position/range*n;
         double dx_factor=double(n)/range;
         if(!(is_valid&&0<=x&&x<=n)){
