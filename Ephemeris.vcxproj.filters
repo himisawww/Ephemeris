@@ -132,6 +132,9 @@
     <ClCompile Include="src\math\state_parameters.cpp">
       <Filter>math</Filter>
     </ClCompile>
+    <ClCompile Include="src\modules\ephemeris_reader.cpp">
+      <Filter>modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">
@@ -222,6 +225,9 @@
     </ClInclude>
     <ClInclude Include="src\math\state_parameters.h">
       <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\modules\ephemeris_reader.h">
+      <Filter>modules</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

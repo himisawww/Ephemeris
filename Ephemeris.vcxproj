@@ -113,6 +113,7 @@
     <ClCompile Include="src\modules\ephemeris_compressor.cpp" />
     <ClCompile Include="src\modules\ephemeris_converter.cpp" />
     <ClCompile Include="src\modules\ephemeris_generator.cpp" />
+    <ClCompile Include="src\modules\ephemeris_reader.cpp" />
     <ClCompile Include="src\modules\mass_loader.cpp" />
     <ClCompile Include="src\physics\barycen_analyzer.cpp" />
     <ClCompile Include="src\physics\geopotential.cpp" />
@@ -157,6 +158,7 @@
     <ClInclude Include="src\math\vec_t.h" />
     <ClInclude Include="src\modules\ephemeris_compressor.h" />
     <ClInclude Include="src\modules\ephemeris_generator.h" />
+    <ClInclude Include="src\modules\ephemeris_reader.h" />
     <ClInclude Include="src\physics\mass.h" />
     <ClInclude Include="src\physics\geopotential.h" />
     <ClInclude Include="src\physics\mass.impl" />
