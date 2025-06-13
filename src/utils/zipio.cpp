@@ -145,15 +145,20 @@ uint16_t izipfile::load_zip64(uint16_t exremain,bool is_central){
 			break;
 		if(z64h.header==1)
 		{
-			if(size64){
-				if(fread(&z64h.uncompsize,8,2,fzip)!=2)break;
-				if(z64h.compsize!=z64h.uncompsize)break;
-				filesize=z64h.compsize;
-			}
-			if(offset64){
-				if(fread(&z64h.lhroffset,8,1,fzip)!=1)break;
-				locoffset=z64h.lhroffset;
-			}
+			auto loadentry=[&](bool may_exist,uint64_t &entry,uint64_t def){
+				if(may_exist&&z64h.exsize>=8){
+					if(fread(&entry,8,1,fzip)!=1)return false;
+					z64h.exsize-=8;
+				}
+				else entry=def;
+				return true;
+			};
+			if(!loadentry(size64,z64h.uncompsize,filesize))break;
+			if(!loadentry(size64,z64h.compsize,filesize))break;
+			if(!loadentry(offset64,z64h.lhroffset,locoffset))break;
+			if(z64h.compsize!=z64h.uncompsize)break;
+			filesize=z64h.compsize;
+			locoffset=z64h.lhroffset;
 			exremain=0;
 			break;
 		}
