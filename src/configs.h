@@ -1,3 +1,4 @@
+#pragma once
 #include"definitions.h"
 
 namespace Configs{

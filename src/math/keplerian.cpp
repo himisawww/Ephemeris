@@ -1,4 +1,4 @@
-﻿#include"keplerian.h"
+#include"keplerian.h"
 
 using Constants::pi;
 using Constants::epsilon;

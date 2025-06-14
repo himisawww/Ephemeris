@@ -1,3 +1,4 @@
+#pragma once
 #include"definitions.h"
 #include<vector>
 #include"utils/memio.h"
