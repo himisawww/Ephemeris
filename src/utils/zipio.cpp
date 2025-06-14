@@ -210,8 +210,11 @@ izippack::izippack(izippack &&_i){
 izippack::izippack(const std::string &filename){
 	fzip=mopen(filename);
 }
-izippack::~izippack(){
-	if(fzip)fclose(fzip);
+int izippack::close(){
+	if(!fzip)return EOF;
+	int ret=fclose(fzip);
+	fzip=nullptr;
+	return ret;
 }
 izipfile izippack::begin() const{
 	return izipfile(this,0);
@@ -219,7 +222,7 @@ izipfile izippack::begin() const{
 izipfile izippack::end() const{
 	return izipfile(this,izipfile::npos);
 }
-std::vector<izipfile> izippack::load_central_directory(){
+std::vector<izipfile> izippack::load_central_directory() const{
 	std::vector<izipfile> result;
 	if(!fzip||fseek(fzip,0,SEEK_END))return result;
 	int64_t fremain=ftell(fzip);
@@ -310,8 +313,8 @@ ozippack::ozippack(ozippack &&_o){
 ozippack::ozippack(const std::string &filename){
 	fzip=mopen(filename,MFILE_STATE::WRITE_FILE);
 }
-ozippack::~ozippack(){
-	if(!fzip)return;
+int ozippack::close(){
+	if(!fzip)return EOF;
 
 	std::vector<MFILE> &zipmems=static_cast<std::vector<MFILE> &>(*this);
 	const size_t nzips=zipmems.size();
@@ -417,7 +420,9 @@ ozippack::~ozippack(){
 		fwrite(&ze.header32,22,1,fzip);
 	}
 	
-	fclose(fzip);
+	int ret=fclose(fzip);
+	fzip=nullptr;
+	return ret;
 }
 void ozippack::push_back(std::string fullname,MFILE &&mf){
 	emplace_back(std::move(mf)).set_name(fullname);

@@ -578,9 +578,11 @@ struct barycen_ids{
     int_t nch;
 };
 
-bool msystem::load_barycen_structure(MFILE *fin,std::vector<barycen> &blist){
+bool barycen::load_barycen_structure(std::vector<barycen> &blist,MFILE *fin,size_t bsize){
     bool failed=false;
-    for(auto &b:blist){
+    blist.resize(0);
+    for(size_t i=0;i<bsize;++i){
+        barycen &b=blist.emplace_back();
         barycen_ids bids;
         if(1!=fread(&bids,sizeof(bids),1,fin)){
             failed=true;
@@ -615,7 +617,9 @@ bool msystem::load_checkpoint(MFILE *fin){
     bool failed=false;
     do{
         if(1!=fread(&h,sizeof(h),1,fin)
-         ||h.magic!=CheckPointMagic){
+         ||h.magic!=CheckPointMagic
+         ||h.nmass<=0
+         ||h.nbarycen<=0){
             failed=true;
             break;
         }
@@ -627,8 +631,7 @@ bool msystem::load_checkpoint(MFILE *fin){
             failed=true;
             break;
         }
-        mlist.resize(h.nmass);
-        blist.resize(h.nbarycen);
+
         t_eph=h.t_eph;
         delta_t=h.delta_t;
         integrator=h.integrator;
@@ -640,10 +643,11 @@ bool msystem::load_checkpoint(MFILE *fin){
         GM_max_tiny=h.GM_max_tiny;
         Period_max_child=h.Period_max_child;
 
-        failed=!load_barycen_structure(fin,blist);
+        failed=!barycen::load_barycen_structure(blist,fin,h.nbarycen);
         if(failed)break;
         
-        for(auto &m:mlist){
+        for(int_t i=0;i<h.nmass;++i){
+            mass &m=mlist.emplace_back();
             if(1!=fread(&m,masssize,1,fin)){
                 failed=true;
                 break;
@@ -681,10 +685,10 @@ bool msystem::load_checkpoint(MFILE *fin){
     }
 
     build_mid();
-    return true;
+    return !mlist.empty();
 }
 
-void msystem::save_barycen_structure(MFILE *fout,const std::vector<barycen> &blist){
+void barycen::save_barycen_structure(const std::vector<barycen> &blist,MFILE *fout){
     for(const auto &b:blist){
         barycen_ids bids;
         bids.pid=b.pid;
@@ -722,7 +726,7 @@ bool msystem::save_checkpoint(MFILE *fout) const{
     
     fwrite(&h,sizeof(h),1,fout);
 
-    save_barycen_structure(fout,blist);
+    barycen::save_barycen_structure(blist,fout);
 
     for(const auto &m:mlist){        
         memcpy(&mwrite,&m,masssize);
@@ -873,6 +877,39 @@ msystem &msystem::operator =(const msystem &other){
             ring_components.push_back(m.ringmodel=ring::copy(m.ringmodel));
     }
     return *this;
+}
+bool msystem::is_same(const msystem &other){
+    if(this==&other)return true;
+#define compare_member(_m) if(memcmp(&_m,&other._m,sizeof(_m)))return false
+    compare_member(delta_t);
+    compare_member(integrator);
+    compare_member(data_cadence);
+    compare_member(max_ephm_length);
+    compare_member(combined_delta_t);
+    compare_member(GM_max_child);
+    compare_member(GM_max_parent);
+    compare_member(GM_max_tiny);
+    compare_member(Period_max_child);
+    if(tidal_childlist!=other.tidal_childlist)return false;
+    if(!tidal_childlist.empty()){
+        compare_member(tidal_parent);
+        compare_member(tidal_matrix);
+#undef compare_member
+    }
+    int_t mn=mlist.size();
+    if(other.mlist.size()!=mn)return false;
+    for(int_t i=0;i<mn;++i){
+        const mass &mi=mlist[i];
+        const mass &mj=other.mlist[i];
+        const char *pbegin=(const char*)&(mi.*mass_constant_parameters_begin);
+        const char *pother=(const char*)&(mj.*mass_constant_parameters_begin);
+        const char *pend=(const char*)&(mi.*mass_constant_parameters_end);
+        if(memcmp(pbegin,pother,pend-pbegin)
+            ||!geopotential::is_same(mi.gpmodel,mj.gpmodel)
+            ||!ring::is_same(mi.ringmodel,mj.ringmodel))
+            return false;
+    }
+    return true;
 }
 bool msystem::push_back(const mass &msrc){
     auto result=midx.insert({msrc.sid,mlist.size()});

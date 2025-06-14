@@ -20,6 +20,7 @@ public:
     static void unload(const geopotential *);
     //multiplier: scale the intensity of original geopotential proportionally
     static const geopotential *copy(const geopotential *,fast_real multiplier=1);
+    static bool is_same(const geopotential *,const geopotential *);
     //sizeof this structure
     int_t size() const;
     //R: radius of the Extended Body

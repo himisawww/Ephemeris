@@ -28,6 +28,7 @@ public:
     static void unload(const ring *);
     //multiplier: scale the intensity of original ring proportionally
     static const ring *copy(const ring *rp,fast_real multiplier=1);
+    static bool is_same(const ring *,const ring *);
     //sizeof this structure
     int_t size() const;
     //R: radius of the Extended Body

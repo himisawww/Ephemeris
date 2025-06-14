@@ -133,5 +133,15 @@ const ring *ring::copy(const ring *rp,fast_real multiplier){
     return ret;
 }
 
+bool ring::is_same(const ring *rp,const ring *rq){
+    if(rp==rq)return true;
+    if(rp&&rq){
+        size_t rsize=rp->size();
+        if(rq->size()!=rsize)return false;
+        return memcmp(rp,rq,rsize)==0;
+    }
+    return false;
+}
+
 #define CONST_TABLE static const
 #include"ring.impl"

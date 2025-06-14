@@ -47,6 +47,9 @@ public:
     static int_t decompose(std::vector<barycen> &blist,int_t bid=-1);
     //restore state vectors in blist to absolute
     static int_t compose(std::vector<barycen> &blist,int_t bid=-1);
+
+    static bool load_barycen_structure(std::vector<barycen> &blist,MFILE *fin,size_t bsize);
+    static void save_barycen_structure(const std::vector<barycen> &blist,MFILE *fout);
 };
 
 class barycen_structure_printer{
@@ -106,7 +109,7 @@ public:
     //static deformation of potential in surface frame
     fast_mpmat C_static;
 
-    //geopoteintial model:
+    //geopotential model:
     const geopotential *gpmodel;
     //ring model:
     const ring *ringmodel;
@@ -152,6 +155,8 @@ public:
     bool sanity(bool alert=false) const;
 };
 
+constexpr auto mass_constant_parameters_begin=&mass::sid;
+constexpr auto mass_constant_parameters_end=&mass::gpmodel;
 constexpr auto mass_auxiliary_variables=&mass::phi;
 constexpr auto mass_temporary_variables=&mass::Egrad;
 
@@ -222,6 +227,7 @@ private:
     //tidal corrections
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
+    //above two is undefined if tidal_childlist.empty()
     std::vector<int_t> tidal_childlist;
     ephemeris_substeper *p_substeper;
 
@@ -293,10 +299,6 @@ public:
 
     const std::vector<barycen> &get_barycens() const{ return blist; }
 
-    //blist should be resized to correct length by caller
-    static bool load_barycen_structure(MFILE *fin,std::vector<barycen> &blist);
-    static void save_barycen_structure(MFILE *fout,const std::vector<barycen> &blist);
-
     //load internal system, optional save to a checkpoint
     bool load_internal(const char *fcheckpoint=nullptr);
     //load system from config file, optional save to a checkpoint
@@ -317,6 +319,9 @@ public:
     bool push_back(const mass &m);
 
     msystem &operator =(const msystem &other);
+    //compare time-constant parameters of masses and msystem
+    //that is, msystem is considered same after integrate() for any amount of time
+    bool is_same(const msystem &other);
 
     msystem(){}
     msystem(msystem &&)=default;
@@ -326,6 +331,7 @@ public:
     auto begin() const{ return mlist.begin(); }
     auto end() const{ return mlist.end(); }
     auto size() const{ return mlist.size(); }
+    auto empty() const{ return mlist.empty(); }
     const mass &operator [](int_t mid) const{ return mlist[mid]; }
     const mass &operator [](const char *ssid) const{ return mlist[get_mid(ssid)]; }
 

@@ -2,6 +2,8 @@
 #include"definitions.h"
 #include"utils/memio.h"
 
+struct ephemeris_entry;
+
 class ephemeris_compressor{
 public:
     struct orbital_state_t{
@@ -189,7 +191,7 @@ private:
 
     struct compress_work{
         MFILE *morb,*mrot,*msuborb,*msubrot;
-        const struct ephemeris_entry *pindex;
+        const ephemeris_entry *pindex;
 
         // compress informations
         header_base *pheaders[2];

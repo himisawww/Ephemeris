@@ -102,8 +102,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         break;
                     if(index.fid==0){
                         auto &blist=bss[dir*index.t_end];
-                        blist.resize(index.sid);
-                        msystem::load_barycen_structure(&mf_index,blist);
+                        barycen::load_barycen_structure(blist,&mf_index,index.sid);
                     }
                     else{
                         int_t fid=indices.size();
@@ -394,8 +393,8 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                     LogError("\nInvalid barycenter list size.\n");
                     return -1;
                 }
-                std::vector<barycen> blist(index.sid);
-                msystem::load_barycen_structure(&mf,blist);
+                std::vector<barycen> blist;
+                barycen::load_barycen_structure(blist,&mf,index.sid);
             }
             else{
                 int_t entry_id=indices.size();

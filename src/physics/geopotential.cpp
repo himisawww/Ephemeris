@@ -145,3 +145,13 @@ const geopotential *geopotential::copy(const geopotential *gp,fast_real multipli
     }
     return ret;
 }
+
+bool geopotential::is_same(const geopotential *gp,const geopotential *gq){
+    if(gp==gq)return true;
+    if(gp&&gq){
+        size_t gsize=gp->size();
+        if(gq->size()!=gsize)return false;
+        return memcmp(gp,gq,gsize)==0;
+    }
+    return false;
+}

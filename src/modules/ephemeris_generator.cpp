@@ -432,7 +432,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     idat.t_start=t_start;
     idat.t_end=t_eph;
     fwrite(&idat,sizeof(idat),1,findex);
-    msystem::save_barycen_structure(findex,*pold_blist);
+    barycen::save_barycen_structure(*pold_blist,findex);
 
     MFILE &mf_struct=ephm_files.emplace_back();
     barycen_structure_printer(ms,*pold_blist).print_structure(&mf_struct);

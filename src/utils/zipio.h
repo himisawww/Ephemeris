@@ -1,3 +1,4 @@
+#pragma once
 #include"memio.h"
 
 /*
@@ -93,13 +94,14 @@ public:
     izippack(izippack &&_i);
     //name of the zip file
     explicit izippack(const std::string &filename);
-    ~izippack();
+    int close();
+    ~izippack(){ close(); }
     //scan from beginning of zippack, is_ready() is ensured
     izipfile begin() const;
     izipfile end() const;
     //load central directory at end of zippack, avoid full scan
     //in this case fetch() is required to make izipfile is_ready()
-    std::vector<izipfile> load_central_directory();
+    std::vector<izipfile> load_central_directory() const;
 };
 
 class ozippack:private std::vector<MFILE>{
@@ -118,7 +120,8 @@ public:
     ozippack(ozippack &&_o);
     //name of the zip file
     explicit ozippack(const std::string &filename);
-    ~ozippack();
+    int close();
+    ~ozippack(){ close(); }
     void push_back(std::string fullname,MFILE &&mf);
     void push_back(const izipfile &zf);
     void push_back(const izippack &izip);
