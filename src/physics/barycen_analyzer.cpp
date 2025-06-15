@@ -9,18 +9,18 @@ barycen::barycen(){
     mid=-1;
 }
 
-struct bdata{
-    fast_real minr,factor;
-    fast_real maxinfl;
-    bool del;
-};
-
 real msystem::analyse(bool reconstruct){
+    struct bdata{
+        fast_real minr,factor;
+        fast_real maxinfl;
+        bool del;
+    };
+
     int_t old_bn=reconstruct?0:blist.size();
     int_t mn=mlist.size();
     if(old_bn&&t_barycen==t_eph)return t_update;
     t_barycen=t_eph;
-    std::vector<barycen> bl;
+    bsystem bl;
     std::vector<bdata> dl;
     if(old_bn){
         bl.resize(old_bn);
@@ -269,7 +269,7 @@ real msystem::analyse(bool reconstruct){
     //remove deleted barycens
     std::vector<int_t> newindex(bl.size()+1,-1);
     int_t bsize=0;
-    for(int_t i=0;i<bl.size();++i)if(!dl[i].del){
+    for(int_t i=0,n=bl.size();i<n;++i)if(!dl[i].del){
         newindex[i+1]=bsize;
         if(i!=bsize)bl[bsize]=bl[i];
         ++bsize;
@@ -300,14 +300,15 @@ real msystem::analyse(bool reconstruct){
     }
 
     //fill tid and mid
-    barycen::fill_tid(bl);
+    bl.fill_tid();
 
     blist.swap(bl);
     t_update=t_eph;
     return t_update;
 }
 
-void barycen::fill_tid(std::vector<barycen> &bl){
+void bsystem::fill_tid(){
+    bsystem &bl=*this;
     int_t bsize=bl.size();
     for(int_t i=0;i<bsize;++i){
         barycen &bi=bl[i];
@@ -329,7 +330,8 @@ void barycen::fill_tid(std::vector<barycen> &bl){
     }
 }
 
-void barycen::update_barycens(const msystem &ms,std::vector<barycen> &bl){
+void bsystem::update_barycens(const msystem &ms){
+    bsystem &bl=*this;
     int_t bn=bl.size();
 
     //update barycens: bl.rvGM,rvGM_sys;
@@ -373,28 +375,18 @@ void barycen::update_barycens(const msystem &ms,std::vector<barycen> &bl){
     }
 }
 
-int_t barycen::decompose(std::vector<barycen> &blist,int_t bid){
-    if(bid<0){
-        int_t bn=blist.size();
-        int_t rootid=-1;
-        int_t nroot=0;
-        for(int_t i=0;i<bn;++i){
-            if(blist[i].pid<0){
-                rootid=i;
-                ++nroot;
-            }
-        }
-        return nroot==1?decompose(blist,rootid):-1;
-    }
+int_t bsystem::decompose(int_t bid){
+    bsystem &blist=*this;
+    if(bid<0)return bid;
 
     barycen &b=blist[bid];
     int_t nret=0;
     for(const auto cid:b.children)
-        nret+=decompose(blist,cid);
+        nret+=decompose(cid);
 
     if(b.gid>=0){
-        nret+=decompose(blist,b.gid);
-        nret+=decompose(blist,b.hid);
+        nret+=decompose(b.gid);
+        nret+=decompose(b.hid);
     }
 
     if(b.pid>=0){
@@ -423,19 +415,9 @@ int_t barycen::decompose(std::vector<barycen> &blist,int_t bid){
     return nret+1;
 }
 
-int_t barycen::compose(std::vector<barycen> &blist,int_t bid){
-    if(bid<0){
-        int_t bn=blist.size();
-        int_t rootid=-1;
-        int_t nroot=0;
-        for(int_t i=0;i<bn;++i){
-            if(blist[i].pid<0){
-                rootid=i;
-                ++nroot;
-            }
-        }
-        return nroot==1?compose(blist,rootid):-1;
-    }
+int_t bsystem::compose(int_t bid){
+    bsystem &blist=*this;
+    if(bid<0)return bid;
 
     barycen &b=blist[bid];
     int_t nret=1;
@@ -472,12 +454,12 @@ int_t barycen::compose(std::vector<barycen> &blist,int_t bid){
     b.v=b.v_sys-cvacc/b.GM_sys;
 
     if(b.gid>=0){
-        nret+=compose(blist,b.hid);
-        nret+=compose(blist,b.gid);
+        nret+=compose(b.hid);
+        nret+=compose(b.gid);
     }
 
     for(const auto cid:b.children)
-        nret+=compose(blist,cid);
+        nret+=compose(cid);
 
     return nret;
 }

@@ -1,4 +1,5 @@
 #include"physics/mass.h"
+#include<deque>
 #include"physics/geopotential.h"
 #include"physics/ring.h"
 #include"utils/zipio.h"
@@ -578,7 +579,8 @@ struct barycen_ids{
     int_t nch;
 };
 
-bool barycen::load_barycen_structure(std::vector<barycen> &blist,MFILE *fin,size_t bsize){
+bool bsystem::load_barycen_structure(MFILE *fin,size_t bsize){
+    bsystem &blist=*this;
     bool failed=false;
     blist.resize(0);
     for(size_t i=0;i<bsize;++i){
@@ -643,7 +645,7 @@ bool msystem::load_checkpoint(MFILE *fin){
         GM_max_tiny=h.GM_max_tiny;
         Period_max_child=h.Period_max_child;
 
-        failed=!barycen::load_barycen_structure(blist,fin,h.nbarycen);
+        failed=!blist.load_barycen_structure(fin,h.nbarycen);
         if(failed)break;
         
         for(int_t i=0;i<h.nmass;++i){
@@ -688,7 +690,8 @@ bool msystem::load_checkpoint(MFILE *fin){
     return !mlist.empty();
 }
 
-void barycen::save_barycen_structure(const std::vector<barycen> &blist,MFILE *fout){
+void bsystem::save_barycen_structure(MFILE *fout) const{
+    const bsystem &blist=*this;
     for(const auto &b:blist){
         barycen_ids bids;
         bids.pid=b.pid;
@@ -726,7 +729,7 @@ bool msystem::save_checkpoint(MFILE *fout) const{
     
     fwrite(&h,sizeof(h),1,fout);
 
-    barycen::save_barycen_structure(blist,fout);
+    blist.save_barycen_structure(fout);
 
     for(const auto &m:mlist){        
         memcpy(&mwrite,&m,masssize);
@@ -748,67 +751,134 @@ bool msystem::save_checkpoint(MFILE *fout) const{
     return true;
 }
 
-void barycen_structure_printer::_print_structure(MFILE *mf,int_t root,int_t level) const{
-    if(root<0){
-        root=blist.size();
-        do{
-            if(--root<0)return;
-        } while(!(blist[root].pid<0));
-    }
+void bsystem::print_structure(MFILE *mf,const msystem &ms) const{
+    class barycen_structure_printer{
+        const msystem &ms;
+        const bsystem &blist;
+    public:
+        void print_structure(MFILE *mf,int_t root,int_t level) const{
+            if(root<0)return;
 
-    const barycen& br=blist[root];
-    int_t cn=br.children.size();
-    std::string barycen_name;
+            const barycen& br=blist[root];
+            int_t cn=br.children.size();
+            std::string barycen_name;
 
-    auto print_string=[mf,level](const std::string &str){
-        if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
-            //indent
-            std::string indent(level,' ');
-            fwrite(indent.data(),indent.size(),1,mf);
+            auto print_string=[mf,level](const std::string &str){
+                if(mf->tell()==0||mf->data()[mf->tell()-1]=='\n'){
+                    //indent
+                    std::string indent(level,' ');
+                    fwrite(indent.data(),indent.size(),1,mf);
+                }
+                fwrite(str.data(),str.size(),1,mf);
+            };
+
+            if(br.hid<0){
+                barycen_name=(const char *)&ms[br.mid].sid;
+                if(cn==0){
+                    print_string("\""+barycen_name+"\"");
+                    return;
+                }
+                print_string("{\n");
+                print_string("       \"ID\":\""+barycen_name+"\"");
+            }
+            else{
+                barycen_name="Barycenter[";
+                barycen_name+=(const char *)&ms[blist[br.hid].mid].sid;
+                if(blist[br.hid].hid>=0)barycen_name+=" System";
+                barycen_name+=", ";
+                barycen_name+=(const char *)&ms[blist[br.gid].mid].sid;
+                if(blist[br.gid].hid>=0)barycen_name+=" System";
+                barycen_name+="]";
+                print_string("{\n");
+                print_string("       \"ID\":\""+barycen_name+"\",\n");
+                print_string("  \"Primary\":");
+                print_structure(mf,br.hid,level+12);
+                print_string(",\n");
+                print_string("\"Secondary\":");
+                print_structure(mf,br.gid,level+12);
+            }
+
+            if(cn){
+                print_string(",\n");
+                print_string(" \"Children\":[\n");
+                for(int_t i=0;i<cn;){
+                    print_structure(mf,br.children[i],level+16);
+                    print_string((++i==cn)+",\n");
+                }
+
+                print_string("            ]\n");
+            }
+            else{
+                print_string("\n");
+            }
+            print_string("}");
         }
-        fwrite(str.data(),str.size(),1,mf);
+        barycen_structure_printer(const msystem &_ms,const bsystem &_blist):ms(_ms),blist(_blist){}
     };
+    barycen_structure_printer(ms,*this).print_structure(mf,root_id(),0);
+}
 
-    if(br.hid<0){
-        barycen_name=(const char *)&ms[br.mid].sid;
-        if(cn==0){
-            print_string("\""+barycen_name+"\"");
-            return;
+bool bsystem::is_compatible(const msystem &ms) const{
+    const bsystem &blist=*this;
+    int_t root=root_id(),bn=blist.size(),mn=ms.size();
+    if(root<0)return false;
+
+    std::vector<bool> has_done(bn,false);
+    std::vector<bool> has_mass(mn,false);
+    std::vector<bool> mid_done(bn,false);
+    std::deque<std::pair<int_t,int_t>> active;
+    active.emplace_back(root,-1);
+    while(!active.empty()){
+        auto cur=active.front();
+        int_t bid=cur.first;
+        active.pop_front();
+        if(bid<0||bid>=bn||has_done[bid])return false;
+        has_done[bid]=true;
+        const barycen &b=blist[bid];
+        if(cur.second!=b.pid)return false;
+        bool is_barycen=b.hid>=0;
+        if(is_barycen!=(b.gid>=0))return false;
+        if(is_barycen){
+            active.emplace_back(b.hid,bid);
+            active.emplace_back(b.gid,bid);
         }
-        print_string("{\n");
-        print_string("       \"ID\":\""+barycen_name+"\"");
-    }
-    else{
-        barycen_name="Barycenter[";
-        barycen_name+=(const char *)&ms[blist[br.hid].mid].sid;
-        if(blist[br.hid].hid>=0)barycen_name+=" System";
-        barycen_name+=", ";
-        barycen_name+=(const char *)&ms[blist[br.gid].mid].sid;
-        if(blist[br.gid].hid>=0)barycen_name+=" System";
-        barycen_name+="]";
-        print_string("{\n");
-        print_string("       \"ID\":\""+barycen_name+"\",\n");
-        print_string("  \"Primary\":");
-        _print_structure(mf,br.hid,level+12);
-        print_string(",\n");
-        print_string("\"Secondary\":");
-        _print_structure(mf,br.gid,level+12);
-    }
-
-    if(cn){
-        print_string(",\n");
-        print_string(" \"Children\":[\n");
-        for(int_t i=0;i<cn;){
-            _print_structure(mf,br.children[i],level+16);
-            print_string((++i==cn)+",\n");
+        else{
+            if(b.mid<0||b.mid>=mn||has_mass[b.mid]||mid_done[bid])return false;
+            has_mass[b.mid]=true;
+            mid_done[bid]=true;
         }
+        int_t ctid=bid;
+        if(b.pid>=0){
+            const barycen &p=blist[b.pid];
+            bool is_host=p.hid==bid;
+            if(is_host){
+                ctid=p.tid;
+                if(b.mid!=p.mid||mid_done[b.pid])return false;
+                mid_done[b.pid]=true;
+            }
+        }
+        if(b.tid!=ctid)return false;
+        for(int_t c:b.children)active.emplace_back(c,bid);
+    }
 
-        print_string("            ]\n");
+    for(bool _:has_done)if(!_)return false;
+    for(bool _:mid_done)if(!_)return false;
+    for(bool _:has_mass)if(!_)return false;
+    return true;
+}
+
+int_t bsystem::root_id() const{
+    const bsystem &blist=*this;
+    int_t bn=blist.size();
+    int_t rootid=-1;
+    int_t nroot=0;
+    for(int_t i=0;i<bn;++i){
+        if(blist[i].pid<0){
+            rootid=i;
+            ++nroot;
+        }
     }
-    else{
-        print_string("\n");
-    }
-    print_string("}");
+    return nroot==1?rootid:-1;
 }
 
 void msystem::build_mid(){
@@ -929,8 +999,8 @@ void msystem::scale(int_t mid,fast_real factor){
 void msystem::scale_geopotential(int_t mid,fast_real factor){
     mass &mi=mlist[mid];
     auto &pmodel=mi.gpmodel;
-    if(pmodel)
-        gp_components.push_back(pmodel=geopotential::copy(pmodel,factor));
+    if(pmodel=geopotential::copy(pmodel,factor))
+        gp_components.push_back(pmodel);
     mi.C_potential*=factor;
     mi.C_static*=factor;
     mi.k2*=factor;
@@ -942,6 +1012,6 @@ void msystem::scale_geopotential(int_t mid,fast_real factor){
 }
 void msystem::scale_ring(int_t mid,fast_real factor){
     auto &pmodel=mlist[mid].ringmodel;
-    if(pmodel)
-        ring_components.push_back(pmodel=ring::copy(pmodel,factor));
+    if(pmodel=ring::copy(pmodel,factor))
+        ring_components.push_back(pmodel);
 }

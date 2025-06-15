@@ -281,8 +281,8 @@ void ephemeris_collector::rebind(){
 }
 
 void ephemeris_collector::record(){
-    barycen::update_barycens(ms,blist);
-    barycen::decompose(blist);
+    blist.update_barycens(ms);
+    blist.decompose();
 
     int_t mn=ms.size();
     int_t t_eph=ms.ephemeris_time();
@@ -308,10 +308,10 @@ void msystem::record_substeps(fast_real dt,bool initialize){
         return;
     }
 
-    std::vector<barycen> &blist=mc.sublists.at(mlist[tidal_parent].sid);
+    bsystem &blist=mc.sublists.at(mlist[tidal_parent].sid);
 
-    barycen::update_barycens(*this,blist);
-    barycen::decompose(blist);
+    blist.update_barycens(*this);
+    blist.decompose();
 
     int_t bn=blist.size();
     for(int_t i=0;i<bn;++i){
@@ -352,7 +352,7 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     int_t mn=ms.size();
     std::vector<int_t> ex_entry;
     const auto *pold_blist=&blist;
-    std::vector<barycen> _old_blist_slot;
+    bsystem _old_blist_slot;
     if(!force){
         std::vector<int_t> polds;
         polds.reserve(mn);
@@ -362,8 +362,8 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
         rebind();
         //not necessary: when(!force=analyse()) (blist=ms.blist) is updated by analyse()
         //but make sure
-        barycen::update_barycens(ms,blist);
-        barycen::decompose(blist);
+        blist.update_barycens(ms);
+        blist.decompose();
         pold_blist=&_old_blist_slot;
         for(int_t i=0;i<mn;++i)
             if(data[i].parent_barycen_id!=polds[i])
@@ -432,10 +432,10 @@ void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
     idat.t_start=t_start;
     idat.t_end=t_eph;
     fwrite(&idat,sizeof(idat),1,findex);
-    barycen::save_barycen_structure(*pold_blist,findex);
+    pold_blist->save_barycen_structure(findex);
 
     MFILE &mf_struct=ephm_files.emplace_back();
-    barycen_structure_printer(ms,*pold_blist).print_structure(&mf_struct);
+    pold_blist->print_structure(&mf_struct,ms);
     mf_struct.set_name(strprintf("structure[%lld,%lld].json",idat.t_start,idat.t_end));
 
     t_start=t_eph;

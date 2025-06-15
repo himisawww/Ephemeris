@@ -9,7 +9,7 @@ class ephemeris_reader{
         //{dir*t_end, blist index over [t_start,t_end]}
         std::map<int_t,ephemeris_entry> blist_index;
         //blists[blist index.fid] = system structure
-        std::vector<std::vector<barycen>> blists;
+        std::vector<bsystem> blists;
 
         //[mid]={dir*t_end, ephemeris index over [t_start,t_end]}
         std::vector<std::map<int_t,ephemeris_entry>> ephm_index;

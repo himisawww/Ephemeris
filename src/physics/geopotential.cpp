@@ -134,12 +134,12 @@ int_t geopotential::size() const{
 }
 
 const geopotential *geopotential::copy(const geopotential *gp,fast_real multiplier){
-    if(!gp)return nullptr;
+    if(!gp||!multiplier)return nullptr;
     size_t gpsize=gp->size();
     geopotential *ret=(geopotential *)malloc(gpsize);
     memcpy(ret,gp,gpsize);
     if(multiplier!=1){
-        size_t n=Precompute_Table_size(ret->Nz);
+        int_t n=Precompute_Table_size(ret->Nz);
         for(int_t i=0;i<n;++i)
             ret->c_table[i]*=multiplier;
     }

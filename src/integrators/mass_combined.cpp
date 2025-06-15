@@ -411,13 +411,13 @@ int_t ephemeris_substeper::link(msystem &mssub,int_t bid){
     const auto &blist=ms.get_barycens();
 
     uint64_t psid=mssub[mssub.tidal_parent].sid;
-    std::vector<barycen> &sublist=sublists[psid];
+    bsystem &sublist=sublists[psid];
     if(bid<0){
         int_t pmid=ms.get_mid(psid);
         //assume for ms.mlist[i], ms.blist[i].mid==i
         int_t pbid=link(mssub,blist[pmid].tid);
         sublist[pbid].pid=-1;
-        barycen::fill_tid(sublist);
+        sublist.fill_tid();
         return sublist.size();
     }
 

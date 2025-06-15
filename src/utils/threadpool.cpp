@@ -112,7 +112,7 @@ void ThreadPool::thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *pc){
         }
         if(!--busy_counter)do_notify=true;
         if(do_notify){
-            std::lock_guard<std::mutex>(pPool->m_mutex_collect);
+            (void)std::lock_guard<std::mutex>(pPool->m_mutex_collect);
             pPool->m_collect.notify_all();
         }
     } while(1);
@@ -150,7 +150,7 @@ size_t ThreadPool::resize(size_t n_threads){
     if(!wait_for_all())return npos_tid;
     size_t old_size=m_size.exchange(n_threads);
     if(n_threads<old_size){
-        std::lock_guard<std::mutex>(this->m_mutex_distribute);
+        (void)std::lock_guard<std::mutex>(this->m_mutex_distribute);
         m_distribute.notify_all();
         for(size_t i=n_threads;i<old_size;++i)
             if(m_threads[i].joinable())m_threads[i].join();

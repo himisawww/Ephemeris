@@ -116,7 +116,7 @@ int_t ring::size() const{
 }
 
 const ring *ring::copy(const ring *rp,fast_real multiplier){
-    if(!rp)return nullptr;
+    if(!rp||!multiplier)return nullptr;
     size_t rpsize=rp->size();
     ring *ret=(ring *)malloc(rpsize);
     memcpy(ret,rp,rpsize);

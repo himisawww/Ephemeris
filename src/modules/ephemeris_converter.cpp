@@ -91,7 +91,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                 //{fid, ephemeris_entry of fid.dat}
                 std::map<int_t,ephemeris_entry> indices;
                 //{t_end, blist over [t_start,t_end]}
-                std::map<int_t,std::vector<barycen>> bss;
+                std::map<int_t,bsystem> bss;
                 //[mid]={t_end, fid over [t_start,t_end]}
                 std::vector<std::map<int_t,int_t>> fids(mn);
                 //{fid, fid.dat}
@@ -102,7 +102,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         break;
                     if(index.fid==0){
                         auto &blist=bss[dir*index.t_end];
-                        barycen::load_barycen_structure(blist,&mf_index,index.sid);
+                        blist.load_barycen_structure(&mf_index,index.sid);
                     }
                     else{
                         int_t fid=indices.size();
@@ -154,7 +154,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                 }
 
                 auto it_barycen=bss.end();
-                std::vector<barycen> curblist;
+                bsystem curblist;
                 std::vector<int_t> tids(mn),bids(mn);
                 std::vector<_data_t> ephm_data(mn);
                 t_end+=t_interval;
@@ -170,7 +170,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                     }
                     if(it!=it_barycen){
                         curblist=it->second;
-                        barycen::update_barycens(ms,curblist);
+                        curblist.update_barycens(ms);
                         it_barycen=it;
                         int_t bn=curblist.size();
                         for(int_t i=0;i<bn;++i){
@@ -204,7 +204,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         b.r=v5._orb[0];
                         b.v=v5._orb[1];
                     }
-                    barycen::compose(curblist);
+                    curblist.compose();
                     for(int_t i=0;i<mn;++i){
                         barycen &b=curblist[bids[i]];
                         _data_t &v5=ephm_data[i];
@@ -393,8 +393,8 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                     LogError("\nInvalid barycenter list size.\n");
                     return -1;
                 }
-                std::vector<barycen> blist;
-                barycen::load_barycen_structure(blist,&mf,index.sid);
+                bsystem blist;
+                blist.load_barycen_structure(&mf,index.sid);
             }
             else{
                 int_t entry_id=indices.size();

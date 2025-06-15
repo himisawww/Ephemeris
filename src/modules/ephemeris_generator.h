@@ -31,7 +31,7 @@ class ephemeris_collector{
     };
 private:
     msystem &ms;
-    std::vector<barycen> blist;
+    bsystem blist;
     //t_eph when blist is bind with ms
     real t_bind;
 
@@ -46,7 +46,7 @@ public:
 
     ephemeris_collector(msystem &_ms);
 
-    const std::vector<barycen> &get_barycens() const{ return blist; }
+    const bsystem &get_barycens() const{ return blist; }
 
     //record state vectors
     void record();

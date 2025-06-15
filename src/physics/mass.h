@@ -38,27 +38,28 @@ public:
     std::vector<int_t> children;
 
     barycen();
-
-    //fill tid and mid
-    static void fill_tid(std::vector<barycen> &blist);
-    //update state vectors of blist by ms.mlist
-    static void update_barycens(const msystem &ms,std::vector<barycen> &blist);
-    //convert state vectors in blist as relative to direct parent
-    static int_t decompose(std::vector<barycen> &blist,int_t bid=-1);
-    //restore state vectors in blist to absolute
-    static int_t compose(std::vector<barycen> &blist,int_t bid=-1);
-
-    static bool load_barycen_structure(std::vector<barycen> &blist,MFILE *fin,size_t bsize);
-    static void save_barycen_structure(const std::vector<barycen> &blist,MFILE *fout);
 };
 
-class barycen_structure_printer{
-    const msystem &ms;
-    const std::vector<barycen> &blist;
-    void _print_structure(MFILE *mf,int_t root,int_t level) const;
+class bsystem:public std::vector<barycen>{
+    int_t decompose(int_t bid);
+    int_t compose(int_t bid);
 public:
-    barycen_structure_printer(const msystem &_ms,const std::vector<barycen> &_blist):ms(_ms),blist(_blist){}
-    void print_structure(MFILE *mf) const{ _print_structure(mf,-1,0); }
+    //fill tid and mid
+    void fill_tid();
+    //update state vectors of blist by ms.mlist
+    void update_barycens(const msystem &ms);
+    //convert state vectors in blist as relative to direct parent
+    int_t decompose(){ return decompose(root_id()); }
+    //restore state vectors in blist to absolute
+    int_t compose(){ return compose(root_id()); }
+    //get index of root, -1 if non-exist;
+    int_t root_id() const;
+
+    bool load_barycen_structure(MFILE *fin,size_t bsize);
+    void save_barycen_structure(MFILE *fout) const;
+    bool is_compatible(const msystem &) const;
+
+    void print_structure(MFILE *mf,const msystem &) const;
 };
 
 //celestial object
@@ -236,7 +237,7 @@ private:
     //t_eph when analyse updates blist
     real t_update;
     //list of barycens
-    std::vector<barycen> blist;
+    bsystem blist;
     //list of masses
     std::vector<mass> mlist;
     //index of masses
@@ -297,7 +298,7 @@ public:
     //return latest t_eph when analyse updates blist
     real analyse(bool reconstruct=false);
 
-    const std::vector<barycen> &get_barycens() const{ return blist; }
+    const bsystem &get_barycens() const{ return blist; }
 
     //load internal system, optional save to a checkpoint
     bool load_internal(const char *fcheckpoint=nullptr);

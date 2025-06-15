@@ -85,8 +85,10 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
             if(index.fid==0){
                 index.fid=blists.size();
                 auto it=blist_index.try_emplace(dir*index.t_end,index);
-                if(!it.second||!barycen::load_barycen_structure(blists.emplace_back(),&mf_index,index.sid))
+                if(!it.second||!blists.emplace_back().load_barycen_structure(&mf_index,index.sid))
                     failure+="    Error loading system structure;\n";
+                else if(!blists.back().is_compatible(ms))
+                    failure+="    Invalid structure;\n";
             }
             else{
                 auto itorb=allfiles.find(index.entry_name(false,false));
