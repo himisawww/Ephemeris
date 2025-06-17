@@ -29,16 +29,11 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
                     MFILE mf_chpt;
                     zf.fetch();
                     zf.dumpfile(mf_chpt);
-                    if(ms.empty()){
-                        if(!ms.load_checkpoint(&mf_chpt))
-                            failure+="    Invalid checkpoint;\n";
-                    }
-                    else{
-                        msystem msc;
-                        msc.load_checkpoint(&mf_chpt);
-                        if(!msc.is_same(ms))
-                            failure+="    Incompatible celestial system between ephemerides;\n";
-                    }
+                    msystem msc;
+                    if(!msc.load_checkpoint(&mf_chpt))
+                        failure+="    Invalid checkpoint;\n";
+                    else if(!msc.is_same(ms))
+                        failure+="    Incompatible celestial system between ephemerides;\n";
                 }
             }
             if(failure.size()||index_loaded&&chpt_loaded)break;
@@ -154,14 +149,78 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
 }
 
 ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
-    int_t middle_fwd,middle_bak;
-    int_t t_fwd,t_bak;
+    {
+        using Configs::MAX_LINESIZE;
+        //load 0.zip
+        //Note here we require the 1st and 4th file is checkpoint & initial file
+        //see msystem::load(const char *,const char *);
+        //that means user is prohibited to extract/modify/rezip the output .zips
+        izippack ez(strprintf("%s.0.zip",ephemeris_path));
+        int_t i_file=0,n_names=0;
+        std::string failure;
+        for(const izipfile &zf:ez){
+            ++i_file;
+            if(i_file!=1&&i_file!=4)continue;
+            MFILE mf;
+            zf.dumpfile(mf);
+            if(i_file==1){
+                if(!ms.load_checkpoint(&mf)){
+                    failure+="    Invalid checkpoint;\n";
+                    break;
+                }
+                massnames.resize(ms.size());
+                continue;
+            }
+            char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
+            while(failure.empty()){
+                std::string chbuf=readline(&mf);
+                size_t lsize=chbuf.size();
+                if(lsize==0)break;
+                if(lsize>=MAX_LINESIZE){
+                    failure+="    Line too long;\n";
+                    break;
+                }
+                if(2!=sscanf(chbuf.c_str(),"%[^\t]%s",sname,sid)){
+                    failure+="    Invalid line in initial file;\n";
+                    break;
+                }
+                int_t mid=ms.get_mid(sid);
+                if(mid<0)
+                    failure+="    Invalid sid;\n";
+                else if(massnames[mid].size())
+                    failure+="    Duplicate sid;\n";
+                else if((massnames[mid]=sname).empty())
+                    failure+="    Empty name;\n";
+                else
+                    ++n_names;
+            }
+            break;
+        }
+        if(failure.empty()){
+            if(ms.empty())
+                failure+=ez?"    Failed to load system;\n":"    Failed to open zip file;\n";
+            else if(n_names!=ms.size())
+                failure+="    Failed to load names of celestials;\n";
+        }
+        if(failure.size()){
+            LogError("Error when loading %s.0.zip:\n%s%s",
+                ephemeris_path,failure.c_str(),ez?"\n"
+                "  NOTE: For this program to work properly, the output zip packages\n"
+                "        shall not be tampered with, i.e. do not modify or replace them\n"
+                "        with an extracted and repacked version.\n\n":"");
+            ms.clear();
+            massnames.clear();
+            return;
+        }
+    }
+
+    int_t t_middle=ms.ephemeris_time();
+    int_t t_fwd=t_middle,t_bak=t_middle;
     int_t n_fwd=0,n_bak=0;
     for(int dir=1;dir>=-1;dir-=2){
         bool fwd=dir>0;
         const char *fwdbak=fwd?"fwd":"bak";
         size_t cur_index=0;
-        int_t &t_mid=fwd?middle_fwd:middle_bak;
         int_t &t_last=fwd?t_fwd:t_bak;
         int_t &n_chpt=fwd?n_fwd:n_bak;
         std::string failure;
@@ -174,15 +233,8 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
                 failure+="    Incompatible direction;\n";
                 break;
             }
-            if(cur_index==1){
-                t_mid=curchpt.t_start;
-                if(!fwd&&n_fwd&&t_mid!=middle_fwd){
-                    failure+="    Mismatch epoch;\n";
-                    break;
-                }
-            }
-            else if(curchpt.t_start!=t_last){
-                failure+="    Uncontinuous ephemeris;\n";
+            if(curchpt.t_start!=t_last){
+                failure+=cur_index==1?"    Mismatch epoch;\n":"    Uncontinuous ephemeris;\n";
                 break;
             }
             t_last=curchpt.t_end;
@@ -197,12 +249,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
             revchpts.emplace_back(std::move(*it));
         revchpts.swap(chapters);
     }
-    if(!n_fwd&&!n_bak){
-        ms.clear();
-        return;
-    }
-    if(!n_fwd)t_fwd=middle_bak;
-    if(!n_bak)t_bak=middle_fwd;
+
     LogInfo(
         "Loaded %llu bodies from ephemeris %s\n"
         "    Time Span: [%lld, %lld]\n",

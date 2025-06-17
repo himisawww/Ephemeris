@@ -6,8 +6,8 @@
 #include"configs.h"
 #include"utils/logger.h"
 
-#define MAX_LINESIZE 1024
-#define MAX_PATHSIZE 260
+using Configs::MAX_LINESIZE;
+using Configs::MAX_PATHSIZE;
 
 const char *default_path=".";
 

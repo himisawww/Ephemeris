@@ -27,6 +27,7 @@ class ephemeris_reader{
         chapter(msystem &,const std::string &);
     };
     std::vector<chapter> chapters;
+    std::vector<std::string> massnames;
 public:
     ephemeris_reader(const char *ephemeris_path);
 
