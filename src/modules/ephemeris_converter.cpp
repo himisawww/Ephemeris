@@ -140,6 +140,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                     if(index.fid>0)
                         fids[mid][dir*index.t_end]=fid;
                     ephm_files.insert({fid,ephemeris_interpolator(&mf,index.t_end-index.t_start)});
+                    mf.reset();
                     index.fid=fid;
                 }
 
@@ -170,7 +171,6 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                     }
                     if(it!=it_barycen){
                         curblist=it->second;
-                        curblist.update_barycens(ms);
                         it_barycen=it;
                         int_t bn=curblist.size();
                         for(int_t i=0;i<bn;++i){
@@ -182,6 +182,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                         }
                     }
                     fwrite(&mst_eph,sizeof(double),1,fout);
+                    ms.update(mst_eph,&curblist);
                     for(int_t i=0;i<mn;++i){
                         auto it_data=fids[i].lower_bound(dir*it_eph);
                         if(it_data==fids[i].end()){

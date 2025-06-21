@@ -784,17 +784,82 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
     base_t::relative_error=NAN;
 }
 
+interp_t::interpolator(MFILE *_file,double _range,int_t _offset,size_t fsize,int_t _cache_bytes):t_range(_range){
+    pfitter=nullptr;
+    do{
+        if(!_file||fseek(_file,_offset,SEEK_SET))
+            break;
+        if(fread((base_t*)this,sizeof(base_t),1,_file)!=1)
+            break;
+        double r=relative_error();
+        if(!(0<=r&&r<1))
+            break;
+        ephemeris_format f=data_format();
+        if(!is_valid_format(f))
+            break;
+
+        SWITCH(f,
+            if(fsize!=sizeof(header_type)+(n+degree)*bspline_t::data_size)break;
+            auto *pheader=(header_type*)this;
+            static_assert(sizeof(pheader->fix)<=sizeof(fix_data),"No sufficient space in interpolator::fix_data.");
+            if(fread(fix_data,sizeof(pheader->fix),1,_file)!=1)break;
+            pfitter=new bspline_t(_file,_offset+sizeof(header_type),degree,n,t_range,_cache_bytes);
+            _offset+=sizeof(base_t)+sizeof(pheader->fix);
+            if(!*pfitter){
+                delete pfitter;
+                pfitter=nullptr;
+            }
+        );
+
+        if(pfitter){
+            //set auxiliary data
+            if(f==KEPLERIAN_CIRCULAR||f==KEPLERIAN_RAW){
+                double GM;
+                if(fseek(_file,_offset,SEEK_SET)||fread(&GM,sizeof(double),1,_file)!=1)
+                    break;
+                sGM=std::sqrt(GM);
+            }
+            else if(f==AXIAL_OFFSET){
+                double extra[2];
+                if(fseek(_file,_offset,SEEK_SET)||fread(extra,sizeof(double),2,_file)!=2)
+                    break;
+                double &local_axis_theta=extra[0];
+                double &local_axis_phi=extra[1];
+                local_axis=mat(
+                    vec(local_axis_theta,local_axis_phi),
+                    vec(local_axis_theta+Constants::pi_div2,local_axis_phi),
+                    0).transpose();
+            }
+            return;
+        }
+    } while(0);
+    //failed
+    clear();
+    base_t::uformat=~uint16_t(ephemeris_format::INVALID);
+    base_t::relative_error=NAN;
+}
+
 interp_t::interpolator(interpolator &&other){
     memcpy(this,&other,sizeof(interpolator));
     memset(&other,0,sizeof(interpolator));
 }
 
-interp_t::~interpolator(){
+interp_t &interp_t::operator=(interp_t &&other){
+    if(this==&other)
+        return *this;
+    clear();
+    memcpy(this,&other,sizeof(interpolator));
+    memset(&other,0,sizeof(interpolator));
+    return *this;
+}
+
+void interp_t::clear(){
     if(!pfitter)
         return;
     ephemeris_format f=data_format();
     SWITCH(f,
         delete pfitter;
+        pfitter=nullptr;
     );
 }
 
@@ -805,6 +870,16 @@ void interp_t::expand(){
     SWITCH(f,
         pfitter->expand();
     );
+}
+
+int_t interp_t::memory_size() const{
+    if(!pfitter)
+        return 0;
+    ephemeris_format f=data_format();
+    SWITCH(f,
+        return pfitter->memory_size()+sizeof(*pfitter);
+    );
+    return 0;
 }
 
 void interp_t::set_orbital_state(const vec &_r,const vec &_v){

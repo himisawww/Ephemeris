@@ -34,16 +34,16 @@
 
 class izippack;
 class izipfile{
-    const izippack *pzip;
+    MFILE *fzip;
     size_t locoffset,fileoffset,filesize;
     std::string filename;
 
     friend class izippack;
     uint16_t load_zip64(uint16_t exremain,bool is_central);
     //load from local header at _offset
-    izipfile(const izippack *,size_t _offset);
+    izipfile(MFILE *,size_t _offset);
     //load from central header at ftell
-    izipfile(const izippack *);
+    izipfile(MFILE *);
 public:
     static constexpr size_t npos=-1;
     operator bool() const{ return locoffset!=npos; }
@@ -60,10 +60,10 @@ public:
     bool dumpfile(MFILE &mf) const;
 
     bool operator==(const izipfile &ft2) const{
-        return pzip==ft2.pzip&&locoffset==ft2.locoffset;
+        return fzip==ft2.fzip&&locoffset==ft2.locoffset;
     }
     bool operator!=(const izipfile &ft2) const{
-        return pzip!=ft2.pzip||locoffset!=ft2.locoffset;
+        return fzip!=ft2.fzip||locoffset!=ft2.locoffset;
     }
     bool operator<(const izipfile &ft2) const{
         return locoffset<ft2.locoffset;

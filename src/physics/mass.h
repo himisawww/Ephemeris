@@ -191,7 +191,9 @@ struct mass_state{
     }
 };
 
+class ephemeris_generator;
 class ephemeris_substeper;
+class ephemeris_reader;
 
 //stellar system
 class msystem{
@@ -207,6 +209,7 @@ public:
 
     friend class ephemeris_generator;
     friend class ephemeris_substeper;
+    friend class ephemeris_reader;
 private:
     //relativistic coordinate time
     real t_eph;
@@ -262,8 +265,6 @@ private:
     void Cuda_RungeKutta12(fast_real dt,int_t n_step);
     //same as accel, use GPU
     void Cuda_accel();
-    //update time-variables of mass list to epoch t
-    void update(fast_real t);
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
@@ -271,6 +272,9 @@ private:
     void record_substeps(fast_real dt,bool initialize=false);
 
 public:
+    //update time-variables of mass list to epoch t
+    //if pblist present, also update GM/GM_sys in *pblist
+    void update(fast_real t,bsystem *pblist=nullptr);
     //calculate acceleration and solve for angular velocity
     //parallel_option:
     //-1: CPU single thread;

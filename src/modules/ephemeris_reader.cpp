@@ -4,9 +4,10 @@
 #include"configs.h"
 #include"utils/logger.h"
 
-ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_){
+ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory_budget):izippack(_){
     std::string failure;
     do{
+        _interp_size=0;
         if(!izippack::operator bool())
             break;
         auto mf_files=load_central_directory();
@@ -52,7 +53,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
         }
         if(failure.size())break;
 
-        dir=0;
+        int dir=0;
         size_t mn=ms.size();
         ephm_index.resize(mn);
         while(failure.empty()){
@@ -66,8 +67,8 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
                 failure+="    Incompatible direction;\n";
                 break;
             }
-            int_t cur_min=dir>0?index.t_start:index.t_end;
-            int_t cur_max=dir>0?index.t_end:index.t_start;
+            int_t cur_min=fwd?index.t_start:index.t_end;
+            int_t cur_max=fwd?index.t_end:index.t_start;
             if(dir){
                 t_start=std::min(t_start,cur_min);
                 t_end=std::max(t_end,cur_max);
@@ -113,7 +114,8 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
 
         std::set<izipfile> dedup_file(ephm_files.begin(),ephm_files.end());
         dedup_file.insert(izippack::end());
-        if(dedup_file.size()!=ephm_files.size()+1){
+        int_t n_files=ephm_files.size();
+        if(dedup_file.size()!=n_files+1){
             failure+="    Mismatch ephemeris;\n";
             break;
         }
@@ -140,6 +142,37 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
         }
         if(failure.size())break;
 
+        ephm_interps.resize(n_files);
+        ephm_expand.resize(n_files);
+        memory_budget=std::max(int_t(0),memory_budget);
+        std::vector<std::pair<int_t,int_t>> ephm_sizes;
+        int_t full_size=0;
+        for(int_t i=0;i<n_files;++i)
+            full_size+=ephm_sizes.emplace_back(ephm_files[i].size(),i).first;
+        std::sort(ephm_sizes.begin(),ephm_sizes.end());
+        _cache_bytes=0;
+        int_t used_budget=0;
+        for(int_t i=0,partial_size=0;i<n_files;++i){
+            auto &es=ephm_sizes[i];
+            int_t cur_size=es.first;
+            int_t cur_expect=partial_size+(n_files-i)*cur_size;
+            if(cur_expect>memory_budget)
+                break;
+            used_budget=cur_expect;
+            _cache_bytes=cur_size;
+            partial_size+=cur_size;
+        }
+        memory_budget-=used_budget;
+        for(int_t i=0,partial_size=0;i<n_files;++i){
+            auto &es=ephm_sizes[i];
+            int_t cur_size=es.first;
+            int_t cur_expect=(partial_size+cur_size)*(ephemeris_compressor::max_bspline_degree+1);
+            if(cur_expect>memory_budget)
+                break;
+            ephm_expand[es.second]=true;
+            partial_size+=cur_size;
+        }
+
         return;
     } while(0);
 
@@ -148,7 +181,9 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_):izippack(_)
     close();
 }
 
-ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
+ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budget){
+    cur_chid=-1;
+    mem_budget=memory_budget;
     {
         using Configs::MAX_LINESIZE;
         //load 0.zip
@@ -226,10 +261,10 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
         std::string failure;
         do{
             std::string chname=strprintf("%s.%llu.%s.zip",ephemeris_path,++cur_index,fwdbak);
-            chapter curchpt(ms,chname);
+            chapter curchpt(ms,chname,memory_budget/2);
             if(!curchpt)
                 break;
-            if(curchpt.dir!=dir||(dir>0?curchpt.t_start>=curchpt.t_end:curchpt.t_start<=curchpt.t_end)){
+            if(dir>0?curchpt.t_start>=curchpt.t_end:curchpt.t_start<=curchpt.t_end){
                 failure+="    Incompatible direction;\n";
                 break;
             }
@@ -249,10 +284,136 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
             revchpts.emplace_back(std::move(*it));
         revchpts.swap(chapters);
     }
-
-    LogInfo(
-        "Loaded %llu bodies from ephemeris %s\n"
-        "    Time Span: [%lld, %lld]\n",
-        ms.size(),ephemeris_path,t_bak,t_fwd);
 }
 
+int_t ephemeris_reader::interpolator_size() const{
+    int_t ret=0;
+    for(int_t ich:active_chapters)
+        ret+=chapters[ich].interpolator_size();
+    return ret;
+}
+
+bool ephemeris_reader::checkout(real t_eph){
+    if(ms.t_eph==t_eph)
+        return true;
+    int_t chids=0,chide=chapters.size();
+    if(!(chids<=cur_chid&&cur_chid<chide))
+        cur_chid=chide/2;
+    do{
+        if(cur_chid<chids||chide<=cur_chid)
+            return false;
+        const auto &cur_chapter=chapters[cur_chid];
+        bool left=!(t_eph>=cur_chapter.t_min());
+        bool right=!(t_eph<=cur_chapter.t_max());
+        if(left==right){
+            if(left)return false;
+            break;
+        }
+        cur_chid+=left?-1:1;
+    } while(1);
+
+    lru();
+    return chapters[cur_chid].checkout(ms,t_eph);
+}
+
+bool ephemeris_reader::chapter::checkout(msystem &ms,real t_eph){
+    fast_real t_range=t_end-t_start;
+    int dir=t_start<t_end?1:-1;
+    int_t t_key(dir>0?+t_eph:-t_eph);
+    if(t_key<dir*t_start||dir*t_end<t_key)
+        return false;
+    _interp_size=0;
+    bool failed=false;
+    bsystem &blist=blists[blist_index.lower_bound(t_key)->second.fid];
+    ms.update(fast_real(t_eph),&blist);
+    int_t bn=blist.size();
+    for(int_t i=0;i<bn;++i){
+        barycen &b=blist[i];
+        if(b.hid<0){
+            const ephemeris_entry &index=ephm_index[b.mid].lower_bound(t_key)->second;
+            int_t fid=index.fid;
+            fast_real t_offset(t_eph-real(index.t_start));
+            orbital_state_t orb;
+            rotational_state_t rot;
+            for(int_t k=0;k<2;++k){
+                auto &einterp=ephm_interps[fid+k];
+                if(!einterp){
+                    auto &efile=ephm_files[fid+k];
+                    if(efile.fetch())
+                        einterp=ephemeris_interpolator(get_file(),index.t_end-index.t_start,
+                            efile.offset(),efile.size(),_cache_bytes);
+                    if(!einterp){
+                        efile=izippack::end();
+                        failed=true;
+                        continue;
+                    }
+                    if(ephm_expand[fid+k])
+                        einterp.expand();
+                }
+                _interp_size+=einterp.memory_size();
+                if(k==0)
+                    einterp(t_offset,&orb);
+                else{
+                    einterp.set_orbital_state(orb.r,orb.v);
+                    einterp(t_offset,&rot);
+                }
+            }
+            mass &m=ms[b.mid];
+            barycen &bt=blist[b.tid];
+            bt.r=orb.r;
+            bt.v=orb.v;
+            m.s.x=rot.x;
+            m.s.z=rot.z;
+            m.s.y=m.s.z*m.s.x;
+            m.w=rot.w;
+        }
+    }
+    if(failed)
+        return false;
+    blist.compose();
+    for(int_t i=0;i<bn;++i){
+        barycen &b=blist[i];
+        if(b.hid<0){
+            mass &m=ms[b.mid];
+            m.r=b.r;
+            m.v=b.v;
+        }
+    }
+    ms.t_eph=t_eph;
+    return true;
+}
+
+void ephemeris_reader::unload(){
+    for(auto &ch:chapters)
+        ch.unload();
+    active_chapters.clear();
+}
+
+void ephemeris_reader::chapter::unload(){
+    for(auto &einterp:ephm_interps)
+        einterp.clear();
+    _interp_size=0;
+}
+
+void ephemeris_reader::lru(){
+    auto it=std::find(active_chapters.begin(),active_chapters.end(),cur_chid);
+    if(it!=active_chapters.end())
+        active_chapters.erase(it);
+    active_chapters.push_back(cur_chid);
+
+    int_t n_active=active_chapters.size();
+    if(n_active>2){
+        int_t unload_target=interpolator_size()-chapters[active_chapters.back()].interpolator_size()+mem_budget/2;
+        unload_target-=mem_budget;
+        int_t n_unload=0;
+        for(int_t i=0;i+2<n_active;++i){
+            if(unload_target<=0)
+                break;
+            auto &oldch=chapters[active_chapters[i]];
+            unload_target-=oldch.interpolator_size();
+            oldch.unload();
+            ++n_unload;
+        }
+        active_chapters.erase(active_chapters.begin(),active_chapters.begin()+n_unload);
+    }
+}

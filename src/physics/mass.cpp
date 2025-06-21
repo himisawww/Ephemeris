@@ -25,7 +25,7 @@ void mass::scale(fast_real factor){
     rR2G_4c*=f3;
 }
 
-void msystem::update(fast_real t){
+void msystem::update(fast_real t,bsystem *pblist){
     int_t mn=mlist.size();
     for(int_t i=0;i<mn;++i){
         mass &mi=mlist[i];
@@ -45,6 +45,34 @@ void msystem::update(fast_real t){
         }*/
         mi.exJ2=mi.dJ2*t;
 
+    }
+    if(!pblist)
+        return;
+
+    bsystem &bl=*pblist;
+    int_t bn=bl.size();
+    
+    //update barycens: bl.rvGM,rvGM_sys;
+    for(int_t i=0;i<bn;++i){//initialize
+        bl[i].GM_sys=0;
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid<0){//is mass
+        barycen &bi=bl[i];
+        const mass &mi=mlist[bi.mid];
+        const real mGM=mi.GM;
+        bi.GM=mGM;
+        bi.GM_sys+=mGM;
+        int_t bp=bi.pid;
+        while(bp>=0){
+            bl[bp].GM_sys+=mGM;
+            bp=bl[bp].pid;
+        }
+    }
+    for(int_t i=0;i<bn;++i)if(bl[i].hid>=0){//is barycen
+        barycen &bi=bl[i];
+        barycen &h=bl[bi.hid];
+        barycen &g=bl[bi.gid];
+        bi.GM=h.GM_sys+g.GM_sys;
     }
 }
 void mass::deform_by(const std::vector<mass> &mlist){
@@ -422,5 +450,5 @@ void msystem::clear_accel(){
 }
 
 int_t msystem::ephemeris_time() const{
-    return int_t(t_eph.hi)+int_t(t_eph.lo);
+    return int_t(t_eph);
 }

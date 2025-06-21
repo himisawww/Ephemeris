@@ -4,14 +4,14 @@
 
 struct ephemeris_entry;
 
+struct orbital_state_t{
+    vec r,v;
+};
+struct rotational_state_t{
+    vec w,x,z;
+};
+
 class ephemeris_compressor{
-public:
-    struct orbital_state_t{
-        vec r,v;
-    };
-    struct rotational_state_t{
-        vec w,x,z;
-    };
 private:
     static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
 
@@ -163,11 +163,20 @@ public:
             const T (&fix_r)[N_Channel],const T (&fix_v)[N_Channel],
             double x,double smooth_range) const;
     public:
+        interpolator():pfitter(nullptr){}
         interpolator(MFILE *fin,double _range);
+        //use content that stored in _file at _offset of _size as interpolator data
+        //caller must ensure _file is valid during lifetime of interpolator
+        //_cache_bytes is for bspline_fitter::(...,_cache_bytes)
+        interpolator(MFILE *_file,double _range,int_t _offset,size_t _size,int_t _cache_bytes=0);
         interpolator(interpolator &&);
-        ~interpolator();
+        interpolator &operator=(interpolator &&);
+        ~interpolator(){ clear(); }
 
         void expand();
+        void clear();
+        //return heap size of fitter
+        int_t memory_size() const;
 
         format_t data_format() const{ return format_t(~base_t::uformat); }
         double relative_error() const{ return base_t::relative_error; }

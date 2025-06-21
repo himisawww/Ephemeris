@@ -63,13 +63,12 @@ public:
 };
 #pragma pack(pop)
 
-izipfile::izipfile(const izippack *_pzip,size_t _offset):pzip(_pzip),locoffset(_offset){
+izipfile::izipfile(MFILE *_fzip,size_t _offset):fzip(_fzip),locoffset(_offset){
 	filesize=fileoffset=npos;
 	if(locoffset==npos)return;
 	bool success=false;
 
 	do{
-		MFILE *fzip=pzip->fzip;
 		if(!fzip)break;
 		zipheader zh;
 		if(fseek(fzip,locoffset,SEEK_SET))break;
@@ -97,12 +96,11 @@ izipfile::izipfile(const izippack *_pzip,size_t _offset):pzip(_pzip),locoffset(_
 	} while(0);
 	if(!success)filesize=fileoffset=locoffset=npos;
 }
-izipfile::izipfile(const izippack *_pzip):pzip(_pzip),fileoffset(npos){
+izipfile::izipfile(MFILE *_fzip):fzip(_fzip),fileoffset(npos){
 	filesize=npos;
 	bool success=false;
 
 	do{
-		MFILE *fzip=pzip->fzip;
 		if(!fzip)break;
 		zipcentralheader ch;
 		if(fread(&ch,sizeof(zipcentralheader),1,fzip)!=1)break;
@@ -137,7 +135,6 @@ uint16_t izipfile::load_zip64(uint16_t exremain,bool is_central){
 	if(!(size64||offset64))return 0;
 
 	//maybe zip64
-	MFILE *fzip=pzip->fzip;
 	zip64header z64h;
 	while(exremain>=4){
 		if(fread(&z64h,4,1,fzip)!=1)break;
@@ -169,7 +166,7 @@ uint16_t izipfile::load_zip64(uint16_t exremain,bool is_central){
 }
 
 izipfile &izipfile::operator++(){
-	*this=izipfile(pzip,is_ready()?fileoffset+filesize:npos);
+	*this=izipfile(fzip,is_ready()?fileoffset+filesize:npos);
 	return *this;
 }
 izipfile izipfile::operator++(int){
@@ -179,7 +176,7 @@ izipfile izipfile::operator++(int){
 }
 
 std::string izipfile::fullname() const{
-	return pzip->fzip->get_name()+"/"+filename;
+	return fzip->get_name()+"/"+filename;
 }
 
 bool izipfile::dumpfile(MFILE &mf) const{
@@ -187,7 +184,6 @@ bool izipfile::dumpfile(MFILE &mf) const{
 	do{
 		if(!is_ready())break;
 		void *dst=mf.prepare(size());
-		MFILE *fzip=pzip->fzip;
 		if(fseek(fzip,fileoffset,SEEK_SET))break;
 		if(fread(dst,1,filesize,fzip)!=filesize)break;
 		mf.set_name(filename);
@@ -199,7 +195,7 @@ bool izipfile::dumpfile(MFILE &mf) const{
 }
 bool izipfile::fetch(){
 	if(fileoffset==npos&&locoffset!=npos)
-		*this=izipfile(pzip,locoffset);
+		*this=izipfile(fzip,locoffset);
 	return is_ready();
 }
 
@@ -217,10 +213,10 @@ int izippack::close(){
 	return ret;
 }
 izipfile izippack::begin() const{
-	return izipfile(this,0);
+	return izipfile(fzip,0);
 }
 izipfile izippack::end() const{
-	return izipfile(this,izipfile::npos);
+	return izipfile(fzip,izipfile::npos);
 }
 std::vector<izipfile> izippack::load_central_directory() const{
 	std::vector<izipfile> result;
@@ -294,7 +290,7 @@ std::vector<izipfile> izippack::load_central_directory() const{
 		result.reserve(ze.totalchsnum);
 		size_t i=0;
 		while(i!=ze.totalchsnum){
-			if(!result.emplace_back(izipfile(this)))
+			if(!result.emplace_back(izipfile(fzip)))
 				break;
 			++i;
 		}

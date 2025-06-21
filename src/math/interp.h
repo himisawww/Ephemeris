@@ -44,6 +44,8 @@ class bspline_fitter{
     MFILE *mdata;
     //offset of bsplines.data() in bspline_coefs in data_size
     int_t bsplines_offset;
+    //load() will at least expand cache to this threshold(in data_size)
+    int_t min_cache_pts;
     std::vector<T> bsplines;
     //if present, full bspline_coefs are dumped to bsplines and expanded to chebyshevs
     std::vector<T> chebyshevs;
@@ -162,8 +164,8 @@ public:
     //Construct from fitted coefficients T bspline_coefs[n+d][N_Channel] that stored in _file at _offset.
     // caller must ensure _file is valid during lifetime of bspline_fitter
     //need n>=1 && d>0 && range!=0,+-inf
-    bspline_fitter(MFILE *_file,size_t _offset,int_t _d,int_t _n,double _range)
-        :d(_d),n(_n),range(_range),mdata_offset(_offset),mdata(_file){
+    bspline_fitter(MFILE *_file,size_t _offset,int_t _d,int_t _n,double _range,int_t _cache_bytes=0)
+        :d(_d),n(_n),range(_range),mdata_offset(_offset),mdata(_file),min_cache_pts(_cache_bytes/data_size){
         is_valid=false;
         do{
             if(!(n>0&&d>0&&(range!=0&&range*0==0)))return;
@@ -188,7 +190,7 @@ private:
         int_t old_size=bsplines.size()/N_Channel;
         if(bsplines_offset<=i_begin&&i_end<=bsplines_offset+old_size)
             return bsplines.data()-bsplines_offset*N_Channel;
-        int_t load_size=std::max((i_end-i_begin)*3+6*d,old_size);
+        int_t load_size=std::max((i_end-i_begin)*3+6*d,std::max(old_size,min_cache_pts));
         int_t load_begin=(i_begin+i_end-load_size)/2;
         int_t load_excess=load_begin+load_size-(n+d);
         if(load_excess>0)
@@ -232,6 +234,11 @@ public:
     //return fitted T bspline_coefs[n+d][N_Channel]
     const T *get_fitted_data(){
         return is_valid?load_data():nullptr;
+    }
+
+    //return heap size of fitter
+    int_t memory_size() const{
+        return bsplines.size()*sizeof(T)+chebyshevs.size()*sizeof(T);
     }
 
     //fit original data[mn] at a position in [0,mn]
