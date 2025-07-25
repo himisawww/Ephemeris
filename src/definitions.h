@@ -1,4 +1,5 @@
 #pragma once
+#pragma fp_contract (off)
 #include<cstdint>
 #include"math/basic_math.h"
 #include"math/dfloat_t.h"
