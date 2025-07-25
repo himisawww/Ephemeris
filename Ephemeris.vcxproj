@@ -21,7 +21,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -74,6 +74,8 @@
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <AdditionalOptions>-std=c++17 --expt-relaxed-constexpr -Wno-deprecated-gpu-targets -Xcompiler "/wd4200 /wd4244 /wd4267 /wd4309 /wd4838" %(AdditionalOptions)</AdditionalOptions>
+      <KeepDir>$(Platform)\$(Configuration)\</KeepDir>
+      <CompileOut>$(Platform)\$(Configuration)\%(Filename)%(Extension).obj</CompileOut>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
