@@ -31,6 +31,9 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="htl">
+      <UniqueIdentifier>{cecd2666-9e4d-4151-b726-9f8572a51bbc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -229,6 +232,12 @@
     <ClInclude Include="src\modules\ephemeris_reader.h">
       <Filter>modules</Filter>
     </ClInclude>
+    <ClInclude Include="src\htl\base.h">
+      <Filter>htl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\htl\vector.h">
+      <Filter>htl</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">
@@ -274,5 +283,10 @@
     <ResourceCompile Include="Ephemeris.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="src\htl\htl.natvis">
+      <Filter>htl</Filter>
+    </Natvis>
   </ItemGroup>
 </Project>

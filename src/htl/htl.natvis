@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="htl::vector&lt;*&gt;">
+        <DisplayString>{{ size={_a.second._size} }}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">_a.second._size</Item>
+            <Item Name="[capacity]" ExcludeView="simple">_a.second._alloc?_u._c:inplace_size</Item>
+            <ArrayItems>
+                <Size>_a.second._size</Size>
+                <ValuePointer>_a.second._alloc?_u._b:(pointer)_u._buffer</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+</AutoVisualizer>
