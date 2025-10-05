@@ -33,7 +33,6 @@ public:
 private:
     template<bool Const>
     class _iterator{
-        friend class _iterator<!Const>;
         friend class autoplace_vector;
         autoplace_vector::pointer _ptr;
     public:
@@ -43,19 +42,25 @@ private:
         typedef ::std::conditional_t<Const,autoplace_vector::const_reference,autoplace_vector::reference> reference;
         typedef ::std::random_access_iterator_tag iterator_category;
     public:
-        template<bool C2=!Const,typename=::std::enable_if_t<C2>>
+        template<bool C2,typename=::std::enable_if_t<C2||!Const>>
         operator _iterator<C2>() const{
-            _iterator<true> it;
+            _iterator<C2> it;
             it._ptr=_ptr;
             return it;
         }
 
-        bool operator==(const _iterator &_other) const{ return _ptr==_other._ptr; }
-        bool operator!=(const _iterator &_other) const{ return _ptr!=_other._ptr; }
-        bool operator< (const _iterator &_other) const{ return _ptr< _other._ptr; }
-        bool operator<=(const _iterator &_other) const{ return _ptr<=_other._ptr; }
-        bool operator> (const _iterator &_other) const{ return _ptr> _other._ptr; }
-        bool operator>=(const _iterator &_other) const{ return _ptr>=_other._ptr; }
+        template<bool C2>
+        bool operator==(const _iterator<C2> &_other) const{ return _ptr==_other._ptr; }
+        template<bool C2>
+        bool operator!=(const _iterator<C2> &_other) const{ return _ptr!=_other._ptr; }
+        template<bool C2>
+        bool operator< (const _iterator<C2> &_other) const{ return _ptr< _other._ptr; }
+        template<bool C2>
+        bool operator<=(const _iterator<C2> &_other) const{ return _ptr<=_other._ptr; }
+        template<bool C2>
+        bool operator> (const _iterator<C2> &_other) const{ return _ptr> _other._ptr; }
+        template<bool C2>
+        bool operator>=(const _iterator<C2> &_other) const{ return _ptr>=_other._ptr; }
 
         _iterator &operator++(){
             ++_ptr;
