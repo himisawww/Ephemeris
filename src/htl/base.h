@@ -4,20 +4,22 @@
 #include<cstddef>
 #include<cstdlib>
 #include<cstring>
-#include<new>
+#include<cstdio>
 #include<utility>
 #include<tuple>
 #include<type_traits>
 #include<algorithm>
 #include<limits>
+#include<memory>
 
 // for debugging features, change this to #if 0
 #if 1
 #define HTL_ASSERT(...) ((void)0)
 #else
-#include<stdexcept>
-#define HTL_ASSERT(...) do{if(!(__VA_ARGS__)){fprintf(stderr,"Assertion failed: %s, file %s, line %d\n",#__VA_ARGS__,__FILE__,__LINE__);::std::abort();}}while(0)
+#define HTL_ASSERT HTL_RUNTIME_ASSERT
 #endif
+
+#define HTL_RUNTIME_ASSERT(...) do{if(!(__VA_ARGS__)){fprintf(stderr,"Assertion failed: %s, file %s, line %d\n",#__VA_ARGS__,__FILE__,__LINE__);::std::abort();}}while(0)
 
 namespace htl{
 

@@ -1,6 +1,5 @@
 #pragma once
 #include"base.h"
-#include<memory>
 
 namespace htl{
 
@@ -224,7 +223,7 @@ private:
         }
     }
     pointer _begin() const{
-        if constexpr(inplace_size)return _a.second._alloc?_u._b:pointer(_u._buffer);
+        if constexpr(inplace_size!=0)return _a.second._alloc?_u._b:pointer(_u._buffer);
         else return _u._b;
     }
     //initialize {_size,_alloc,_u._b,_u._c} & return _begin()
@@ -699,16 +698,8 @@ public:
 
         allocator_type &this_alloc=_a.get_first();
         allocator_type &other_alloc=_other._a.get_first();
-        auto _swap_trivially=[&](){
-            if constexpr(alloc_traits::propagate_on_container_swap::value)
-                swap(this_alloc,other_alloc);
-            ::std::swap(_a.second,_other._a.second);
-            ::std::swap(_u,_other._u);
-        };
 
-        if constexpr(!inplace_size||value_traits<>::is_trivially_swappable)
-            _swap_trivially();
-        else{
+        if constexpr(inplace_size&&!value_traits<>::is_trivially_swappable){
             size_type this_cost=inplace()?size():0;
             size_type other_cost=_other.inplace()?_other.size():0;
             if(this_cost||other_cost){
@@ -739,10 +730,14 @@ public:
                 _tmp._init_move(light);
                 light._init_move(heavy);
                 heavy._init_move(_tmp);
+                return;
             }
-            else
-                _swap_trivially();
         }
+
+        if constexpr(alloc_traits::propagate_on_container_swap::value)
+            swap(this_alloc,other_alloc);
+        ::std::swap(_a.second,_other._a.second);
+        ::std::swap(_u,_other._u);
     }
 
     allocator_type get_allocator() const{ return _a.get_first(); }
@@ -751,12 +746,12 @@ public:
         return ::std::min<size_type>(alloc_traits::max_size(_a.get_first()),(::std::numeric_limits<difference_type>::max)());
     }
     size_type capacity() const{
-        if constexpr(inplace_size)return _a.second._alloc?_u._c:inplace_size;
+        if constexpr(inplace_size!=0)return _a.second._alloc?_u._c:inplace_size;
         else return _u._c;
     }
     bool empty() const{ return size()==0; }
     bool inplace() const{
-        if constexpr(inplace_size)return !_a.second._alloc;
+        if constexpr(inplace_size!=0)return !_a.second._alloc;
         else return false;
     }
     size_type inplace_capacity() const{ return inplace_size; }
@@ -825,12 +820,12 @@ public:
     const_reference front() const{ return *_dereference_index(0); }
     const_reference back() const{ return *_dereference_index(size()-1); }
     reference at(size_type index){
-        HTL_ASSERT(index<size());
+        HTL_RUNTIME_ASSERT(index<size());
         return *(_begin()+index);
     }
     reference operator[](size_type index){ return *_dereference_index(index); }
     const_reference at(size_type index) const{
-        HTL_ASSERT(index<size());
+        HTL_RUNTIME_ASSERT(index<size());
         return *(_begin()+index);
     }
     const_reference operator[](size_type index) const{ return *_dereference_index(index); }
