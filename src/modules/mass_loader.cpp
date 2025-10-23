@@ -39,7 +39,7 @@ bool mass::sanity(bool alert) const{
     if(!(eps2<inertia&&inertia<=1))
         errs.push_back("invalid inertia factor\n");
 
-    if(!(0<=k2&&k2<=1&&0<=k2r&&k2r<=1))
+    if(!(0<=k2&&k2<=1.5&&0<=k2r&&k2r<=1.5))
         errs.push_back("invalid tidal/rotational deformation factor\n");
 
     if(!(0<=tide_delay&&tide_delay<large_finite&&0<=tide_delay_factor&&tide_delay_factor<=large_finite))
