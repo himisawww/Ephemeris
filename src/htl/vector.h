@@ -19,7 +19,7 @@ struct _vector_inplace_trait<T,false>{
 };
 
 template<typename T,int InplaceSize=-1,bool SizeFixed=false,typename Allocator=::std::allocator<T>>
-class vector{
+class autoplace_vector{
     typedef ::std::allocator_traits<Allocator> alloc_traits;
 public:
     typedef Allocator   allocator_type;
@@ -34,13 +34,13 @@ private:
     template<bool Const>
     class _iterator{
         friend class _iterator<!Const>;
-        friend class vector;
-        vector::pointer _ptr;
+        friend class autoplace_vector;
+        autoplace_vector::pointer _ptr;
     public:
-        typedef vector::difference_type difference_type;
-        typedef vector::value_type      value_type;
-        typedef ::std::conditional_t<Const,vector::const_pointer,  vector::pointer>   pointer;
-        typedef ::std::conditional_t<Const,vector::const_reference,vector::reference> reference;
+        typedef autoplace_vector::difference_type difference_type;
+        typedef autoplace_vector::value_type      value_type;
+        typedef ::std::conditional_t<Const,autoplace_vector::const_pointer,  autoplace_vector::pointer>   pointer;
+        typedef ::std::conditional_t<Const,autoplace_vector::const_reference,autoplace_vector::reference> reference;
         typedef ::std::random_access_iterator_tag iterator_category;
     public:
         template<bool C2=!Const,typename=::std::enable_if_t<C2>>
@@ -254,7 +254,7 @@ private:
         }
     }
     //assume this->get_allocator == (_other.get_allocator(), before move)
-    void _init_move(vector &_other){
+    void _init_move(autoplace_vector &_other){
         if constexpr(::std::is_trivially_destructible_v<value_type>
                    &&::std::is_trivially_move_constructible_v<value_type>
                    ||!inplace_size){
@@ -435,7 +435,7 @@ private:
             }
             const size_type add_size=pcur-pend;
             if(remain){
-                vector _tmp(_a.get_first());
+                autoplace_vector _tmp(_a.get_first());
                 do _tmp.emplace_back(*ibegin);
                 while(++ibegin!=iend);
                 const size_type insert_size=add_size+_tmp.size();
@@ -545,7 +545,7 @@ private:
                 }
             }
             if(!remain)break;
-            vector _tmp(_a.get_first());
+            autoplace_vector _tmp(_a.get_first());
             do _tmp.emplace_back(*ibegin);
             while(++ibegin!=iend);
             const size_type new_size=old_capacity+_tmp.size();
@@ -575,18 +575,18 @@ private:
         return _begin()+index;
     }
 public:
-    vector(){ _init(); }
-    explicit vector(const allocator_type &alloc):_a(alloc){ _init(); }
-    explicit vector(size_type _size,const allocator_type &alloc=allocator_type()):_a(alloc){
+    autoplace_vector(){ _init(); }
+    explicit autoplace_vector(const allocator_type &alloc):_a(alloc){ _init(); }
+    explicit autoplace_vector(size_type _size,const allocator_type &alloc=allocator_type()):_a(alloc){
         _init();
         _resize(_size);
     }
-    vector(size_type _size,const value_type &_val,const allocator_type &alloc=allocator_type()):_a(alloc){
+    autoplace_vector(size_type _size,const value_type &_val,const allocator_type &alloc=allocator_type()):_a(alloc){
         _init();
         _resize(_size,_val);
     }
     template<typename I,typename C=typename ::std::iterator_traits<I>::iterator_category>
-    vector(I ibegin,I iend,const allocator_type &alloc=allocator_type()):_a(alloc){
+    autoplace_vector(I ibegin,I iend,const allocator_type &alloc=allocator_type()):_a(alloc){
         if constexpr(::std::is_convertible_v<C,::std::forward_iterator_tag>)
             _init_range_counted(ibegin,::std::distance(ibegin,iend));
         else{
@@ -595,17 +595,17 @@ public:
                 emplace_back(*ibegin);
         }
     }
-    vector(const vector &_other):_a(alloc_traits::select_on_container_copy_construction(_other.get_allocator())){
+    autoplace_vector(const autoplace_vector &_other):_a(alloc_traits::select_on_container_copy_construction(_other.get_allocator())){
         _init_range_counted(_other._begin(),_other.size());
     }
-    vector(const vector &_other,const allocator_type &alloc):_a(alloc){
+    autoplace_vector(const autoplace_vector &_other,const allocator_type &alloc):_a(alloc){
         _init_range_counted(_other._begin(),_other.size());
     }
-    vector(vector &&_other) noexcept(value_traits<>::nothrow_move_constructible)
+    autoplace_vector(autoplace_vector &&_other) noexcept(value_traits<>::nothrow_move_constructible)
         :_a(::std::move(_other.get_allocator())){
         _init_move(_other);
     }
-    vector(vector &&_other,const allocator_type &alloc) noexcept(value_traits<>::nothrow_move_constructible_with_allocator)
+    autoplace_vector(autoplace_vector &&_other,const allocator_type &alloc) noexcept(value_traits<>::nothrow_move_constructible_with_allocator)
         :_a(alloc){
         if constexpr(alloc_traits::is_always_equal::value)
             _init_move(_other);
@@ -627,12 +627,12 @@ public:
             }
         }
     }
-    vector(::std::initializer_list<value_type> _array,const allocator_type &alloc=allocator_type()):_a(alloc){
+    autoplace_vector(::std::initializer_list<value_type> _array,const allocator_type &alloc=allocator_type()):_a(alloc){
         _init_range_counted(_array.begin(),_array.size());
     }
-    ~vector(){ free(); }
+    ~autoplace_vector(){ free(); }
 
-    vector &operator=(const vector &_other){
+    autoplace_vector &operator=(const autoplace_vector &_other){
         if(this!=&_other){
             if constexpr(alloc_traits::propagate_on_container_copy_assignment::value){
                 allocator_type &this_alloc=_a.get_first();
@@ -647,7 +647,7 @@ public:
         }
         return *this;
     }
-    vector &operator=(vector &&_other) noexcept(value_traits<>::nothrow_move_assignable){
+    autoplace_vector &operator=(autoplace_vector &&_other) noexcept(value_traits<>::nothrow_move_assignable){
         if(this!=&_other){
             allocator_type &this_alloc=_a.get_first();
             allocator_type &other_alloc=_other._a.get_first();
@@ -669,7 +669,7 @@ public:
         }
         return *this;
     }
-    vector &operator=(::std::initializer_list<value_type> _array){
+    autoplace_vector &operator=(::std::initializer_list<value_type> _array){
         _assign_range_counted(_array.begin(),_array.size());
         return *this;
     }
@@ -693,7 +693,7 @@ public:
     void assign(::std::initializer_list<value_type> _array){
         _assign_range_counted(_array.begin(),_array.size());
     }
-    void swap(vector &_other) noexcept(value_traits<>::nothrow_swappable){
+    void swap(autoplace_vector &_other) noexcept(value_traits<>::nothrow_swappable){
         if(this==&_other)return;
 
         allocator_type &this_alloc=_a.get_first();
@@ -706,7 +706,7 @@ public:
                 if constexpr(!alloc_traits::is_always_equal::value){
                     if(this_alloc!=other_alloc){
                         if constexpr(alloc_traits::propagate_on_container_swap::value){
-                            vector _tmp(::std::move(_other));
+                            autoplace_vector _tmp(::std::move(_other));
                             other_alloc=::std::move(this_alloc);
                             _other._init_move(*this);
                             this_alloc=::std::move(_tmp._a.get_first());
@@ -716,7 +716,7 @@ public:
                             // according to C++ standard, it is undefined behavior 
                             // calling swap on vectors with unequal allocators when propagate_on_container_swap is false.
                             // however, here defined as is non-specialized templated ::std::swap:
-                            vector _tmp(::std::move(_other));
+                            autoplace_vector _tmp(::std::move(_other));
                             _other=::std::move(*this);
                             *this=::std::move(_tmp);
                         }
@@ -724,9 +724,9 @@ public:
                     }
                 }
                 const bool keep_this=this_cost>other_cost;
-                vector &heavy=keep_this?*this:_other;
-                vector &light=keep_this?_other:*this;
-                vector _tmp(this_alloc);
+                autoplace_vector &heavy=keep_this?*this:_other;
+                autoplace_vector &light=keep_this?_other:*this;
+                autoplace_vector _tmp(this_alloc);
                 _tmp._init_move(light);
                 light._init_move(heavy);
                 heavy._init_move(_tmp);
@@ -831,24 +831,24 @@ public:
     const_reference operator[](size_type index) const{ return *_dereference_index(index); }
 
     template<int I2,bool S2,typename A2>
-    bool operator==(const vector<T,I2,S2,A2> &_other) const{
+    bool operator==(const autoplace_vector<T,I2,S2,A2> &_other) const{
         const size_type _size=size();
         if(_size!=_other.size())return false;
         const const_pointer pbegin=_begin();
         return ::std::equal(pbegin,pbegin+_size,_other._begin());
     }
     template<int I2,bool S2,typename A2>
-    bool operator!=(const vector<T,I2,S2,A2> &_other) const{ return !(*this==_other); }
+    bool operator!=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(*this==_other); }
     template<int I2,bool S2,typename A2>
-    bool operator< (const vector<T,I2,S2,A2> &_other) const{
+    bool operator< (const autoplace_vector<T,I2,S2,A2> &_other) const{
         return ::std::lexicographical_compare(begin(),end(),_other.begin(),_other.end());
     }
     template<int I2,bool S2,typename A2>
-    bool operator<=(const vector<T,I2,S2,A2> &_other) const{ return !(_other<*this); }
+    bool operator<=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(_other<*this); }
     template<int I2,bool S2,typename A2>
-    bool operator> (const vector<T,I2,S2,A2> &_other) const{ return _other<*this; }
+    bool operator> (const autoplace_vector<T,I2,S2,A2> &_other) const{ return _other<*this; }
     template<int I2,bool S2,typename A2>
-    bool operator>=(const vector<T,I2,S2,A2> &_other) const{ return !(*this<_other); }
+    bool operator>=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(*this<_other); }
 
     template<typename ...Args>
     reference emplace_back(Args &&...args){
@@ -943,11 +943,13 @@ public:
 
 };
 
+template<typename T,typename A=::std::allocator<T>>
+using vector=autoplace_vector<T,0,false,A>;
 template<typename T,int N>
-using inplace_vector=vector<T,N,true>;
+using inplace_vector=autoplace_vector<T,N,true>;
 
 template<typename T,int I,bool S,typename A>
-void swap(vector<T,I,S,A> &_lhs,vector<T,I,S,A> &_rhs){
+void swap(autoplace_vector<T,I,S,A> &_lhs,autoplace_vector<T,I,S,A> &_rhs){
     _lhs.swap(_rhs);
 }
 
