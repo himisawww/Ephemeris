@@ -147,6 +147,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="src\utils\zipio.cpp" />
+    <None Include="initials\README.md" />
     <None Include="src\integrators\RungeKutta.impl" />
     <None Include="src\physics\ring.impl" />
     <None Include="src\physics\geopotential.impl" />

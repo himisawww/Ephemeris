@@ -34,6 +34,15 @@
     <Filter Include="htl">
       <UniqueIdentifier>{cecd2666-9e4d-4151-b726-9f8572a51bbc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resources\SolarSystem">
+      <UniqueIdentifier>{22368fae-ca86-4e75-9f11-8a5d6511ac18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="resources\SolarSystem\Geopotentials">
+      <UniqueIdentifier>{5610c12e-984f-4be3-9000-5c44624502d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="resources\SolarSystem\Rings">
+      <UniqueIdentifier>{2b770052-5649-4c31-af51-63b82ee0006d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -149,6 +158,9 @@
     <None Include="src\integrators\RungeKutta.impl">
       <Filter>integrators</Filter>
     </None>
+    <None Include="initials\README.md">
+      <Filter>resources</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Tests\tests.h">
@@ -241,37 +253,37 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\301.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\399.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\499.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\599.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Rings\699.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\699.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\799.txt">
-      <Filter>resources</Filter>
-    </Text>
-    <Text Include="initials\SolarSystem\Geopotentials\899.txt">
-      <Filter>resources</Filter>
+      <Filter>resources\SolarSystem</Filter>
     </Text>
     <Text Include="initials\SolarSystem\SolarSystem_ExtraParameters.txt">
-      <Filter>resources</Filter>
+      <Filter>resources\SolarSystem</Filter>
     </Text>
     <Text Include="initials\SolarSystem\SolarSystem_Initial.txt">
-      <Filter>resources</Filter>
+      <Filter>resources\SolarSystem</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\301.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\399.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\499.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\599.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\699.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\799.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Geopotentials\899.txt">
+      <Filter>resources\SolarSystem\Geopotentials</Filter>
+    </Text>
+    <Text Include="initials\SolarSystem\Rings\699.txt">
+      <Filter>resources\SolarSystem\Rings</Filter>
     </Text>
   </ItemGroup>
   <ItemGroup>
