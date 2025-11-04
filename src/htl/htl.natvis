@@ -1,14 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-    <Type Name="htl::vector&lt;*&gt;">
+    <Type Name="htl::autoplace_vector&lt;*&gt;">
         <DisplayString>{{ size={_a.second._size} }}</DisplayString>
         <Expand>
-            <Item Name="[size]" ExcludeView="simple">_a.second._size</Item>
             <Item Name="[capacity]" ExcludeView="simple">_a.second._alloc?_u._c:inplace_size</Item>
+            <Item Name="[allocator]" ExcludeView="simple">_a</Item>
             <ArrayItems>
                 <Size>_a.second._size</Size>
                 <ValuePointer>_a.second._alloc?_u._b:(pointer)_u._buffer</ValuePointer>
             </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="std::pair&lt;*, *&gt;" IncludeView="HTLMapHelper">
+        <DisplayString>{second}</DisplayString>
+    </Type>
+    <Type Name="htl::map&lt;*&gt;">
+        <AlternativeType Name="htl::multimap&lt;*&gt;"/>
+        <DisplayString>{{ size={_a.second.second._c>>2} }}</DisplayString>
+        <Expand>
+            <Item Name="[comparator]" ExcludeView="simple">_a.second</Item>
+            <Item Name="[allocator]" ExcludeView="simple">_a</Item>
+            <TreeItems>
+                <Size>_a.second.second._c>>2</Size>
+                <HeadPointer>(node_ptr)_a.second.second._p</HeadPointer>
+                <LeftPointer>(node_ptr)_l</LeftPointer>
+                <RightPointer>(node_ptr)_r</RightPointer>
+                <ValueNode Name="[{_d.first}]">_d,view(HTLMapHelper)</ValueNode>
+            </TreeItems>
+        </Expand>
+    </Type>
+    <Type Name="htl::linked_map&lt;*&gt;">
+        <AlternativeType Name="htl::linked_multimap&lt;*&gt;"/>
+        <DisplayString>{{ size={_a.second.second._c>>2} }}</DisplayString>
+        <Expand>
+            <Item Name="[comparator]" ExcludeView="simple">_a.second</Item>
+            <Item Name="[allocator]" ExcludeView="simple">_a</Item>
+            <LinkedListItems>
+                <Size>_a.second.second._c>>2</Size>
+                <HeadPointer>(node_ptr)_a.second.second._lr</HeadPointer>
+                <NextPointer>(node_ptr)_lr</NextPointer>
+                <ValueNode Name="[{_d.first}]">_d,view(HTLMapHelper)</ValueNode>
+            </LinkedListItems>
         </Expand>
     </Type>
 </AutoVisualizer>
