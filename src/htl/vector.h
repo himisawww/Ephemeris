@@ -579,6 +579,10 @@ private:
         HTL_ASSERT(index<size());
         return _begin()+index;
     }
+    pointer _dereference_front() const{
+        HTL_ASSERT(0<size());
+        return _begin();
+    }
 public:
     autoplace_vector(){ _init(); }
     explicit autoplace_vector(const allocator_type &alloc):_a(alloc){ _init(); }
@@ -638,7 +642,7 @@ public:
     ~autoplace_vector(){ free(); }
 
     autoplace_vector &operator=(const autoplace_vector &_other){
-        if(this!=&_other){
+        if(this!=::std::addressof(_other)){
             if constexpr(alloc_traits::propagate_on_container_copy_assignment::value){
                 allocator_type &this_alloc=_a.get_first();
                 allocator_type &other_alloc=_other._a.get_first();
@@ -653,7 +657,7 @@ public:
         return *this;
     }
     autoplace_vector &operator=(autoplace_vector &&_other) noexcept(value_traits<>::nothrow_move_assignable){
-        if(this!=&_other){
+        if(this!=::std::addressof(_other)){
             allocator_type &this_alloc=_a.get_first();
             allocator_type &other_alloc=_other._a.get_first();
             if constexpr(!alloc_traits::propagate_on_container_move_assignment::value){
@@ -699,7 +703,7 @@ public:
         _assign_range_counted(_array.begin(),_array.size());
     }
     void swap(autoplace_vector &_other) noexcept(value_traits<>::nothrow_swappable){
-        if(this==&_other)return;
+        if(this==::std::addressof(_other))return;
 
         allocator_type &this_alloc=_a.get_first();
         allocator_type &other_alloc=_other._a.get_first();
@@ -820,9 +824,9 @@ public:
 
     pointer data(){ return _begin(); }
     const_pointer data() const{ return _begin(); }
-    reference front(){ return *_dereference_index(0); }
+    reference front(){ return *_dereference_front(); }
     reference back(){ return *_dereference_index(size()-1); }
-    const_reference front() const{ return *_dereference_index(0); }
+    const_reference front() const{ return *_dereference_front(); }
     const_reference back() const{ return *_dereference_index(size()-1); }
     reference at(size_type index){
         HTL_RUNTIME_ASSERT(index<size());
