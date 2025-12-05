@@ -7,6 +7,7 @@
 #include<cstdio>
 #include<utility>
 #include<tuple>
+#include<optional>
 #include<type_traits>
 #include<algorithm>
 #include<limits>
@@ -23,6 +24,10 @@
 
 namespace htl{
 
+template<typename T>
+using remove_cvref_t=::std::remove_cv_t<::std::remove_reference_t<T>>;
+template<typename T>
+struct remove_cvref{ typedef remove_cvref_t<T> type; };
 
 template<typename E,typename T>
 class compressed_pair final:private E{

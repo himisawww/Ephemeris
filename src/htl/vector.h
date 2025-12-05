@@ -136,8 +136,10 @@ private:
 
     static constexpr size_type inplace_size=InplaceSize>=0?size_t(InplaceSize):_vector_inplace_trait<T>::inplace_size;
     union{
+        //active if  inplace(), that is, inplace_size!=0&&!_a.second._alloc
         alignas(_vector_inplace_trait<T,inplace_size!=0>::type_align) unsigned char
         _buffer[_vector_inplace_trait<T,inplace_size!=0>::type_size(inplace_size)];
+        //active if !inplace(), that is, inplace_size==0|| _a.second._alloc
         struct{
             pointer _b;
             size_type _c;
@@ -264,12 +266,12 @@ private:
                    &&::std::is_trivially_move_constructible_v<value_type>
                    ||!inplace_size){
             _a.second=_other._a.second;
-            ::std::memcpy(&_u,&_other._u,sizeof(_u));
+            _u=_other._u;
         }
         else{
             if(_other._a.second._alloc){
                 _a.second=_other._a.second;
-                ::std::memcpy(&_u,&_other._u,sizeof(_u));
+                _u=_other._u;
             }
             else{
                 const size_type _size=_other.size();
@@ -708,45 +710,45 @@ public:
         allocator_type &this_alloc=_a.get_first();
         allocator_type &other_alloc=_other._a.get_first();
 
+        if constexpr(!alloc_traits::propagate_on_container_swap::value&&!alloc_traits::is_always_equal::value){
+            if(this_alloc!=other_alloc){
+                // according to C++ standard, it is undefined behavior
+                // swapping vectors with unequal allocators when propagate_on_container_swap is false.
+                HTL_ASSERT(InplaceSize);                // standard compliance when inplace disabled.
+                // however, here defined as is non-specialized templated ::std::swap for inplaceable vectors:
+                autoplace_vector _tmp(::std::move(_other));
+                _other=::std::move(*this);
+                *this=::std::move(_tmp);
+                return;
+            }
+        }
+
         if constexpr(inplace_size&&!value_traits<>::is_trivially_swappable){
             size_type this_cost=inplace()?size():0;
             size_type other_cost=_other.inplace()?_other.size():0;
             if(this_cost||other_cost){
-                if constexpr(!alloc_traits::is_always_equal::value){
-                    if(this_alloc!=other_alloc){
-                        if constexpr(alloc_traits::propagate_on_container_swap::value){
-                            autoplace_vector _tmp(::std::move(_other));
-                            other_alloc=::std::move(this_alloc);
-                            _other._init_move(*this);
-                            this_alloc=::std::move(_tmp._a.get_first());
-                            _init_move(_tmp);
-                        }
-                        else{
-                            // according to C++ standard, it is undefined behavior 
-                            // calling swap on vectors with unequal allocators when propagate_on_container_swap is false.
-                            // however, here defined as is non-specialized templated ::std::swap:
-                            autoplace_vector _tmp(::std::move(_other));
-                            _other=::std::move(*this);
-                            *this=::std::move(_tmp);
-                        }
-                        return;
-                    }
-                }
                 const bool keep_this=this_cost>other_cost;
                 autoplace_vector &heavy=keep_this?*this:_other;
                 autoplace_vector &light=keep_this?_other:*this;
-                autoplace_vector _tmp(this_alloc);
-                _tmp._init_move(light);
+                autoplace_vector _tmp(::std::move(light));
+                if constexpr(alloc_traits::propagate_on_container_swap::value)
+                    light._a.get_first()=::std::move(heavy._a.get_first());
                 light._init_move(heavy);
+                if constexpr(alloc_traits::propagate_on_container_swap::value)
+                    heavy._a.get_first()=::std::move(_tmp._a.get_first());
                 heavy._init_move(_tmp);
                 return;
             }
         }
 
+        using ::std::swap;
         if constexpr(alloc_traits::propagate_on_container_swap::value)
             swap(this_alloc,other_alloc);
-        ::std::swap(_a.second,_other._a.second);
-        ::std::swap(_u,_other._u);
+        swap(_a.second,_other._a.second);
+        swap(_u,_other._u);
+    }
+    friend void swap(autoplace_vector &_lhs,autoplace_vector &_rhs) noexcept(value_traits<>::nothrow_swappable){
+        _lhs.swap(_rhs);
     }
 
     allocator_type get_allocator() const{ return _a.get_first(); }
@@ -912,7 +914,7 @@ public:
             return _insert_range_uncounted(pos,ibegin,iend);
     }
     iterator insert(const_iterator pos,::std::initializer_list<value_type> _array){
-        insert(pos,_array.begin(),_array.end());
+        return insert(pos,_array.begin(),_array.end());
     }
 
     iterator erase(const_iterator pos){
@@ -956,10 +958,5 @@ template<typename T,typename A=::std::allocator<T>>
 using vector=autoplace_vector<T,0,false,A>;
 template<typename T,int N>
 using inplace_vector=autoplace_vector<T,N,true>;
-
-template<typename T,int I,bool S,typename A>
-void swap(autoplace_vector<T,I,S,A> &_lhs,autoplace_vector<T,I,S,A> &_rhs){
-    _lhs.swap(_rhs);
-}
 
 }//namespace htl

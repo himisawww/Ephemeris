@@ -43,4 +43,33 @@
             </LinkedListItems>
         </Expand>
     </Type>
+    <Type Name="htl::set&lt;*&gt;">
+        <AlternativeType Name="htl::multiset&lt;*&gt;"/>
+        <DisplayString>{{ size={_a.second.second._c>>2} }}</DisplayString>
+        <Expand>
+            <Item Name="[comparator]" ExcludeView="simple">_a.second</Item>
+            <Item Name="[allocator]" ExcludeView="simple">_a</Item>
+            <TreeItems>
+                <Size>_a.second.second._c>>2</Size>
+                <HeadPointer>(node_ptr)_a.second.second._p</HeadPointer>
+                <LeftPointer>(node_ptr)_l</LeftPointer>
+                <RightPointer>(node_ptr)_r</RightPointer>
+                <ValueNode>_d</ValueNode>
+            </TreeItems>
+        </Expand>
+    </Type>
+    <Type Name="htl::linked_set&lt;*&gt;">
+        <AlternativeType Name="htl::linked_multiset&lt;*&gt;"/>
+        <DisplayString>{{ size={_a.second.second._c>>2} }}</DisplayString>
+        <Expand>
+            <Item Name="[comparator]" ExcludeView="simple">_a.second</Item>
+            <Item Name="[allocator]" ExcludeView="simple">_a</Item>
+            <LinkedListItems>
+                <Size>_a.second.second._c>>2</Size>
+                <HeadPointer>(node_ptr)_a.second.second._lr</HeadPointer>
+                <NextPointer>(node_ptr)_lr</NextPointer>
+                <ValueNode>_d</ValueNode>
+            </LinkedListItems>
+        </Expand>
+    </Type>
 </AutoVisualizer>
