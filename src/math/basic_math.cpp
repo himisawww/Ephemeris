@@ -4,7 +4,6 @@
 double angle_reduce(double x){
     using Constants::pi;
     constexpr double pi_mul2l=2.44929359829470641e-16;
-    if(x*0!=0)return NAN;
     while(x>pi||x<-pi){
         double rx=x/(2*pi);
         // faster than std::round by 7x under AVX
