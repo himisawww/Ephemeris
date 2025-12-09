@@ -29,7 +29,7 @@ using remove_cvref_t=::std::remove_cv_t<::std::remove_reference_t<T>>;
 template<typename T>
 struct remove_cvref{ typedef remove_cvref_t<T> type; };
 
-template<typename E,typename T>
+template<typename E,typename T,bool=::std::is_empty_v<E>&&!::std::is_final_v<E>>
 class compressed_pair final:private E{
 
     template<typename T1,typename T2,size_t ...I1,size_t ...I2>
@@ -47,12 +47,12 @@ public:
     E &get_first(){ return *this; }
 
     constexpr compressed_pair(){}
-    constexpr compressed_pair(const E &e):E(e){}
-    constexpr compressed_pair(E &&e):E(::std::move(e)){}
-
     compressed_pair(const compressed_pair &)=default;
     compressed_pair(compressed_pair &&)=default;
-
+    template<typename ...Args>
+    constexpr compressed_pair(::std::nullopt_t,Args &&...args):second(::std::forward<Args>(args)...){}
+    template<typename F,typename ...Args>
+    constexpr compressed_pair(F &&f,Args &&...args):E(::std::forward<F>(f)),second(::std::forward<Args>(args)...){}
     template<typename ...Args1,typename ...Args2>
     constexpr compressed_pair(::std::piecewise_construct_t,
         ::std::tuple<Args1...> args1,
@@ -63,6 +63,39 @@ public:
     }
 };
 
+template<typename E,typename T>
+class compressed_pair<E,T,false> final{
+
+    template<typename T1,typename T2,size_t ...I1,size_t ...I2>
+    constexpr compressed_pair(T1 &t1,T2 &t2,
+        ::std::index_sequence<I1...>,
+        ::std::index_sequence<I2...>)
+        :first(::std::get<I1>(::std::move(t1))...),
+        second(::std::get<I2>(::std::move(t2))...){
+    }
+    E first;
+public:
+    T second;
+
+    const E &get_first() const{ return first; }
+    E &get_first(){ return first; }
+
+    constexpr compressed_pair(){}
+    compressed_pair(const compressed_pair &)=default;
+    compressed_pair(compressed_pair &&)=default;
+    template<typename ...Args>
+    constexpr compressed_pair(::std::nullopt_t,Args &&...args):second(::std::forward<Args>(args)...){}
+    template<typename F,typename ...Args>
+    constexpr compressed_pair(F &&f,Args &&...args):first(::std::forward<F>(f)),second(::std::forward<Args>(args)...){}
+    template<typename ...Args1,typename ...Args2>
+    constexpr compressed_pair(::std::piecewise_construct_t,
+        ::std::tuple<Args1...> args1,
+        ::std::tuple<Args2...> args2)
+        :compressed_pair(args1,args2,
+            ::std::index_sequence_for<Args1...>{},
+            ::std::index_sequence_for<Args2...>{}){
+    }
+};
 
 }//namespace htl
 

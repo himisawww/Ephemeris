@@ -297,7 +297,7 @@ private:
         else if(new_size>old_size){
             const size_type old_capacity=capacity();
             if(new_size>old_capacity){
-                const bool _old_inplace=inplace();
+                const bool _old_alloc=_a.second._alloc;
                 const size_type new_capacity=_calculate_growth(old_capacity,new_size);
                 const pointer pnewbegin=_allocate(new_capacity);
                 const pointer pnewend=pnewbegin+new_size;
@@ -305,7 +305,7 @@ private:
                 do _construct(pend,::std::forward<Args>(args)...);
                 while(++pend<pnewend);
                 _move_destroy(pnewbegin,pbegin,old_size);
-                if(!_old_inplace)_deallocate(pbegin,old_capacity);
+                if(_old_alloc)_deallocate(pbegin,old_capacity);
                 _change_array(new_size,pnewbegin,new_capacity);
             }
             else{
@@ -331,7 +331,7 @@ private:
             const size_type old_capacity=capacity();
             const size_type new_size=old_size+count;
             if(new_size>old_capacity){
-                const bool _old_inplace=inplace();
+                const bool _old_alloc=_a.second._alloc;
                 const size_type new_capacity=_calculate_growth(old_capacity,new_size);
                 const pointer pnewbegin=_allocate(new_capacity);
                 const size_type _offset=psrc-pbegin;
@@ -342,7 +342,7 @@ private:
                 while(++pcur<pdstend);
                 _move_destroy(pnewbegin,pbegin,_offset);
                 _move_destroy(pdstend,psrc,old_size-_offset);
-                if(!_old_inplace)_deallocate(pbegin,old_capacity);
+                if(_old_alloc)_deallocate(pbegin,old_capacity);
                 _change_array(new_size,pnewbegin,new_capacity);
             }
             else{
@@ -393,7 +393,7 @@ private:
             const size_type old_capacity=capacity();
             const size_type new_size=old_size+count;
             if(new_size>old_capacity){
-                const bool _old_inplace=inplace();
+                const bool _old_alloc=_a.second._alloc;
                 const size_type new_capacity=_calculate_growth(old_capacity,new_size);
                 const pointer pnewbegin=_allocate(new_capacity);
                 const size_type _offset=psrc-pbegin;
@@ -404,7 +404,7 @@ private:
                 while(++ibegin,++pcur<pdstend);
                 _move_destroy(pnewbegin,pbegin,_offset);
                 _move_destroy(pdstend,psrc,old_size-_offset);
-                if(!_old_inplace)_deallocate(pbegin,old_capacity);
+                if(_old_alloc)_deallocate(pbegin,old_capacity);
                 _change_array(new_size,pnewbegin,new_capacity);
             }
             else{
@@ -447,7 +447,7 @@ private:
                 while(++ibegin!=iend);
                 const size_type insert_size=add_size+_tmp.size();
                 const size_type new_size=old_size+insert_size;
-                const bool _old_inplace=inplace();
+                const bool _old_alloc=_a.second._alloc;
                 const size_type new_capacity=_calculate_growth(old_capacity,new_size);
                 const pointer pnewbegin=_allocate(new_capacity);
                 const size_type _offset=psrc-pbegin;
@@ -456,7 +456,7 @@ private:
                 _move_destroy(pdst,pend,add_size);
                 _move_destroy(pdst+add_size,_tmp._begin(),insert_size-add_size);
                 _move_destroy(pdst+insert_size,psrc,old_size-_offset);
-                if(!_old_inplace)_deallocate(pbegin,old_capacity);
+                if(_old_alloc)_deallocate(pbegin,old_capacity);
                 _tmp._a.second._size=0;
                 _change_array(new_size,pnewbegin,new_capacity);
             }
@@ -477,7 +477,7 @@ private:
         const pointer pend=pbegin+old_size;
         const size_type old_capacity=capacity();
         if(new_size>old_capacity){
-            const bool _old_inplace=inplace();
+            const bool _old_alloc=_a.second._alloc;
             const size_type new_capacity=_calculate_growth(old_capacity,new_size);
             const pointer pnewbegin=_allocate(new_capacity);
             const pointer pnewend=pnewbegin+new_size;
@@ -492,7 +492,7 @@ private:
             pcur=pend;
             while(pbegin<pcur)
                 _destroy(--pcur);
-            if(!_old_inplace)_deallocate(pbegin,old_capacity);
+            if(_old_alloc)_deallocate(pbegin,old_capacity);
             _change_array(new_size,pnewbegin,new_capacity);
         }
         else{
@@ -556,12 +556,12 @@ private:
             do _tmp.emplace_back(*ibegin);
             while(++ibegin!=iend);
             const size_type new_size=old_capacity+_tmp.size();
-            const bool _old_inplace=inplace();
+            const bool _old_alloc=_a.second._alloc;
             const size_type new_capacity=_calculate_growth(old_capacity,new_size);
             const pointer pnewbegin=_allocate(new_capacity);
             _move_destroy(pnewbegin,pbegin,old_capacity);
             _move_destroy(pnewbegin+old_capacity,_tmp._begin(),new_size-old_capacity);
-            if(!_old_inplace)_deallocate(pbegin,old_capacity);
+            if(_old_alloc)_deallocate(pbegin,old_capacity);
             _tmp._a.second._size=0;
             _change_array(new_size,pnewbegin,new_capacity);
             return;
@@ -613,17 +613,13 @@ public:
         _init_range_counted(_other._begin(),_other.size());
     }
     autoplace_vector(autoplace_vector &&_other) noexcept(value_traits<>::nothrow_move_constructible)
-        :_a(::std::move(_other.get_allocator())){
+        :_a(::std::move(_other._a.get_first())){
         _init_move(_other);
     }
     autoplace_vector(autoplace_vector &&_other,const allocator_type &alloc) noexcept(value_traits<>::nothrow_move_constructible_with_allocator)
         :_a(alloc){
-        if constexpr(alloc_traits::is_always_equal::value)
-            _init_move(_other);
-        else{
-            if(_other._a.get_first()==_a.get_first())
-                _init_move(_other);
-            else{
+        if constexpr(!alloc_traits::is_always_equal::value){
+            if(_other._a.get_first()!=_a.get_first()){
                 const size_type count=_other.size();
                 pointer pbegin=_init_capacity(count);
                 if(count>0){
@@ -635,8 +631,10 @@ public:
                     } while(++pother,++pbegin<pend);
                     _other._a.second._size=0;
                 }
+                return;
             }
         }
+        _init_move(_other);
     }
     autoplace_vector(::std::initializer_list<value_type> _array,const allocator_type &alloc=allocator_type()):_a(alloc){
         _init_range_counted(_array.begin(),_array.size());
@@ -714,15 +712,30 @@ public:
             if(this_alloc!=other_alloc){
                 // according to C++ standard, it is undefined behavior
                 // swapping vectors with unequal allocators when propagate_on_container_swap is false.
-                HTL_ASSERT(InplaceSize);                // standard compliance when inplace disabled.
+                HTL_ASSERT(inplace_size);   // standard compliance when inplace disabled.
                 // however, here defined as is non-specialized templated ::std::swap for inplaceable vectors:
-                autoplace_vector _tmp(::std::move(_other));
-                _other=::std::move(*this);
-                *this=::std::move(_tmp);
+                typedef ::std::conditional_t<alloc_traits::propagate_on_container_move_assignment::value,
+                    autoplace_vector &&,const autoplace_vector &> source_type;
+                size_type this_cost,other_cost;
+                if constexpr(alloc_traits::propagate_on_container_move_assignment::value){
+                    this_cost=inplace()?size():0;
+                    other_cost=_other.inplace()?_other.size():0;
+                }
+                else{
+                    this_cost=size();
+                    other_cost=_other.size();
+                }
+                const bool keep_this=this_cost>other_cost;
+                autoplace_vector &heavy=keep_this?*this:_other;
+                autoplace_vector &light=keep_this?_other:*this;
+                autoplace_vector _tmp(static_cast<source_type>(light));
+                light=static_cast<source_type>(heavy);
+                heavy=static_cast<source_type>(_tmp);
                 return;
             }
         }
 
+        using ::std::swap;
         if constexpr(inplace_size&&!value_traits<>::is_trivially_swappable){
             size_type this_cost=inplace()?size():0;
             size_type other_cost=_other.inplace()?_other.size():0;
@@ -730,18 +743,16 @@ public:
                 const bool keep_this=this_cost>other_cost;
                 autoplace_vector &heavy=keep_this?*this:_other;
                 autoplace_vector &light=keep_this?_other:*this;
-                autoplace_vector _tmp(::std::move(light));
+                autoplace_vector _tmp(light._a.get_first());
+                _tmp._init_move(light);
                 if constexpr(alloc_traits::propagate_on_container_swap::value)
-                    light._a.get_first()=::std::move(heavy._a.get_first());
+                    swap(this_alloc,other_alloc);
                 light._init_move(heavy);
-                if constexpr(alloc_traits::propagate_on_container_swap::value)
-                    heavy._a.get_first()=::std::move(_tmp._a.get_first());
                 heavy._init_move(_tmp);
                 return;
             }
         }
 
-        using ::std::swap;
         if constexpr(alloc_traits::propagate_on_container_swap::value)
             swap(this_alloc,other_alloc);
         swap(_a.second,_other._a.second);
@@ -779,14 +790,14 @@ public:
     void free(){
         const pointer pbegin=_begin();
         pointer pend=pbegin+size();
-        const bool _old_inplace=inplace();
+        const bool _old_alloc=_a.second._alloc;
         while(pbegin<pend)
             _destroy(--pend);
-        if(!_old_inplace)_deallocate(pbegin,_u._c);
+        if(_old_alloc)_deallocate(pbegin,_u._c);
         _init();
     }
     void shrink_to_fit(){
-        if(inplace())
+        if(!_a.second._alloc)
             return;
         const size_type _size=size();
         const size_type old_capacity=_u._c;
@@ -802,11 +813,11 @@ public:
         size_type old_capacity=capacity();
         if(new_capacity>old_capacity){
             const size_type _size=size();
-            const bool _old_inplace=inplace();
+            const bool _old_alloc=_a.second._alloc;
             const pointer pbegin=_begin();
             const pointer pnewbegin=_allocate(new_capacity);
             _move_destroy(pnewbegin,pbegin,_size);
-            if(!_old_inplace)_deallocate(pbegin,old_capacity);
+            if(_old_alloc)_deallocate(pbegin,old_capacity);
             _change_array(_size,pnewbegin,new_capacity);
         }
     }
@@ -869,12 +880,12 @@ public:
         const size_type new_size=old_size+1;
         pointer ptr;
         if(new_size>old_capacity){
-            const bool _old_inplace=inplace();
+            const bool _old_alloc=_a.second._alloc;
             const size_type new_capacity=_calculate_growth(old_capacity,new_size);
             const pointer pnewbegin=_allocate(new_capacity);
             ptr=_construct(pnewbegin+old_size,::std::forward<Args>(args)...);
             _move_destroy(pnewbegin,pbegin,old_size);
-            if(!_old_inplace)_deallocate(pbegin,old_capacity);
+            if(_old_alloc)_deallocate(pbegin,old_capacity);
             _change_array(new_size,pnewbegin,new_capacity);
         }
         else{
