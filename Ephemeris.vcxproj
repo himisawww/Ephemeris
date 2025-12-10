@@ -157,6 +157,9 @@
     <ClInclude Include="src\configs.h" />
     <ClInclude Include="src\definitions.h" />
     <ClInclude Include="src\htl\base.h" />
+    <ClInclude Include="src\htl\map.h" />
+    <ClInclude Include="src\htl\rbtree.h" />
+    <ClInclude Include="src\htl\set.h" />
     <ClInclude Include="src\htl\vector.h" />
     <ClInclude Include="src\integrators\mass_combined.h" />
     <ClInclude Include="src\math\basic_math.h" />

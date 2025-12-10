@@ -250,6 +250,15 @@
     <ClInclude Include="src\htl\vector.h">
       <Filter>htl</Filter>
     </ClInclude>
+    <ClInclude Include="src\htl\rbtree.h">
+      <Filter>htl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\htl\map.h">
+      <Filter>htl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\htl\set.h">
+      <Filter>htl</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">
