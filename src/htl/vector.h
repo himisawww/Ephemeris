@@ -21,6 +21,8 @@ struct _vector_inplace_trait<T,false>{
 template<typename T,int InplaceSize=-1,bool SizeFixed=false,typename Allocator=::std::allocator<T>>
 class autoplace_vector{
     typedef ::std::allocator_traits<Allocator> alloc_traits;
+    template<typename T2,int I2,bool S2,typename A2>
+    friend class autoplace_vector;
 public:
     typedef Allocator   allocator_type;
     typedef         T       value_type;
@@ -572,7 +574,7 @@ private:
         _a.second._size=pcur-pbegin;
     }
     template<typename I>
-    auto _make(pointer ptr) const{
+    static I _make(pointer ptr){
         I it;
         it._ptr=ptr;
         return it;
@@ -645,7 +647,7 @@ public:
         if(this!=::std::addressof(_other)){
             if constexpr(alloc_traits::propagate_on_container_copy_assignment::value){
                 allocator_type &this_alloc=_a.get_first();
-                allocator_type &other_alloc=_other._a.get_first();
+                const allocator_type &other_alloc=_other._a.get_first();
                 if constexpr(!alloc_traits::is_always_equal::value){
                     if(this_alloc!=other_alloc)
                         free();
