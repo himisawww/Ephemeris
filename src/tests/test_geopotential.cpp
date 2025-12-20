@@ -27,7 +27,7 @@ public:
 		int_t n,m;
 		fast_real c,s;
 	};
-	std::vector<component> data;
+	htl::vector<component> data;
 
 	fast_mpvec sum(fast_real R,fast_mpvec r){
 		fast_real r2=r%r;

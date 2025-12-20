@@ -1,5 +1,5 @@
 #include"mass_combined.h"
-#include<map>
+#include"htl/map.h"
 #include"math/distribute.h"
 #include"physics/geopotential.h"
 #include"physics/ring.h"
@@ -22,8 +22,8 @@ void mass_copy(mass &dst,const mass &src){
 }
 
 struct thread_works{
-    const std::vector<msystem*> *pm;
-    const std::vector<std::vector<size_t>> *widxs;
+    const htl::vector<msystem*> *pm;
+    const htl::vector<htl::vector<size_t>> *widxs;
     fast_real dt;
     int_t n_combine;
 };
@@ -40,8 +40,8 @@ static void do_thread_works(void *pworks,size_t thread_id){
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,ephemeris_substeper *ps){
     real t_latest=analyse();
     int_t bn=blist.size();
-    std::map<int_t,int_t> clist;
-    std::map<int_t,std::vector<int_t>> cvecs;
+    htl::map<int_t,int_t> clist;
+    htl::map<int_t,htl::vector<int_t>> cvecs;
     for(int_t id=0;id<bn;++id){
         const auto &b=blist[id];
         if(b.hid>=0)continue;
@@ -76,9 +76,9 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         cvecs[c.second].push_back(c.first);
 
     msystem Sc,Sx;
-    std::map<int_t,msystem> Sn;
+    htl::map<int_t,msystem> Sn;
     //major subsystems
-    std::vector<int_t> Smajsub;
+    htl::vector<int_t> Smajsub;
     int_t mn=mlist.size();
     
     for(const auto &p:cvecs)
@@ -284,9 +284,9 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         }
 #else
         int_t cost=0,max_cost=0,n_threads;
-        std::vector<int_t> costs;
-        std::vector<msystem*> msys;
-        std::vector<std::vector<size_t>> distributed;
+        htl::vector<int_t> costs;
+        htl::vector<msystem*> msys;
+        htl::vector<htl::vector<size_t>> distributed;
         for(auto &sns:Sn){
             int_t cur_cost=sns.second.mlist.size();
             cur_cost*=cur_cost;
@@ -304,7 +304,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
         tasks.dt=dt;
         tasks.n_combine=n_combine;
         ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
-        std::vector<std::thread> threads;
+        htl::vector<std::thread> threads;
         ThreadPool::TaskGroup task_group;
         if(pthread_pool)
             pthread_pool->distribute_tasks(n_threads,do_thread_works,&tasks,&task_group);

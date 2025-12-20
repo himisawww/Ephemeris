@@ -143,10 +143,10 @@ public:
 private:
     template<format_t F,typename T=typename header_t<F>::data_type,size_t N_Channel=header_t<F>::data_channel>
     static MFILE compress_data(const T *pdata,int_t N,int_t d,const T fix_derivative[2][N_Channel]=nullptr);
-    static int_t select_best(MFILE &mf,std::vector<MFILE> &compressed_results,int_t N,int_t d);
+    static int_t select_best(MFILE &mf,htl::vector<MFILE> &compressed_results,int_t N,int_t d);
     // for number of datapoints and degree of bspline fitting,
     // fill possible choices of segments of compressed bsplines in decreasing order.
-    static void segment_choices(std::vector<int_t> &result,int_t N,int_t d);
+    static void segment_choices(htl::vector<int_t> &result,int_t N,int_t d);
 
     struct compress_work{
         MFILE *morb,*mrot,*msuborb,*msubrot;
@@ -191,7 +191,7 @@ public:
     //      see ephemeris_generator::make_ephemeris
     // return -1 if critical failure occurs, input is untouched in that case.
     // otherwise return number of failures (entries that cannot be compressed).
-    static int_t compress(std::vector<MFILE> &ephemeris_data);
+    static int_t compress(htl::vector<MFILE> &ephemeris_data);
 };
 
 typedef ephemeris_compressor::format_t ephemeris_format;

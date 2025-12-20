@@ -1,7 +1,7 @@
 #pragma once
 #include"interp.h"
 #include<algorithm>
-#include<vector>
+#include"htl/vector.h"
 
 template<typename T,int_t d>
 class bsp_coef_eval{

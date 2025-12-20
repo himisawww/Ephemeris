@@ -7,7 +7,7 @@
 #include"utils/threadpool.h"
 #include"modules/ephemeris_compressor.h"
 
-int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std::vector<const char*> *psid_subset){
+int ephemeris_collector::convert_format(const char *path,int_t fix_interval,htl::vector<const char*> *psid_subset){
     bool is_broken=false;
     std::string sop=path;
     for(int dir=1;dir>=-1;dir-=2){
@@ -29,7 +29,7 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
             izippack zp(zckpt);
             MFILE mf_index;
             int version=-1;
-            std::vector<MFILE> mf_mlist;
+            htl::vector<MFILE> mf_mlist;
             for(const izipfile &zf:zp){
                 const std::string &zfn=zf.name();
                 if(zfn==Configs::SaveNameTimestamps){
@@ -87,15 +87,15 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
                 }
 
                 //{fname, fid}
-                std::map<std::string,int_t> fidmap;
+                htl::map<std::string,int_t> fidmap;
                 //{fid, ephemeris_entry of fid.dat}
-                std::map<int_t,ephemeris_entry> indices;
+                htl::map<int_t,ephemeris_entry> indices;
                 //{t_end, blist over [t_start,t_end]}
-                std::map<int_t,bsystem> bss;
+                htl::map<int_t,bsystem> bss;
                 //[mid]={t_end, fid over [t_start,t_end]}
-                std::vector<std::map<int_t,int_t>> fids(mn);
+                htl::vector<htl::map<int_t,int_t>> fids(mn);
                 //{fid, fid.dat}
-                std::map<int_t,ephemeris_interpolator> ephm_files;
+                htl::map<int_t,ephemeris_interpolator> ephm_files;
                 do{
                     ephemeris_entry index;
                     if(1!=fread(&index,sizeof(index),1,&mf_index))
@@ -156,8 +156,8 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,std:
 
                 auto it_barycen=bss.end();
                 bsystem curblist;
-                std::vector<int_t> tids(mn),bids(mn);
-                std::vector<_data_t> ephm_data(mn);
+                htl::vector<int_t> tids(mn),bids(mn);
+                htl::vector<_data_t> ephm_data(mn);
                 t_end+=t_interval;
                 for(int_t it_eph=t_start;it_eph!=t_end;it_eph+=t_interval){
                     double mst_eph=it_eph;
@@ -244,8 +244,8 @@ void ephemeris_compressor::compress_work::run(){
     const auto &index=*pindex;
 
     // for debug
-    std::vector<orbital_state_t> sorb,ssuborb;
-    std::vector<rotational_state_t> srot,ssubrot;
+    htl::vector<orbital_state_t> sorb,ssuborb;
+    htl::vector<rotational_state_t> srot,ssubrot;
     sorb.insert(sorb.begin(),
         (orbital_state_t*)morb->data(),
         (orbital_state_t*)(morb->data()+morb->size()));
@@ -362,7 +362,7 @@ void ephemeris_compressor::compress_work::run(){
     }
 }
 
-int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
+int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
     struct entry_info{
         int_t entry_id;
         MFILE *pmfile;
@@ -378,8 +378,8 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
 
     MFILE *mf_readme=nullptr;
 
-    std::vector<ephemeris_entry> indices;
-    std::map<std::string,entry_info> indexmap;
+    htl::vector<ephemeris_entry> indices;
+    htl::map<std::string,entry_info> indexmap;
     for(MFILE &mf:ephemeris_data){
         std::string namestr=get_file_name(mf.get_name());
         if(namestr==Configs::SaveNameReadme){
@@ -411,7 +411,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         }
     }
 
-    std::vector<compress_work> tasks;
+    htl::vector<compress_work> tasks;
     for(const ephemeris_entry &index:indices){
         MFILE *mrot=indexmap[index.entry_name(true,false)].pmfile;
         MFILE *msubrot=indexmap[index.entry_name(true,true)].pmfile;
@@ -438,7 +438,7 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
     const size_t n_tasks=tasks.size();
     ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
     if(pthread_pool){
-        std::vector<std::pair<int_t,void*>> priorities;
+        htl::vector<std::pair<int_t,void*>> priorities;
         for(auto &w:tasks)
             priorities.push_back({-w.priority(),&w});
         std::sort(priorities.begin(),priorities.end());
@@ -461,8 +461,8 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
 
     int_t error_count=0;
 
-    std::map<uint64_t,std::vector<size_t>> compress_info_map;
-    std::vector<uint64_t> key_orders;
+    htl::map<uint64_t,htl::vector<size_t>> compress_info_map;
+    htl::vector<uint64_t> key_orders;
     for(size_t it=n_tasks;it>0;){
         const auto &w=tasks[--it];
         error_count+=!w.pheaders[0];

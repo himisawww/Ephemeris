@@ -101,18 +101,18 @@ public:
     izipfile end() const;
     //load central directory at end of zippack, avoid full scan
     //in this case fetch() is required to make izipfile is_ready()
-    std::vector<izipfile> load_central_directory() const;
+    htl::vector<izipfile> load_central_directory() const;
 };
 
-class ozippack:private std::vector<MFILE>{
+class ozippack:private htl::vector<MFILE>{
     MFILE *fzip;
-    typedef std::vector<MFILE> base_t;
+    typedef htl::vector<MFILE> base_t;
 public:
     using base_t::begin;
     using base_t::end;
     using base_t::size;
     using base_t::operator[];
-    void swap_content(std::vector<MFILE> &other){ base_t::swap(other); }
+    void swap_content(htl::vector<MFILE> &other){ base_t::swap(other); }
     using base_t::resize;
     using base_t::reserve;
 

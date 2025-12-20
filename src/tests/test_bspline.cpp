@@ -39,7 +39,7 @@ static constexpr bspline_fit_tests all_tests[]={
 };
 
 double bspline_fit_tests::do_test() const{
-    std::vector<double> xy;
+    htl::vector<double> xy;
     xy.reserve(2*(mn+1));
     for(int_t i=0;i<=mn;++i){
         xy.push_back(std::sin(i*ANGULAR_FREQUENCY));

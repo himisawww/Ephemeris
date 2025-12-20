@@ -118,7 +118,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         //prepare mem files to save
         int_t mn=ms.mlist.size();
         int_t max_dp_perfile=1+iunit;
-        std::vector<MFILE> zms(ExportHeaderCount);
+        htl::vector<MFILE> zms(ExportHeaderCount);
 
         int_t t_eph_start=ms.ephemeris_time();
 
@@ -249,7 +249,7 @@ void ephemeris_collector::rebind(){
             d.t_start=t_eph;
     }
 
-    std::vector<std::vector<int_t>> barycen_mids(bn);
+    htl::vector<htl::vector<int_t>> barycen_mids(bn);
     for(const barycen &b:blist)if(b.hid<0){
         data[b.mid].tid=b.tid;
         int_t bp=b.mid;
@@ -265,7 +265,7 @@ void ephemeris_collector::rebind(){
             d.parent_barycen_id=-1;
             continue;
         }
-        std::set<int_t> pids,tids;
+        htl::set<int_t> pids,tids;
         barycen &p=blist[pid];
         if(p.hid<0)pids.insert(p.mid);
         else{
@@ -348,13 +348,13 @@ std::string ephemeris_entry::entry_name(bool rotational,bool substep) const{
         substep?Configs::SaveSubstepDataExtension:"");
 }
 
-void ephemeris_collector::extract(std::vector<MFILE> &ephm_files,bool force){
+void ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
     int_t mn=ms.size();
-    std::vector<int_t> ex_entry;
+    htl::vector<int_t> ex_entry;
     const auto *pold_blist=&blist;
     bsystem _old_blist_slot;
     if(!force){
-        std::vector<int_t> polds;
+        htl::vector<int_t> polds;
         polds.reserve(mn);
         for(int_t i=0;i<mn;++i)
             polds.push_back(data[i].parent_barycen_id);

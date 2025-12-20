@@ -3,7 +3,7 @@
 #include<cstdarg>
 #include<cstdio>
 #include<string>
-#include<vector>
+#include"htl/vector.h"
 
 /* usage:
     
@@ -58,7 +58,7 @@ private:
     // local cache used for memory read/write
     // [READ_CACHE] : store data to be read;
     // WRITE_CACHE || WRITE_FILE && !fp : used to store wrote data;
-    std::vector<byte_t> cached_data;
+    htl::vector<byte_t> cached_data;
     // used for actuall disk io
     // READ_FILE || WRITE_FILE && fp : the file reading/writing;
     // WRITE_CACHE : if fp, cache will flush to this file when close;

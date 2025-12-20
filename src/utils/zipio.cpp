@@ -218,8 +218,8 @@ izipfile izippack::begin() const{
 izipfile izippack::end() const{
 	return izipfile(fzip,izipfile::npos);
 }
-std::vector<izipfile> izippack::load_central_directory() const{
-	std::vector<izipfile> result;
+htl::vector<izipfile> izippack::load_central_directory() const{
+	htl::vector<izipfile> result;
 	if(!fzip||fseek(fzip,0,SEEK_END))return result;
 	int64_t fremain=ftell(fzip);
 	size_t fsize=fremain;
@@ -295,7 +295,7 @@ std::vector<izipfile> izippack::load_central_directory() const{
 			++i;
 		}
 		if(i!=ze.totalchsnum)
-			std::vector<izipfile>().swap(result);
+			htl::vector<izipfile>().swap(result);
 		std::sort(result.begin(),result.end());
 	} while(0);
 	return result;
@@ -312,15 +312,15 @@ ozippack::ozippack(const std::string &filename){
 int ozippack::close(){
 	if(!fzip)return EOF;
 
-	std::vector<MFILE> &zipmems=static_cast<std::vector<MFILE> &>(*this);
+	htl::vector<MFILE> &zipmems=static_cast<htl::vector<MFILE> &>(*this);
 	const size_t nzips=zipmems.size();
 	//create zip file from zipmem
 	fseek(fzip,0,SEEK_SET);
 
 	const uint32_t max_uint32=-1;
-	std::vector<zipcentralheader> zchs(nzips);
-	std::vector<zip64header> z64hs(nzips);
-	std::vector<std::string> zipnames(nzips);
+	htl::vector<zipcentralheader> zchs(nzips);
+	htl::vector<zip64header> z64hs(nzips);
+	htl::vector<std::string> zipnames(nzips);
 
 	memset(zchs.data(),0,sizeof(zipcentralheader)*nzips);
 	memset(z64hs.data(),0,sizeof(zip64header)*nzips);

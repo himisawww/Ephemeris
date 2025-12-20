@@ -33,7 +33,7 @@ static double order_solve(double dratio,double dt0,double dt1,double dt2){
 }
 
 int test_order(){
-    std::vector<const char *> test_ssids={
+    htl::vector<const char *> test_ssids={
         "10",TEST_PLANET,TEST_MOON
     };
     msystem mssrc=get_test_subsystem(test_ssids);

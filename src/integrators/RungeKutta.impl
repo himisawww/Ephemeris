@@ -22,9 +22,9 @@ for(int di=0;di<dkf.mass_per_block;di+=blockDim.x){     \
 #define CONST_TABLE static const
 #define RUNGE_KUTTA void msystem::RungeKutta12(fast_real dt,int_t n_step)
 #define PREPARE                                   \
-std::vector<mass> &x=mlist;                       \
+htl::vector<mass> &x=mlist;                       \
 int_t mn=x.size();                                \
-static thread_local std::vector<mass_state> x0,f; \
+static thread_local htl::vector<mass_state> x0,f; \
 x0.resize(mn);                                    \
 f.resize(25*mn);
 #define CONFIG

@@ -1,6 +1,6 @@
 #pragma once
 #include"definitions.h"
-#include<vector>
+#include"htl/vector.h"
 #include"utils/memio.h"
 
 // maximum implemented degree d for bspline_* series functions
@@ -46,9 +46,9 @@ class bspline_fitter{
     int_t bsplines_offset;
     //load() will at least expand cache to this threshold(in data_size)
     int_t min_cache_pts;
-    std::vector<T> bsplines;
+    htl::vector<T> bsplines;
     //if present, full bspline_coefs are dumped to bsplines and expanded to chebyshevs
-    std::vector<T> chebyshevs;
+    htl::vector<T> chebyshevs;
     bool is_valid;
 
     typedef dfloat_t<double> ddouble;
@@ -70,10 +70,10 @@ public:
         is_valid=n>0&&d>0&&mn+1>=n+d;
         if(!is_valid)return;
 
-        std::vector<dprec_t> yvec(N_Channel*(n+d),dprec_t(0));
+        htl::vector<dprec_t> yvec(N_Channel*(n+d),dprec_t(0));
 
         //(l,u)=(d,d) diagonal ordered form of matrix
-        std::vector<ddouble> mb((n+d)*(2*d+1),ddouble(0));
+        htl::vector<ddouble> mb((n+d)*(2*d+1),ddouble(0));
 
 #define all_channels    int_t ich=0;ich<N_Channel;++ich
 #define index(i)        (i)*N_Channel+ich
@@ -155,7 +155,7 @@ public:
         :d(_d),n(_n),range(_range),mdata(nullptr){
         is_valid=n>0&&d>0&&(range!=0&&range*0==0);
         if(!is_valid)return;
-        std::vector<T>(bspline_coefs,bspline_coefs+N_Channel*(n+d)).swap(bsplines);
+        htl::vector<T>(bspline_coefs,bspline_coefs+N_Channel*(n+d)).swap(bsplines);
         //must expand for d==1
         //otherwise discrete derivative will lead to errors on edge cases
         if(d==1)expand();

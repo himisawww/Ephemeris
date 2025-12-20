@@ -25,9 +25,9 @@
 std::mutex cuda_mutex;
 
 //geopotential data, mlist[first].gpmodel==second
-typedef std::vector<std::pair<int_t,const geopotential*>> gpdata_t;
+typedef htl::vector<std::pair<int_t,const geopotential*>> gpdata_t;
 //ring data, mlist[first].ringmodel==second
-typedef std::vector<std::pair<int_t,const ring*>> ringdata_t;
+typedef htl::vector<std::pair<int_t,const ring*>> ringdata_t;
 
 #if 0
 #define mycudaMalloc cudaMalloc
@@ -74,7 +74,7 @@ struct cuda_rungekutta_kernel_config{
     mass_state *x0,*f;
     real t_eph;
 
-    void load(std::vector<mass> &mlist,gpdata_t &mgp,ringdata_t &mrg,fast_real _dt,int_t _nstep){
+    void load(htl::vector<mass> &mlist,gpdata_t &mgp,ringdata_t &mrg,fast_real _dt,int_t _nstep){
         dt=_dt;
         n_step=_nstep;
         int mn=mlist.size();
@@ -121,7 +121,7 @@ struct cuda_rungekutta_kernel_config{
         myfree(grdata);
     }
 
-    void save(std::vector<mass> &mlist,gpdata_t &mgp,ringdata_t &mrg){
+    void save(htl::vector<mass> &mlist,gpdata_t &mgp,ringdata_t &mrg){
         cudaMemcpy(mlist.data(),dmlist,nmass*sizeof(mass),cudaMemcpyDeviceToHost);
         for(auto &mgpi:mgp){
             mlist[mgpi.first].gpmodel=mgpi.second;

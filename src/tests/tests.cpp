@@ -11,7 +11,7 @@ struct test_t{
 };
 
 int test_all(uint64_t seed){
-    std::vector<test_t> tests;
+    htl::vector<test_t> tests;
     LogInfo("Starting tests...");
 #define DECLARE_TEST(T,S,L) \
 int T();                    \

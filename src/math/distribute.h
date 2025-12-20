@@ -1,6 +1,6 @@
 #pragma once
 #include<cmath>
-#include<vector>
+#include"htl/vector.h"
 #include<random>
 #include<algorithm>
 
@@ -16,15 +16,15 @@
         n>=1
 */
 template<typename val_t>
-val_t distribute(std::vector<std::vector<size_t>> &res,const std::vector<val_t> &data,size_t n){
-    typedef std::vector<val_t> val_lt;
-    typedef std::vector<size_t> index_lt;
+val_t distribute(htl::vector<htl::vector<size_t>> &res,const htl::vector<val_t> &data,size_t n){
+    typedef htl::vector<val_t> val_lt;
+    typedef htl::vector<size_t> index_lt;
     const size_t ndat=data.size();
     const size_t npos=-1;
 
     std::random_device rd;
     std::mt19937_64 g(rd());
-    res=std::vector<index_lt>(n);
+    res=htl::vector<index_lt>(n);
 
     val_t dsum=(val_t)0;
     val_lt psum(n,(val_t)0);

@@ -16,7 +16,7 @@ static bool sanity(double dt){
 }
 
 bool mass::sanity(bool alert) const{
-    std::vector<const char*> errs;
+    htl::vector<const char*> errs;
     constexpr fast_real eps2=Constants::epsilon*Constants::epsilon;
     constexpr fast_real large_finite=1/eps2;
 
@@ -69,7 +69,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
   do{
     const std::string sip=fconfig;
     size_t spos=1+sip.find_last_of("/\\");
-    std::map<std::string,std::string> config;
+    htl::map<std::string,std::string> config;
     std::string dirstr(spos?sip.substr(0,spos):".\\");
     std::string fconfigstr(sip.substr(spos));
 
@@ -832,9 +832,9 @@ size_t bsystem::compatible_size() const{
     for(const barycen &b:blist)
         mn-=b.hid>=0;
 
-    std::vector<bool> has_done(bn,false);
-    std::vector<bool> has_mass(mn,false);
-    std::vector<bool> mid_done(bn,false);
+    htl::vector<bool> has_done(bn,false);
+    htl::vector<bool> has_mass(mn,false);
+    htl::vector<bool> mid_done(bn,false);
     std::deque<std::pair<int_t,int_t>> active;
     active.emplace_back(root,-1);
     while(!active.empty()){

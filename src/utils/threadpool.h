@@ -1,5 +1,5 @@
 #pragma once
-#include<vector>
+#include"htl/vector.h"
 #include<mutex>
 #include<condition_variable>
 #include<deque>
@@ -34,7 +34,7 @@ private:
     };
 
     class TaskQueue{
-        std::vector<std::deque<ThreadTask>> v;
+        htl::vector<std::deque<ThreadTask>> v;
         size_t max_priority;
     public:
         TaskQueue();
@@ -44,7 +44,7 @@ private:
         ThreadTask pop();
     };
 
-    std::vector<std::thread> m_threads;
+    htl::vector<std::thread> m_threads;
     TaskQueue m_tasks;
     std::deque<TaskQueue> m_thread_tasks;
     std::mutex m_mutex_distribute;

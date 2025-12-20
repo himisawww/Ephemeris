@@ -1,5 +1,5 @@
 #include"memio.h"
-#include<map>
+#include"htl/map.h"
 #include"wcs_convert.h"
 
 FILE *fopen(const std::string &fname,bool is_read){
@@ -18,7 +18,7 @@ std::string get_file_extension(const std::string &path){
     return path.substr(subpos&&!(path.find_first_of("/\\",subpos)+1)?subpos:path.size());
 }
 
-static std::map<std::string,std::vector<MFILE::byte_t>> mem_library;
+static htl::map<std::string,htl::vector<MFILE::byte_t>> mem_library;
 static bool s_publish_invalid_ofile=false;
 static std::string filepath_normalize(const std::string &fpath){
     std::string result;
@@ -146,7 +146,7 @@ MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
 void MFILE::reset(){
     close();
     std::string().swap(filename);
-    std::vector<byte_t>().swap(cached_data);
+    htl::vector<byte_t>().swap(cached_data);
     fp=0;
     offset=0;
     state=MFILE_STATE::WRITE_CACHE;
@@ -155,7 +155,7 @@ void MFILE::reset(){
 void MFILE::load_data(){
     if(state==MFILE_STATE::READ_CACHE){
         if(idata!=cached_data.data()||isize!=cached_data.size()){
-            std::vector<byte_t>(idata,idata+isize).swap(cached_data);
+            htl::vector<byte_t>(idata,idata+isize).swap(cached_data);
             idata=cached_data.data();
         }
     }
@@ -317,7 +317,7 @@ bool MFILE::publish(const std::string &fname){
         auto &pmem=mem_library[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
-        std::vector<byte_t>().swap(cached_data);
+        htl::vector<byte_t>().swap(cached_data);
     }
     return true;
 }

@@ -1,5 +1,5 @@
 #include"ring.h"
-#include<vector>
+#include"htl/vector.h"
 #include<string>
 #include"utils/memio.h"
 #include"utils/logger.h"
@@ -12,7 +12,7 @@ struct disk{
     fast_real H;
 };
 
-void adddisk(std::vector<disk> &disks,fast_real Gs,fast_real R,fast_real H){
+void adddisk(htl::vector<disk> &disks,fast_real Gs,fast_real R,fast_real H){
     for(auto &d:disks){
         if(d.R==R&&d.H==H){
             d.Gs+=Gs;
@@ -34,7 +34,7 @@ const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_re
 
     bool failed=false;
     char rname[MAX_LINESIZE];
-    std::vector<disk> disks;
+    htl::vector<disk> disks;
     while((linebuf=readline(fin)).size()){
         const char *chbuf=linebuf.c_str();
         if(linebuf.size()>=MAX_LINESIZE){

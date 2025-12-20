@@ -44,7 +44,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
             break;
         }
 
-        std::map<std::string,izipfile> allfiles;
+        htl::map<std::string,izipfile> allfiles;
         for(const auto &zf:mf_files){
             if(!allfiles.try_emplace(get_file_name(zf.name()),zf).second){
                 failure+="    Duplicated file;\n";
@@ -112,7 +112,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
             break;
         }
 
-        std::set<izipfile> dedup_file(ephm_files.begin(),ephm_files.end());
+        htl::set<izipfile> dedup_file(ephm_files.begin(),ephm_files.end());
         dedup_file.insert(izippack::end());
         int_t n_files=ephm_files.size();
         if(dedup_file.size()!=n_files+1){
@@ -145,7 +145,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
         ephm_interps.resize(n_files);
         ephm_expand.resize(n_files);
         memory_budget=std::max(int_t(0),memory_budget);
-        std::vector<std::pair<int_t,int_t>> ephm_sizes;
+        htl::vector<std::pair<int_t,int_t>> ephm_sizes;
         int_t full_size=0;
         for(int_t i=0;i<n_files;++i)
             full_size+=ephm_sizes.emplace_back(ephm_files[i].size(),i).first;
@@ -283,7 +283,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
         if(failure.size())
             LogWarning("Warning: %s ephemerides of %s is interrupted at %llu.%s.zip:\n%s",
                 fwd?"Forward":"Backward",ephemeris_path,cur_index,fwdbak,failure.c_str());
-        std::vector<chapter> revchpts;
+        htl::vector<chapter> revchpts;
         for(auto it=chapters.rbegin();it!=chapters.rend();++it)
             revchpts.emplace_back(std::move(*it));
         revchpts.swap(chapters);

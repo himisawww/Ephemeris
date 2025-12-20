@@ -75,7 +75,7 @@ void msystem::update(fast_real t,bsystem *pblist){
         bi.GM=h.GM_sys+g.GM_sys;
     }
 }
-void mass::deform_by(const std::vector<mass> &mlist){
+void mass::deform_by(const htl::vector<mass> &mlist){
     int_t mn=mlist.size();
     mass &mi=*this;
 
@@ -114,7 +114,7 @@ static void accel_deform(void *param,size_t){
     using Constants::c2;
 
     mass &mi=*(mass*)param;
-    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    auto &mlist=*(htl::vector<mass>*)mi.pmlist;
     int_t i_start=&mi-mlist.data();
     int_t i_end=mi.task_index;
     for(int_t i=i_start;i<i_end;++i){
@@ -137,7 +137,7 @@ static void accel_mainforce(void *param,size_t){
     using Constants::c;
 
     mass &mi=*(mass*)param;
-    auto &mlist=*(std::vector<mass>*)mi.pmlist;
+    auto &mlist=*(htl::vector<mass>*)mi.pmlist;
     int_t mn=mlist.size();
     int_t i_start=&mi-mlist.data();
     int_t i_end=mi.task_index;
@@ -161,7 +161,7 @@ static void accel_nonpoint(void *param,size_t){
         if(end_task&1)break;
         end_task=*(uintptr_t*)end_task;
     } while(1);
-    auto &mlist=*(std::vector<mass>*)(end_task-1);
+    auto &mlist=*(htl::vector<mass>*)(end_task-1);
     int_t mn=mlist.size();
     int_t i=((char*)param-(char*)mlist.data())/sizeof(mass);
     mass &minit=mlist[i];

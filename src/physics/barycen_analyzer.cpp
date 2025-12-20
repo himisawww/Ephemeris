@@ -1,4 +1,4 @@
-#include<map>
+#include"htl/map.h"
 #include"physics/mass.h"
 
 barycen::barycen(){
@@ -21,7 +21,7 @@ real msystem::analyse(bool reconstruct){
     if(old_bn&&t_barycen==t_eph)return t_update;
     t_barycen=t_eph;
     bsystem bl;
-    std::vector<bdata> dl;
+    htl::vector<bdata> dl;
     if(old_bn){
         bl.resize(old_bn);
         dl.resize(old_bn);
@@ -267,7 +267,7 @@ real msystem::analyse(bool reconstruct){
     }
 
     //remove deleted barycens
-    std::vector<int_t> newindex(bl.size()+1,-1);
+    htl::vector<int_t> newindex(bl.size()+1,-1);
     int_t bsize=0;
     for(int_t i=0,n=bl.size();i<n;++i)if(!dl[i].del){
         newindex[i+1]=bsize;

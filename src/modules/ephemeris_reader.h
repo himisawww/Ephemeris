@@ -7,16 +7,16 @@
 class ephemeris_reader{
     class chapter:public izippack{
         //{dir*t_end, blist index over [t_start,t_end]}
-        std::map<int_t,ephemeris_entry> blist_index;
+        htl::map<int_t,ephemeris_entry> blist_index;
         //blists[blist index.fid] = system structure
-        std::vector<bsystem> blists;
+        htl::vector<bsystem> blists;
 
         //[mid]={dir*t_end, ephemeris index over [t_start,t_end]}
-        std::vector<std::map<int_t,ephemeris_entry>> ephm_index;
+        htl::vector<htl::map<int_t,ephemeris_entry>> ephm_index;
         //ephm_files[ephemeris index.fid+(0/1)] = {orbital,rotational} ephemerides
-        std::vector<izipfile> ephm_files;
-        std::vector<ephemeris_interpolator> ephm_interps;
-        std::vector<bool> ephm_expand;
+        htl::vector<izipfile> ephm_files;
+        htl::vector<ephemeris_interpolator> ephm_interps;
+        htl::vector<bool> ephm_expand;
 
         //if dir<0, t_end < t_start
         int_t t_start,t_end;
@@ -43,9 +43,9 @@ class ephemeris_reader{
     };
     //data and states
     msystem ms;
-    std::vector<chapter> chapters;
-    std::vector<int_t> active_chapters;
-    std::vector<massinfo> minfos;
+    htl::vector<chapter> chapters;
+    htl::vector<int_t> active_chapters;
+    htl::vector<massinfo> minfos;
     int_t cur_chid;
     //configs
     int_t mem_budget;

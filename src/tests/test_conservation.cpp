@@ -8,7 +8,7 @@
 #define TEST_INTEGRATION_STEP           6000
 
 int test_conservation(){
-    std::vector<const char *> test_ssids={
+    htl::vector<const char *> test_ssids={
         "699","601","603","605","606"
     };
     msystem ms=get_test_subsystem(test_ssids);

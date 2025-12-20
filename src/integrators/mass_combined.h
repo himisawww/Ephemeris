@@ -13,8 +13,8 @@ class ephemeris_substeper{
     fast_real t_substep;
     real t_link;
 
-    std::map<uint64_t,bsystem> sublists;
-    std::map<uint64_t,subdatapack_t> subdata;
+    htl::map<uint64_t,bsystem> sublists;
+    htl::map<uint64_t,subdatapack_t> subdata;
 
     friend class msystem;
     friend class ephemeris_collector;

@@ -3,8 +3,8 @@
 
 #include<cstdint>
 #include<string>
-#include<vector>
-#include<map>
+#include"htl/vector.h"
+#include"htl/map.h"
 
 class msystem;
 
@@ -35,12 +35,12 @@ public:
     //for barycen, index of (recursive-)host mass
     int_t mid;
     //indices of direct children barycens in blist
-    std::vector<int_t> children;
+    htl::vector<int_t> children;
 
     barycen();
 };
 
-class bsystem:public std::vector<barycen>{
+class bsystem:public htl::vector<barycen>{
     int_t decompose(int_t bid);
     int_t compose(int_t bid);
 public:
@@ -151,7 +151,7 @@ public:
 
     //calculate deformation matrix(C_potential) and inertia matrix(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
-    void deform_by(const std::vector<mass> &mlist);
+    void deform_by(const htl::vector<mass> &mlist);
     //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
@@ -235,7 +235,7 @@ private:
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
     //above two is undefined if tidal_childlist.empty()
-    std::vector<int_t> tidal_childlist;
+    htl::vector<int_t> tidal_childlist;
     ephemeris_substeper *p_substeper;
 
     //t_eph when blist is analysed
@@ -245,13 +245,13 @@ private:
     //list of barycens
     bsystem blist;
     //list of masses
-    std::vector<mass> mlist;
+    htl::vector<mass> mlist;
     //index of masses
-    std::map<uint64_t,int_t> midx;
+    htl::map<uint64_t,int_t> midx;
 
     //loaded components used by masses, will be freed on destruction
-    std::vector<const geopotential *> gp_components;
-    std::vector<const ring *> ring_components;
+    htl::vector<const geopotential *> gp_components;
+    htl::vector<const ring *> ring_components;
 private:
     //load system from files
     //   fbase : basic parameters and initial states
