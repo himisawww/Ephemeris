@@ -46,7 +46,7 @@ class izipfile{
     izipfile(MFILE *);
 public:
     static constexpr size_t npos=-1;
-    operator bool() const{ return locoffset!=npos; }
+    explicit operator bool() const{ return locoffset!=npos; }
     //ready for dumpfile(), operator++(), or offset()
     bool is_ready() const{ return fileoffset!=npos; }
     //make izipfile is_ready(), return success
@@ -86,7 +86,7 @@ class izippack{
     MFILE *fzip;
     friend class izipfile;
 public:
-    operator bool() const{ return fzip; }
+    explicit operator bool() const{ return fzip; }
     //izipfile can be located by offset() and size() on this MFILE
     //for read-only access, resource managed by izippack, do not close()
     MFILE *get_file() const{ return fzip; }
@@ -116,7 +116,7 @@ public:
     using base_t::resize;
     using base_t::reserve;
 
-    operator bool() const{ return fzip; }
+    explicit operator bool() const{ return fzip; }
     ozippack(ozippack &&_o);
     //name of the zip file
     explicit ozippack(const std::string &filename);

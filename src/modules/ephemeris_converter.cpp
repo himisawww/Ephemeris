@@ -390,12 +390,11 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
         ephemeris_entry index;
         while(fread(&index,sizeof(index),1,&mf)==1){
             if(index.fid==0){
-                if(index.sid>2*ephemeris_data.size()){
-                    LogError("\nInvalid barycenter list size.\n");
+                bsystem blist;
+                if(!blist.load_barycen_structure(&mf,index.sid)){
+                    LogError("\nInvalid barycenter list.\n");
                     return -1;
                 }
-                bsystem blist;
-                blist.load_barycen_structure(&mf,index.sid);
             }
             else{
                 int_t entry_id=indices.size();

@@ -6,6 +6,68 @@
 
 #define HALF 0.5
 
+template<>struct ephemeris_compressor::header_t<ephemeris_format::STATE_VECTORS>:public header_base{
+    typedef vec data_type;
+    static constexpr size_t data_channel=1;
+    static constexpr auto error_function=absolute_state_error;
+    typedef orbital_state_t state_type;
+
+    //{ left_end_data - fit, derivative, right_end_data - fit, derivative }
+    data_type fix[4][data_channel];
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::KEPLERIAN_VECTORS>:public header_base{
+    typedef vec data_type;
+    static constexpr size_t data_channel=1;
+    static constexpr auto error_function=relative_state_error;
+    typedef orbital_state_t state_type;
+
+    data_type fix[4][data_channel];
+    double GM;
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::KEPLERIAN_CIRCULAR>:public header_base{
+    typedef double data_type;
+    static constexpr size_t data_channel=6;
+    static constexpr auto error_function=circular_kepler_error;
+    typedef orbital_state_t state_type;
+
+    data_type fix[4][data_channel];
+    double GM;
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::KEPLERIAN_RAW>:public header_base{
+    typedef double data_type;
+    static constexpr size_t data_channel=6;
+    static constexpr auto error_function=raw_kepler_error;
+    typedef orbital_state_t state_type;
+
+    data_type fix[4][data_channel];
+    double GM;
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::AXIAL_OFFSET>:public header_base{
+    typedef double data_type;
+    static constexpr size_t data_channel=6;
+    static constexpr auto error_function=axial_rotation_error;
+    typedef rotational_state_t state_type;
+
+    data_type fix[4][data_channel];
+    double local_axis_theta,local_axis_phi;
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::QUATERNION>:public header_base{
+    typedef quat data_type;
+    static constexpr size_t data_channel=1;
+    static constexpr auto error_function=quaternion_rotation_error;
+    typedef rotational_state_t state_type;
+
+    data_type fix[4][data_channel];
+};
+template<>struct ephemeris_compressor::header_t<ephemeris_format::TIDAL_LOCK>:public header_base{
+    typedef rotational_state_t state_type;
+    typedef quat data_type;
+    static constexpr size_t data_channel=1;
+    static constexpr auto error_function=quaternion_rotation_error;
+
+    data_type fix[4][data_channel];
+};
+
 double ephemeris_compressor::infer_GM_from_data(const orbital_state_t *pdata,int_t N){
     std::vector<double> angles(N);
     angles[0]=0;
@@ -669,12 +731,12 @@ CONVERT_IMPLEMENT(KEPLERIAN_VECTORS){
 CONVERT_IMPLEMENT(KEPLERIAN_CIRCULAR){
     orbital_param_t k(x,true);
     k.rv(0,pstate->r,pstate->v);
-    pstate->v*=sGM;
+    pstate->v*=std::sqrt(GM);
 }
 CONVERT_IMPLEMENT(KEPLERIAN_RAW){
     orbital_param_t k(x,false);
     k.rv(0,pstate->r,pstate->v);
-    pstate->v*=sGM;
+    pstate->v*=std::sqrt(GM);
 }
 CONVERT_IMPLEMENT(AXIAL_OFFSET){
     rotational_param_t a(x);
@@ -707,6 +769,38 @@ CONVERT_IMPLEMENT(TIDAL_LOCK){
 }
 #undef CONVERT_IMPLEMENT
 
+#define CONVERT_ORBITAL_IMPLEMENT(F)  template<>        \
+double interp_t::convert_orbital<ephemeris_format::F>(  \
+    orbital_state_t *pstate,                            \
+    const typename header_t<F>::data_type *x,           \
+    const typename header_t<F>::data_type *v,           \
+    keplerian &kep) const
+CONVERT_ORBITAL_IMPLEMENT(STATE_VECTORS){
+    pstate->r=*x;
+    pstate->v=*v;
+    return 0;
+}
+CONVERT_ORBITAL_IMPLEMENT(KEPLERIAN_VECTORS){
+    pstate->r=*x;
+    pstate->v=*v;
+    kep=keplerian(pstate->r,pstate->v/std::sqrt(GM));
+    return GM;
+}
+CONVERT_ORBITAL_IMPLEMENT(KEPLERIAN_CIRCULAR){
+    orbital_param_t k(x,true);
+    k.rv(0,pstate->r,pstate->v);
+    pstate->v*=std::sqrt(GM);
+    kep=k;
+    return GM;
+}
+CONVERT_ORBITAL_IMPLEMENT(KEPLERIAN_RAW){
+    orbital_param_t k(x,false);
+    k.rv(0,pstate->r,pstate->v);
+    pstate->v*=std::sqrt(GM);
+    kep=k;
+    return GM;
+}
+#undef CONVERT_ORBITAL_IMPLEMENT
 
 #define CASE(F,...) case F:{            \
     constexpr format_t FORMAT=F;        \
@@ -727,6 +821,13 @@ CONVERT_IMPLEMENT(TIDAL_LOCK){
             CASE(TIDAL_LOCK         ,__VA_ARGS__);  \
         }
 
+#define SWITCH_ORBITAL(F,...)   \
+        switch(F){              \
+            CASE(STATE_VECTORS      ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_VECTORS  ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_CIRCULAR ,__VA_ARGS__);  \
+            CASE(KEPLERIAN_RAW      ,__VA_ARGS__);  \
+        }
 
 interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
     pfitter=nullptr;
@@ -759,13 +860,17 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
 
         if(pfitter){
             //set auxiliary data
-            if(f==KEPLERIAN_CIRCULAR){
+            if(f==KEPLERIAN_VECTORS){
+                auto *pheader=(header_t<KEPLERIAN_VECTORS>*)fdata;
+                GM=pheader->GM;
+            }
+            else if(f==KEPLERIAN_CIRCULAR){
                 auto *pheader=(header_t<KEPLERIAN_CIRCULAR>*)fdata;
-                sGM=std::sqrt(pheader->GM);
+                GM=pheader->GM;
             }
             else if(f==KEPLERIAN_RAW){
                 auto *pheader=(header_t<KEPLERIAN_RAW>*)fdata;
-                sGM=std::sqrt(pheader->GM);
+                GM=pheader->GM;
             }
             else if(f==AXIAL_OFFSET){
                 auto *pheader=(header_t<AXIAL_OFFSET>*)fdata;
@@ -813,11 +918,11 @@ interp_t::interpolator(MFILE *_file,double _range,int_t _offset,size_t fsize,int
 
         if(pfitter){
             //set auxiliary data
-            if(f==KEPLERIAN_CIRCULAR||f==KEPLERIAN_RAW){
-                double GM;
-                if(fseek(_file,_offset,SEEK_SET)||fread(&GM,sizeof(double),1,_file)!=1)
+            if(f==KEPLERIAN_VECTORS||f==KEPLERIAN_CIRCULAR||f==KEPLERIAN_RAW){
+                double fGM;
+                if(fseek(_file,_offset,SEEK_SET)||fread(&fGM,sizeof(double),1,_file)!=1)
                     break;
-                sGM=std::sqrt(GM);
+                GM=fGM;
             }
             else if(f==AXIAL_OFFSET){
                 double extra[2];
@@ -890,24 +995,43 @@ void interp_t::set_orbital_state(const vec &_r,const vec &_v){
 }
 
 void interp_t::operator()(double t,void *state) const{
-    if(!pfitter)
-        return;
+    if(pfitter){
+        double x=t/t_range*n;
+        bool fix_left=std::floor(x)==0&&x<smooth_range[0];
+        bool fix_right=std::ceil(x)==n&&n-x<smooth_range[1];
 
-    double x=t/t_range*n;
-    bool fix_left=std::floor(x)==0&&x<smooth_range[0];
-    bool fix_right=std::ceil(x)==n&&n-x<smooth_range[1];
-
-    ephemeris_format f=data_format();
-    SWITCH(f,
-        typedef typename header_type::data_type sample_type[header_type::data_channel];
-        sample_type r,v;
-        (*pfitter)(t,r,v);
-        auto *fix=(sample_type*)fix_data;
-        if(fix_left)smooth(r,v,fix[0],fix[1],x,smooth_range[0]);
-        if(fix_right)smooth(r,v,fix[2],fix[3],n-x,smooth_range[1]);
-        convert<FORMAT>((typename header_type::state_type *)state,r,v);
-    );
+        ephemeris_format f=data_format();
+        SWITCH(f,
+            typedef typename header_type::data_type sample_type[header_type::data_channel];
+            sample_type r,v;
+            (*pfitter)(t,r,v);
+            auto *fix=(sample_type*)fix_data;
+            if(fix_left)smooth(r,v,fix[0],fix[1],x,smooth_range[0]);
+            if(fix_right)smooth(r,v,fix[2],fix[3],n-x,smooth_range[1]);
+            convert<FORMAT>((typename header_type::state_type *)state,r,v);
+        );
+    }
 }
 
+double interp_t::operator()(double t,orbital_state_t *orbital_state,keplerian &parameters) const{
+    if(pfitter){
+        double x=t/t_range*n;
+        bool fix_left=std::floor(x)==0&&x<smooth_range[0];
+        bool fix_right=std::ceil(x)==n&&n-x<smooth_range[1];
+
+        ephemeris_format f=data_format();
+        SWITCH_ORBITAL(f,
+            typedef typename header_type::data_type sample_type[header_type::data_channel];
+            sample_type r,v;
+            (*pfitter)(t,r,v);
+            auto *fix=(sample_type*)fix_data;
+            if(fix_left)smooth(r,v,fix[0],fix[1],x,smooth_range[0]);
+            if(fix_right)smooth(r,v,fix[2],fix[3],n-x,smooth_range[1]);
+            return convert_orbital<FORMAT>(orbital_state,r,v,parameters);
+        );
+    }
+    return NAN;
+}
 #undef SWITCH
+#undef SWITCH_ORBITAL
 #undef CASE

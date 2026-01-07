@@ -212,7 +212,7 @@ private:
         return load_data(0,n+d);
     }
 public:
-    operator bool() const{ return is_valid; }
+    explicit operator bool() const{ return is_valid; }
 
     //convert bspline coefs to chebyshev coefs to accelerate future samplings
     void expand(){

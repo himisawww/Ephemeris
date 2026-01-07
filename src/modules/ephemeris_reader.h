@@ -1,10 +1,10 @@
 #pragma once
+#include"math/keplerian.h"
 #include"physics/mass.h"
 #include"utils/zipio.h"
 #include"modules/ephemeris_compressor.h"
 
 class ephemeris_reader{
-    msystem ms;
     class chapter:public izippack{
         //{dir*t_end, blist index over [t_start,t_end]}
         std::map<int_t,ephemeris_entry> blist_index;
@@ -31,21 +31,37 @@ class ephemeris_reader{
         void unload();
 
         chapter(msystem &,const std::string &,int_t memory_budget);
-        bool checkout(msystem &,real t_eph);
+        bool checkout(ephemeris_reader &,real t_eph);
     };
+    struct massinfo{
+        std::string name;
+        //followings are about/relative to orbital center:
+        //and is updated by checkout only-if update_orbital_params is true
+        double GM;
+        keplerian parameters;
+        orbital_state_t states;
+    };
+    //data and states
+    msystem ms;
     std::vector<chapter> chapters;
-    std::vector<std::string> massnames;
-    int_t cur_chid;
-    int_t mem_budget;
     std::vector<int_t> active_chapters;
-
-    //assume chapters[cur_chid valid]
-    void lru();
+    std::vector<massinfo> minfos;
+    real t_massinfo;
+    int_t cur_chid;
+    //configs
+    int_t mem_budget;
+public:
+    //if true, checkout() also updates get_msystem().get_barycens();
+    //default: true
+    bool update_bsystem;
+    //if true, checkout() also updates massinfo::GM,parameter,r,v;
+    //default: false
+    bool update_orbital_params;
 public:
     //memory_budget: a suggestion(not mandatory) of memory limit in bytes for this reader
     ephemeris_reader(const char *ephemeris_path,int_t memory_budget=768*int_t(1024*1024));
 
-    operator bool() const{ return !ms.empty(); }
+    explicit operator bool() const{ return !ms.empty(); }
     int_t t_min() const{ return chapters.empty()?0:chapters.front().t_min(); }
     int_t t_max() const{ return chapters.empty()?0:chapters.back().t_max(); }
     int_t interpolator_size() const;
@@ -53,5 +69,10 @@ public:
     void unload();
 
     const msystem &get_msystem(){ return ms; }
+    const massinfo &get_massinfo(int_t mid) const{ return minfos[mid]; }
+    const massinfo &get_massinfo(const char *ssid) const{ return minfos[ms.get_mid(ssid)]; }
     bool checkout(real t_eph);
+private:
+    //assume chapters[cur_chid valid]
+    void lru();
 };

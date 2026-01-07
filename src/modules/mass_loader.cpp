@@ -595,8 +595,10 @@ bool bsystem::load_barycen_structure(MFILE *fin,size_t bsize){
         b.gid=bids.gid;
         b.tid=bids.tid;
         b.mid=bids.mid;
-        b.children.resize(bids.nch);
-        if(bids.nch!=fread(b.children.data(),sizeof(int_t),bids.nch,fin)){
+        for(int_t ic=0;ic<bids.nch;++ic)
+            if(1!=fread(&b.children.emplace_back(),sizeof(int_t),1,fin))
+                bids.nch=-1;
+        if(bids.nch<0){
             failed=true;
             break;
         }
@@ -679,6 +681,10 @@ bool msystem::load_checkpoint(MFILE *fin){
         }
         if(failed)break;
 
+        if(blist.compatible_size()==h.nmass){
+            blist.update_barycens(*this);
+            t_update=t_eph;
+        }
     } while(false);
 
     if(failed){
@@ -818,10 +824,12 @@ void bsystem::print_structure(MFILE *mf,const msystem &ms) const{
     barycen_structure_printer(ms,*this).print_structure(mf,root_id(),0);
 }
 
-bool bsystem::is_compatible(const msystem &ms) const{
+size_t bsystem::compatible_size() const{
     const bsystem &blist=*this;
-    int_t root=root_id(),bn=blist.size(),mn=ms.size();
+    int_t root=root_id(),bn=blist.size(),mn=bn;
     if(root<0)return false;
+    for(const barycen &b:blist)
+        mn-=b.hid>=0;
 
     std::vector<bool> has_done(bn,false);
     std::vector<bool> has_mass(mn,false);
@@ -864,7 +872,7 @@ bool bsystem::is_compatible(const msystem &ms) const{
     for(bool _:has_done)if(!_)return false;
     for(bool _:mid_done)if(!_)return false;
     for(bool _:has_mass)if(!_)return false;
-    return true;
+    return mn;
 }
 
 int_t bsystem::root_id() const{

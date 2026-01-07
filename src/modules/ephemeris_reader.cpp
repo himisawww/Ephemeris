@@ -54,7 +54,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
         if(failure.size())break;
 
         int dir=0;
-        size_t mn=ms.size();
+        const size_t mn=ms.size();
         ephm_index.resize(mn);
         while(failure.empty()){
             ephemeris_entry index;
@@ -83,7 +83,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
                 auto it=blist_index.try_emplace(dir*index.t_end,index);
                 if(!it.second||!blists.emplace_back().load_barycen_structure(&mf_index,index.sid))
                     failure+="    Error loading system structure;\n";
-                else if(!blists.back().is_compatible(ms))
+                else if(blists.back().compatible_size()!=mn)
                     failure+="    Invalid structure;\n";
             }
             else{
@@ -184,6 +184,9 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
 ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budget){
     cur_chid=-1;
     mem_budget=memory_budget;
+    update_bsystem=true;
+    update_orbital_params=false;
+    t_massinfo=NAN;
     {
         using Configs::MAX_LINESIZE;
         //load 0.zip
@@ -203,7 +206,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
                     failure+="    Invalid checkpoint;\n";
                     break;
                 }
-                massnames.resize(ms.size());
+                minfos.resize(ms.size());
                 continue;
             }
             char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
@@ -222,9 +225,9 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
                 int_t mid=ms.get_mid(sid);
                 if(mid<0)
                     failure+="    Invalid sid;\n";
-                else if(massnames[mid].size())
+                else if(minfos[mid].name.size())
                     failure+="    Duplicate sid;\n";
-                else if((massnames[mid]=sname).empty())
+                else if((minfos[mid].name=sname).empty())
                     failure+="    Empty name;\n";
                 else
                     ++n_names;
@@ -244,7 +247,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
                 "        shall not be tampered with, i.e. do not modify or replace them\n"
                 "        with an extracted and repacked version.\n\n":"");
             ms.clear();
-            massnames.clear();
+            minfos.clear();
             return;
         }
     }
@@ -294,7 +297,9 @@ int_t ephemeris_reader::interpolator_size() const{
 }
 
 bool ephemeris_reader::checkout(real t_eph){
-    if(ms.t_eph==t_eph)
+    if(                            ms.t_eph   ==t_eph
+        &&(!update_bsystem       ||ms.t_update==t_eph)
+        &&(!update_orbital_params||t_massinfo ==t_eph))
         return true;
     int_t chids=0,chide=chapters.size();
     if(!(chids<=cur_chid&&cur_chid<chide))
@@ -313,10 +318,11 @@ bool ephemeris_reader::checkout(real t_eph){
     } while(1);
 
     lru();
-    return chapters[cur_chid].checkout(ms,t_eph);
+    return chapters[cur_chid].checkout(*this,t_eph);
 }
 
-bool ephemeris_reader::chapter::checkout(msystem &ms,real t_eph){
+bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
+    msystem &ms=ereader.ms;
     fast_real t_range=t_end-t_start;
     int dir=t_start<t_end?1:-1;
     int_t t_key(dir>0?+t_eph:-t_eph);
@@ -351,8 +357,15 @@ bool ephemeris_reader::chapter::checkout(msystem &ms,real t_eph){
                         einterp.expand();
                 }
                 _interp_size+=einterp.memory_size();
-                if(k==0)
-                    einterp(t_offset,&orb);
+                if(k==0){
+                    if(!ereader.update_orbital_params)
+                        einterp(t_offset,&orb);
+                    else{
+                        massinfo &mi=ereader.minfos[b.mid];
+                        mi.GM=einterp(t_offset,&orb,mi.parameters);
+                        mi.states=orb;
+                    }
+                }
                 else{
                     einterp.set_orbital_state(orb.r,orb.v);
                     einterp(t_offset,&rot);
@@ -369,18 +382,26 @@ bool ephemeris_reader::chapter::checkout(msystem &ms,real t_eph){
         }
     }
     if(failed)
-        return false;
-    blist.compose();
-    for(int_t i=0;i<bn;++i){
-        barycen &b=blist[i];
-        if(b.hid<0){
-            mass &m=ms[b.mid];
-            m.r=b.r;
-            m.v=b.v;
+        ms.t_eph=NAN;
+    else{
+        blist.compose();
+        for(int_t i=0;i<bn;++i){
+            barycen &b=blist[i];
+            if(b.hid<0){
+                mass &m=ms[b.mid];
+                m.r=b.r;
+                m.v=b.v;
+            }
         }
+        ms.t_eph=t_eph;
     }
-    ms.t_eph=t_eph;
-    return true;
+    if(ereader.update_bsystem){
+        ms.blist=blist;
+        ms.t_update=ms.t_eph;
+    }
+    if(ereader.update_orbital_params)
+        ereader.t_massinfo=ms.t_eph;
+    return !failed;
 }
 
 void ephemeris_reader::unload(){

@@ -57,7 +57,8 @@ public:
 
     bool load_barycen_structure(MFILE *fin,size_t bsize);
     void save_barycen_structure(MFILE *fout) const;
-    bool is_compatible(const msystem &) const;
+    //return number of mass in this bsystem, or 0 if not self-compatible
+    size_t compatible_size() const;
 
     void print_structure(MFILE *mf,const msystem &) const;
 };

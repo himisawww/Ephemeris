@@ -1,5 +1,6 @@
 #pragma once
 #include"definitions.h"
+#include"math/keplerian.h"
 #include"utils/memio.h"
 
 struct ephemeris_entry;
@@ -74,67 +75,6 @@ public:
         float smooth_range[2];  //{left, right}, in (0,1], in unit of segments
     };
     template<format_t F>struct header_t;
-    template<>struct header_t<STATE_VECTORS>:public header_base{
-        typedef vec data_type;
-        static constexpr size_t data_channel=1;
-        static constexpr auto error_function=absolute_state_error;
-        typedef orbital_state_t state_type;
-        
-        //{ left_end_data - fit, derivative, right_end_data - fit, derivative }
-        data_type fix[4][data_channel];
-    };
-    template<>struct header_t<KEPLERIAN_VECTORS>:public header_base{
-        typedef vec data_type;
-        static constexpr size_t data_channel=1;
-        static constexpr auto error_function=relative_state_error;
-        typedef orbital_state_t state_type;
-
-        data_type fix[4][data_channel];
-        double GM;
-    };
-    template<>struct header_t<KEPLERIAN_CIRCULAR>:public header_base{
-        typedef double data_type;
-        static constexpr size_t data_channel=6;
-        static constexpr auto error_function=circular_kepler_error;
-        typedef orbital_state_t state_type;
-
-        data_type fix[4][data_channel];
-        double GM;
-    };
-    template<>struct header_t<KEPLERIAN_RAW>:public header_base{
-        typedef double data_type;
-        static constexpr size_t data_channel=6;
-        static constexpr auto error_function=raw_kepler_error;
-        typedef orbital_state_t state_type;
-
-        data_type fix[4][data_channel];
-        double GM;
-    };
-    template<>struct header_t<AXIAL_OFFSET>:public header_base{
-        typedef double data_type;
-        static constexpr size_t data_channel=6;
-        static constexpr auto error_function=axial_rotation_error;
-        typedef rotational_state_t state_type;
-
-        data_type fix[4][data_channel];
-        double local_axis_theta,local_axis_phi;
-    };
-    template<>struct header_t<QUATERNION>:public header_base{
-        typedef quat data_type;
-        static constexpr size_t data_channel=1;
-        static constexpr auto error_function=quaternion_rotation_error;
-        typedef rotational_state_t state_type;
-
-        data_type fix[4][data_channel];
-    };
-    template<>struct header_t<TIDAL_LOCK>:public header_base{
-        typedef rotational_state_t state_type;
-        typedef quat data_type;
-        static constexpr size_t data_channel=1;
-        static constexpr auto error_function=quaternion_rotation_error;
-
-        data_type fix[4][data_channel];
-    };
 
     class interpolator:private header_base{
         typedef header_base base_t;
@@ -142,7 +82,7 @@ public:
         //auxiliary data
         char fix_data[192];
         union{
-            double sGM;
+            double GM;
             mat local_axis;
             orbital_state_t orb;
         };
@@ -150,12 +90,18 @@ public:
         void *pfitter;
         double t_range;
 
-        template<format_t F>
         //convert data to state
+        template<format_t F>
         void convert(
             typename header_t<F>::state_type *state,
             const typename header_t<F>::data_type *x,
             const typename header_t<F>::data_type *v) const;
+        template<format_t F>
+        double convert_orbital(
+            orbital_state_t *state,
+            const typename header_t<F>::data_type *x,
+            const typename header_t<F>::data_type *v,
+            keplerian &) const;
 
         template<typename T,size_t N_Channel>
         //assume 0<=x<smooth_range
@@ -180,7 +126,7 @@ public:
 
         format_t data_format() const{ return format_t(~base_t::uformat); }
         double relative_error() const{ return base_t::relative_error; }
-        operator bool() const{ return pfitter; }
+        explicit operator bool() const{ return pfitter; }
         bool is_orbital() const{ return is_orbital_format(data_format()); }
         bool is_rotational() const{ return is_rotational_format(data_format()); }
 
@@ -189,6 +135,9 @@ public:
         void set_orbital_state(const vec &r,const vec &v);
         // state = &orbital_state_t or &rotational_state_t
         void operator()(double t,void *state) const;
+        // same as above, but also fills parameters and return effective GM of central body;
+        // return 0 if data_format()==STATE_VECTORS, NAN if !is_orbital().
+        double operator()(double t,orbital_state_t *orbital_state,keplerian &parameters) const;
     };
 private:
     template<format_t F,typename T=typename header_t<F>::data_type,size_t N_Channel=header_t<F>::data_channel>
