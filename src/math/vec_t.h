@@ -105,15 +105,26 @@ public:
     INLINE vec_t(){}
     explicit INLINE vec_t(const T &x):x(x),y(x),z(x){}
     INLINE vec_t(const T &x,const T &y,const T &z):x(x),y(y),z(z){}
-    INLINE vec_t(const T &theta,const T &phi){
-        T c=sin(theta);
-        x=c*cos(phi);
-        y=c*sin(phi);
-        z=cos(theta);
-    }
     template<typename T2>
     INLINE vec_t(const vec_t<T2> &a):x(a.x),y(a.y),z(a.z){}
 
+    //theta: angle to north-pole(z-axis), phi: same as lon(longitude)
+    static INLINE vec_t from_theta_phi(const T &theta,const T &phi){
+        T c=sin(theta);
+        return vec_t(c*cos(phi),c*sin(phi),cos(theta));
+    }
+    //lon: longitude, lat: latitude
+    static INLINE vec_t from_lon_lat(const T &lon,const T &lat){
+        T c=cos(lat);
+        return vec_t(c*cos(lon),c*sin(lon),sin(lat));
+    }
+
+    INLINE bool is_finite() const{
+        if constexpr(::std::is_arithmetic_v<T>)
+            return !(0*z||0*y||0*x);
+        else
+            return z.is_finite()&&y.is_finite()&&x.is_finite();
+    }
 
     INLINE vec_t<T> &rotx(const T &b){
         T s=sin(b),c=cos(b),ny=y*c-z*s;
@@ -138,6 +149,12 @@ public:
     }
     INLINE T phi() const{
         return atan2(y,x);
+    }
+    INLINE T lon() const{
+        return atan2(y,x);
+    }
+    INLINE T lat() const{
+        return atan2(z,hypot_t<T>::length(x,y));
     }
     INLINE T norm() const{
         return hypot_t<T>::length(x,y,z);
@@ -301,6 +318,10 @@ public:
     INLINE mat_t(int,const vec_t<T> &y0,orthogonalizer &z0){ z0.make_axes<0>(y0,y,z,x); }
     INLINE mat_t(int,orthogonalizer &y0,const vec_t<T> &z0){ y0.make_axes<1>(z0,z,y,x); }
 
+    INLINE bool is_finite() const{
+        return z.is_finite()&&y.is_finite()&&x.is_finite();
+    }
+
     //converts a world vec_t to local
     INLINE vec_t<T> tolocal(const vec_t<T> &a) const{ return a%(*this); }
     //converts a local vec_t to world
@@ -319,6 +340,11 @@ public:
         vec_t<T> na(tolocal(a));
         phi=na.phi();
         theta=na.theta();
+    }
+    INLINE void lonlat(const vec_t<T> &a,T &lon,T &lat) const{
+        vec_t<T> na(tolocal(a));
+        lon=na.lon();
+        lat=na.lat();
     }
     INLINE mat_t<T> &rotx(const T &b){
         T s=sin(b),c=cos(b);
@@ -342,9 +368,9 @@ public:
         return *this;
     }
     INLINE T theta(const vec_t<T> &a) const{ return tolocal(a).theta(); }
-    INLINE T phi(const vec_t<T> &a) const{
-        return atan2(a%y,a%x);
-    }
+    INLINE T phi(const vec_t<T> &a) const{ return atan2(a%y,a%x); }
+    INLINE T lon(const vec_t<T> &a) const{ return atan2(a%y,a%x); }
+    INLINE T lat(const vec_t<T> &a) const{ return tolocal(a).lat(); }
 
     INLINE mat_t<T> &operator =(const T &a){
         x=vec_t<T>(a,0,0);
@@ -596,6 +622,13 @@ public:
             vec_t<T>(qz-q3,ww+yy-(xx+zz),qx+q1),
             vec_t<T>(qy+q2,qx-q1,ww+zz-(xx+yy))
             );
+    }
+
+    INLINE bool is_finite() const{
+        if constexpr(::std::is_arithmetic_v<T>)
+            return !(0*w||0*z||0*y||0*x);
+        else
+            return w.is_finite()&&z.is_finite()&&y.is_finite()&&x.is_finite();
     }
 
     INLINE T norm() const{

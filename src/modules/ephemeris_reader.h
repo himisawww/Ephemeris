@@ -36,27 +36,32 @@ class ephemeris_reader{
     struct massinfo{
         std::string name;
         //followings are about/relative to orbital center:
-        //and is updated by checkout only-if update_orbital_params is true
-        double GM;
+        //and is updated by checkout only-if update_orbits is true
         keplerian parameters;
-        orbital_state_t states;
+        orbital_state_t state_vectors;
+        double keplerian_GM;
     };
     //data and states
     msystem ms;
     std::vector<chapter> chapters;
     std::vector<int_t> active_chapters;
     std::vector<massinfo> minfos;
-    real t_massinfo;
     int_t cur_chid;
     //configs
     int_t mem_budget;
 public:
+    //if update_physics, passed to accel()
+    //default 0
+    int update_physics_parallel_option;
+    //if true, checkout() also calls accel() for get_msystem();
+    //default: false
+    bool update_physics;
     //if true, checkout() also updates get_msystem().get_barycens();
-    //default: true
+    //default: false
     bool update_bsystem;
     //if true, checkout() also updates massinfo::GM,parameter,r,v;
     //default: false
-    bool update_orbital_params;
+    bool update_orbits;
 public:
     //memory_budget: a suggestion(not mandatory) of memory limit in bytes for this reader
     ephemeris_reader(const char *ephemeris_path,int_t memory_budget=768*int_t(1024*1024));
@@ -68,7 +73,7 @@ public:
     //free interpolator cache
     void unload();
 
-    const msystem &get_msystem(){ return ms; }
+    const msystem &get_msystem() const{ return ms; }
     const massinfo &get_massinfo(int_t mid) const{ return minfos[mid]; }
     const massinfo &get_massinfo(const char *ssid) const{ return minfos[ms.get_mid(ssid)]; }
     bool checkout(real t_eph);

@@ -68,7 +68,7 @@ public:
 			}
 		}
 		g/=r2;
-		fast_mpvec x,y,z(-phi,lambda);
+		fast_mpvec x,y,z=fast_mpvec::from_theta_phi(-phi,lambda);
 		x=r/r1;
 		y=z*x;
 		return g.x*x+g.y*y+g.z*z;
@@ -110,7 +110,7 @@ int test_geopotential(){
 			fast_real max_diff(0);
 			rn*=TEST_RADIUS_FACTOR;
 			for(int_t itheta=0;itheta<=TEST_N;++itheta)for(int_t iphi=0;iphi<=2*TEST_N;++iphi){
-				fast_mpvec r(itheta*pi/TEST_N,iphi*pi/TEST_N);
+				fast_mpvec r=fast_mpvec::from_theta_phi(itheta*pi/TEST_N,iphi*pi/TEST_N);
 				r*=rn;
 				fast_mpvec gtest=gp->sum(REFERENCE_RADIUS,r);
 				fast_mpvec gref=gpref.sum(REFERENCE_RADIUS*REFERENCE_RADIUS_FACTOR,r);

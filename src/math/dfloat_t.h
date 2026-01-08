@@ -32,6 +32,8 @@ public:
         return iapprox;
     }
 
+    INLINE bool is_finite() const{ return !(0*hi||0*lo); }
+
     INLINE dfloat_type &operator+=(const dfloat_type &x){ return (*this=*this+x); }
     INLINE dfloat_type &operator-=(const dfloat_type &x){ return (*this=*this-x); }
     INLINE dfloat_type &operator*=(const dfloat_type &x){ return (*this=*this*x); }

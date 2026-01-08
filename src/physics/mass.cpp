@@ -424,7 +424,7 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
                 "   Note the program is not designed to handle body collisions.\n"
                 "   Ephemeris further than this may be unreliable.\n"
                 "************************************************************************\n\n",
-                ephemeris_time(),(char*)&m.sid,m.min_distance,m.R);
+                ephemeris_time(),m.get_ssid(),m.min_distance,m.R);
         }
         if(m.max_influence*dt2>TIMESTEP_THRESHOLD){
             LogWarning(
@@ -434,7 +434,7 @@ void msystem::integrate(fast_real dt,int_t n_step,int USE_GPU){
                 "       %.16e s >  %.16le s\n"
                 "   Ephemeris further than this may be inaccurate.\n"
                 "************************************************************************\n\n",
-                ephemeris_time(),(char*)&m.sid,dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
+                ephemeris_time(),m.get_ssid(),dt,std::sqrt(TIMESTEP_THRESHOLD/m.max_influence));
         }
     }
 

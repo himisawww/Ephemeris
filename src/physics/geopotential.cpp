@@ -12,6 +12,7 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
         LogError("%s : Error opening harmonics model\n",file);
         return nullptr;
     }
+    if(N_start<2)N_start=2;
     int_t Nz=-1,Nt;
     fast_real *c_table;
     geopotential *ret=nullptr;
@@ -131,6 +132,24 @@ void geopotential::unload(const geopotential *gp){
 
 int_t geopotential::size() const{
     return sizeof(geopotential)+sizeof(fast_real)*Precompute_Table_size(Nz);
+}
+
+double geopotential::get_J(int_t n) const{
+    if(2<=n&&n<=Nz)
+        return c_table[J(n)];
+    return 0;
+}
+double geopotential::get_C(int_t n,int_t m) const{
+    if(m==0)
+        return get_J(n);
+    if(2<=n&&n<=Nt&&0<m&&m<=n)
+        return c_table[C(n,m)];
+    return 0;
+}
+double geopotential::get_S(int_t n,int_t m) const{
+    if(2<=n&&n<=Nt&&0<m&&m<=n)
+        return c_table[S(n,m)];
+    return 0;
 }
 
 const geopotential *geopotential::copy(const geopotential *gp,fast_real multiplier){

@@ -274,11 +274,11 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
             zp.push_back(initdir+ringpath+"/",{});
         for(const auto &m:mlist){
             if(m.gpmodel){
-                std::string gname=gppath+"/"+(const char *)&m.sid+".txt";
+                std::string gname=gppath+"/"+m.get_ssid()+".txt";
                 zp.push_back(initdir+gname,MFILE(dirstr+gname));
             }
             if(m.ringmodel){
-                std::string rname=ringpath+"/"+(const char *)&m.sid+".txt";
+                std::string rname=ringpath+"/"+m.get_ssid()+".txt";
                 zp.push_back(initdir+rname,MFILE(dirstr+rname));
             }
         }
@@ -441,11 +441,12 @@ bool msystem::load(
         if(n==26){
             using Constants::pi;
             using Constants::degree;
-            z=vec((90-dec)*degree,ra*degree);
-            x=vec(90*degree,(ra+90)*degree);
+            using Constants::J2000_obliquity;
+            z=vec::from_theta_phi((90-dec)*degree,ra*degree);
+            x=vec::from_theta_phi(90*degree,(ra+90)*degree);
             x+=z.rotation_matrix(W*degree)%x;
-            x.rotx(-84381.448/3600*degree);
-            z.rotx(-84381.448/3600*degree);
+            x.rotx(-J2000_obliquity);
+            z.rotx(-J2000_obliquity);
             w=z*(2*pi/(p*3600));
         }
         m.s.x=x;
@@ -779,7 +780,7 @@ void bsystem::print_structure(MFILE *mf,const msystem &ms) const{
             };
 
             if(br.hid<0){
-                barycen_name=(const char *)&ms[br.mid].sid;
+                barycen_name=ms[br.mid].get_ssid();
                 if(cn==0){
                     print_string("\""+barycen_name+"\"");
                     return;
@@ -789,10 +790,10 @@ void bsystem::print_structure(MFILE *mf,const msystem &ms) const{
             }
             else{
                 barycen_name="Barycenter[";
-                barycen_name+=(const char *)&ms[blist[br.hid].mid].sid;
+                barycen_name+=ms[blist[br.hid].mid].get_ssid();
                 if(blist[br.hid].hid>=0)barycen_name+=" System";
                 barycen_name+=", ";
-                barycen_name+=(const char *)&ms[blist[br.gid].mid].sid;
+                barycen_name+=ms[blist[br.gid].mid].get_ssid();
                 if(blist[br.gid].hid>=0)barycen_name+=" System";
                 barycen_name+="]";
                 print_string("{\n");

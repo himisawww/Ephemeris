@@ -184,9 +184,10 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
 ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budget){
     cur_chid=-1;
     mem_budget=memory_budget;
-    update_bsystem=true;
-    update_orbital_params=false;
-    t_massinfo=NAN;
+    update_physics_parallel_option=0;
+    update_physics=false;
+    update_bsystem=false;
+    update_orbits=false;
     {
         using Configs::MAX_LINESIZE;
         //load 0.zip
@@ -297,10 +298,6 @@ int_t ephemeris_reader::interpolator_size() const{
 }
 
 bool ephemeris_reader::checkout(real t_eph){
-    if(                            ms.t_eph   ==t_eph
-        &&(!update_bsystem       ||ms.t_update==t_eph)
-        &&(!update_orbital_params||t_massinfo ==t_eph))
-        return true;
     int_t chids=0,chide=chapters.size();
     if(!(chids<=cur_chid&&cur_chid<chide))
         cur_chid=chide/2;
@@ -358,12 +355,12 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
                 }
                 _interp_size+=einterp.memory_size();
                 if(k==0){
-                    if(!ereader.update_orbital_params)
+                    if(!ereader.update_orbits)
                         einterp(t_offset,&orb);
                     else{
                         massinfo &mi=ereader.minfos[b.mid];
-                        mi.GM=einterp(t_offset,&orb,mi.parameters);
-                        mi.states=orb;
+                        mi.keplerian_GM=einterp(t_offset,&orb,mi.parameters);
+                        mi.state_vectors=orb;
                     }
                 }
                 else{
@@ -379,6 +376,7 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
             m.s.z=rot.z;
             m.s.y=m.s.z*m.s.x;
             m.w=rot.w;
+            m.GL=NAN;
         }
     }
     if(failed)
@@ -394,13 +392,13 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
             }
         }
         ms.t_eph=t_eph;
+        if(ereader.update_physics)
+            ms.accel(ereader.update_physics_parallel_option);
     }
     if(ereader.update_bsystem){
         ms.blist=blist;
         ms.t_update=ms.t_eph;
     }
-    if(ereader.update_orbital_params)
-        ereader.t_massinfo=ms.t_eph;
     return !failed;
 }
 

@@ -142,6 +142,8 @@ public:
     fast_real min_distance;
     fast_real max_influence;
 
+    const char *get_ssid() const{ return (const char*)&sid; }
+
     INLINE void orthogonalize(){
         fast_mpmat fmis(s);
         s+=0.5*fmis%(1-fmis.transpose()%fmis);

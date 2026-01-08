@@ -417,7 +417,10 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         }
         wmax=std::sqrt(wmax);
         double local_axis_theta=wlocal.theta(),local_axis_phi=wlocal.phi();
-        mat local_axis(vec(local_axis_theta,local_axis_phi),vec(local_axis_theta+Constants::pi_div2,local_axis_phi),0);
+        mat local_axis(
+            vec::from_theta_phi(local_axis_theta,local_axis_phi),
+            vec::from_theta_phi(local_axis_theta+Constants::pi_div2,local_axis_phi),
+            0);
         std::vector<double> fdata;
         fdata.reserve(6*N);
         double last_angle=0;
@@ -877,8 +880,8 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
                 double local_axis_theta=pheader->local_axis_theta;
                 double local_axis_phi=pheader->local_axis_phi;
                 local_axis=mat(
-                    vec(local_axis_theta,local_axis_phi),
-                    vec(local_axis_theta+Constants::pi_div2,local_axis_phi),
+                    vec::from_theta_phi(local_axis_theta,local_axis_phi),
+                    vec::from_theta_phi(local_axis_theta+Constants::pi_div2,local_axis_phi),
                     0).transpose();
             }
             return;
@@ -931,8 +934,8 @@ interp_t::interpolator(MFILE *_file,double _range,int_t _offset,size_t fsize,int
                 double &local_axis_theta=extra[0];
                 double &local_axis_phi=extra[1];
                 local_axis=mat(
-                    vec(local_axis_theta,local_axis_phi),
-                    vec(local_axis_theta+Constants::pi_div2,local_axis_phi),
+                    vec::from_theta_phi(local_axis_theta,local_axis_phi),
+                    vec::from_theta_phi(local_axis_theta+Constants::pi_div2,local_axis_phi),
                     0).transpose();
             }
             return;

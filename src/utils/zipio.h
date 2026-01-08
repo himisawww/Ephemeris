@@ -112,7 +112,7 @@ public:
     using base_t::end;
     using base_t::size;
     using base_t::operator[];
-    using base_t::swap;
+    void swap_content(std::vector<MFILE> &other){ base_t::swap(other); }
     using base_t::resize;
     using base_t::reserve;
 
