@@ -216,7 +216,7 @@ int ephemeris_generator::make_ephemeris(int dir){
             newline=true;
             ephemeris_compressor::compress(zms);
             ozippack zp(zckpt);
-            zp.swap(zms);
+            zp.swap_content(zms);
             LogInfo("Saving ephemeris & checkpoint %s\n",zckpt.c_str());
         }
         io_mutex.unlock();

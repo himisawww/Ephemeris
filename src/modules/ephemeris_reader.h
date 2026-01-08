@@ -68,7 +68,7 @@ public:
     //free interpolator cache
     void unload();
 
-    const msystem &get_msystem(){ return ms; }
+    const msystem &get_msystem() const{ return ms; }
     const massinfo &get_massinfo(int_t mid) const{ return minfos[mid]; }
     const massinfo &get_massinfo(const char *ssid) const{ return minfos[ms.get_mid(ssid)]; }
     bool checkout(real t_eph);

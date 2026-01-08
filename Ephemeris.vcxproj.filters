@@ -147,6 +147,9 @@
     <ClCompile Include="src\modules\ephemeris_reader.cpp">
       <Filter>modules</Filter>
     </ClCompile>
+    <ClCompile Include="src\main_for_ksp.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

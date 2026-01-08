@@ -113,6 +113,7 @@
     <ClCompile Include="src\configs.cpp" />
     <ClCompile Include="src\integrators\mass_combined.cpp" />
     <ClCompile Include="src\integrators\RungeKutta.cpp" />
+    <ClCompile Include="src\main_for_ksp.cpp" />
     <ClCompile Include="src\math\basic_math.cpp" />
     <ClCompile Include="src\math\interp.cpp" />
     <ClCompile Include="src\math\keplerian.cpp" />

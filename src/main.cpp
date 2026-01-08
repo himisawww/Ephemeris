@@ -86,8 +86,9 @@ int main_fun(int argc,const char **argv){
     return 0;
 }
 
-
+int main_for_ksp(const char *eph_path);
 int main(int argc,const char **argv){
+    return main_for_ksp("F:\\Temp\\ephm\\Ephemeris\\Ephemeris\\SolarSystem");
 #if 0
     std::vector<const char*> subset{
         "10", "199", "299", "301", "399", "401", "402", "499", "501", "502",

@@ -441,11 +441,12 @@ bool msystem::load(
         if(n==26){
             using Constants::pi;
             using Constants::degree;
+            using Constants::J2000_obliquity;
             z=vec((90-dec)*degree,ra*degree);
             x=vec(90*degree,(ra+90)*degree);
             x+=z.rotation_matrix(W*degree)%x;
-            x.rotx(-84381.448/3600*degree);
-            z.rotx(-84381.448/3600*degree);
+            x.rotx(-J2000_obliquity);
+            z.rotx(-J2000_obliquity);
             w=z*(2*pi/(p*3600));
         }
         m.s.x=x;
