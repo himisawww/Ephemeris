@@ -60,10 +60,16 @@ mc=fmis.toworld(mc);                                   \
 mi.C_potential+=mc;                                    \
 mi.GI=fast_real(-2)/3*mi.R2*(mi.C_potential-mi.A);
 
-#define UPDATE_ANGULAR_VELOCITY                        \
-fast_mpvec oldw=mi.w;                                  \
-mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));              \
-should_break=((mi.w-oldw).normsqr()<1e-18*oldw.normsqr());
+#define UPDATE_ANGULAR_VELOCITY                                \
+if(mi.GL.is_finite()){                                         \
+    fast_mpvec oldw=mi.w;                                      \
+    mi.w=mi.GI.inverse()%(fast_mpvec(mi.GL));                  \
+    should_break=((mi.w-oldw).normsqr()<1e-18*oldw.normsqr()); \
+}                                                              \
+else{                                                          \
+    mi.GL=mi.GI%mi.w;                                          \
+    should_break=true;                                         \
+}
 
 #define MAX_ANGULAR_VELOCITY_ITER 4
 

@@ -442,8 +442,8 @@ bool msystem::load(
             using Constants::pi;
             using Constants::degree;
             using Constants::J2000_obliquity;
-            z=vec((90-dec)*degree,ra*degree);
-            x=vec(90*degree,(ra+90)*degree);
+            z=vec::from_theta_phi((90-dec)*degree,ra*degree);
+            x=vec::from_theta_phi(90*degree,(ra+90)*degree);
             x+=z.rotation_matrix(W*degree)%x;
             x.rotx(-J2000_obliquity);
             z.rotx(-J2000_obliquity);

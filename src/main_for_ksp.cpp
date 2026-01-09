@@ -3,7 +3,7 @@
 #include"modules/ephemeris_generator.h"
 #include"math/state_parameters.h"
 #include"utils/logger.h"
-
+#pragma optimize("",off)
 class principia_model{
     typedef const std::string &strref;
     static bool is_starts_with(strref s,const char *start){
@@ -23,16 +23,18 @@ class principia_model{
 public:
     struct body_model{
         std::string name;
-        int_t mid;
+        int_t mid,pmid;
+        //m^3/s^2
         double gravitational_parameter;
+        //deg & deg / d
         double ra,dec,W,angfreq;
-
+        //m
         double ref_radius;
-        //[n][m]=[J,S], normalized as principia
+        //[n][m]=[J,S], normalized as principia's convention
         std::map<int,std::vector<std::pair<double,double>>> gpmodel;
 
         body_model(){
-            mid=-1;
+            mid=pmid=-1;
             gravitational_parameter=ra=dec=W=angfreq=ref_radius=NAN;
         }
         bool sanity() const{
@@ -223,6 +225,21 @@ public:
         if(level==0)
             valid=true;
     }
+    bool append(int_t mid,const std::string &name,double GM,double R){
+        if(std::find_if(models.begin(),models.end(),[mid](const body_model &bm){return mid==bm.mid;})!=models.end())
+            return false;
+        if(std::find_if(models.begin(),models.end(),[&name](const body_model &bm){return name==bm.name;})!=models.end()){
+            LogError("Duplicate name %s in Principia config.\n",name.c_str());
+            return false;
+        }
+        //LogInfo("Appending %s to Principia...\n",name.c_str());
+        auto &mnew=models.emplace_back();
+        mnew.mid=mid;
+        mnew.name=name;
+        mnew.gravitational_parameter=GM;
+        mnew.ref_radius=R;
+        return true;
+    }
 
     std::string to_string() const{
         std::string result(header);
@@ -241,6 +258,13 @@ public:
         }
         return result_rn;
     }
+
+    //the normalization convention used by principia is differed from us...
+    static double geopotential_factor(int n,int m){
+        double factor=1/double(2*n+1);
+        for(int k=n-m;k<n+m;)factor*=++k;
+        return m==0?-std::sqrt(factor):std::sqrt(factor/2);
+    }
 };
 
 //J2000=TDB 0
@@ -254,6 +278,7 @@ int main_for_ksp(const char *eph_path){
         return -1;
     const msystem &ms=ereader.get_msystem();
 
+    std::set<int_t> mids;
     //initial state for Principia
     mat ICRS_Equator(1);
     ICRS_Equator.rotx(-Constants::J2000_obliquity);
@@ -267,8 +292,8 @@ int main_for_ksp(const char *eph_path){
         MFILE *fout=mopen(strprintf("r:\\ICRS_Equator_State[JD.%f].txt",JD_Pricipia),MFILE_STATE::WRITE_FILE);
         fprintf(fout,
             "Note: Instant state vectors at TDB JD %f, represented in ICRS-Equator.\n"
-            "Note: Rotational states of highly librated objects (including most of moons, Luna, or even Earth) "
-            "vary drastically even over a short period, hence the listed states shall not be used as fixed parameters for long term prediction.\n"
+            "Note: Rotational states of highly librated objects (including most of moons, Luna, or even Earth) vary drastically "
+            "even over a short period, hence the listed states shall not be used as fixed parameters for long term prediction.\n"
             "Note: Rotational states of irregular/chaotic satellites may be not reliable.\n\n",
             JD_Pricipia
         );
@@ -278,18 +303,19 @@ int main_for_ksp(const char *eph_path){
                 break;
             vec r=ICRS_Equator.tolocal(m.r)/1000;
             vec v=ICRS_Equator.tolocal(m.v)/1000;
-            vec w=ICRS_Equator.tolocal(m.w);
+            vec w=ICRS_Equator.tolocal(m.w)*(86400/Constants::degree);
             vec x=ICRS_Equator.tolocal(m.s.x);
             vec z=ICRS_Equator.tolocal(m.s.z);
             r-=rsun;
             v-=vsun;
             fprintf(fout,"[%16s] %s:\n",ereader.get_massinfo(ssid).name.c_str(),ssid);
-            fprintf(fout,"Position    { %+.17e, %+.17e, %+.17e }  km\n"  ,r.x,r.y,r.z);
+            fprintf(fout,"Position    { %+.17e, %+.17e, %+.17e }  km\n",r.x,r.y,r.z);
             fprintf(fout,"Velocity    { %+.17e, %+.17e, %+.17e }  km/s\n",v.x,v.y,v.z);
-            fprintf(fout,"Rotation    { %+.17e, %+.17e, %+.17e } rad/s\n",w.x,w.y,w.z);
-            fprintf(fout,"       X    { %+.17e, %+.17e, %+.17e } unit\n" ,x.x,x.y,x.z);
-            fprintf(fout,"       Z    { %+.17e, %+.17e, %+.17e } unit\n" ,z.x,z.y,z.z);
+            fprintf(fout,"Rotation    { %+.17e, %+.17e, %+.17e } deg/d\n",w.x,w.y,w.z);
+            fprintf(fout,"       X    { %+.17e, %+.17e, %+.17e } unit\n",x.x,x.y,x.z);
+            fprintf(fout,"       Z    { %+.17e, %+.17e, %+.17e } unit\n",z.x,z.y,z.z);
             fprintf(fout,"\n");
+            mids.insert(ms.get_mid(ssid));
         }
         fclose(fout);
     }
@@ -301,20 +327,179 @@ int main_for_ksp(const char *eph_path){
         return 1;
     }
 
+    for(int_t mid:mids){
+        const mass &mi=ms[mid];
+        const auto &minfo=ereader.get_massinfo(mid);
+        pmodel.append(mid,minfo.name,mi.GM0,mi.R);
+    }
+/*
     MFILE *fpcfg=mopen("R:\\gravity_model.cfg",MFILE_STATE::WRITE_FILE);
     std::string pcfg=pmodel.to_string();
     fwrite(pcfg.c_str(),1,pcfg.size(),fpcfg);
-    fclose(fpcfg);
+    fclose(fpcfg);*/
 
-    int_t n_points=0;
+    //record data over 1951~2049
     constexpr double JD_Elements=2433647.5;
-    for(double t_start=JDToTDB(JD_Elements),t_eph=t_start;t_eph<=-t_start;t_eph+=3600){
+    constexpr double interval=3600*60;
+    const auto &bs=ms.get_barycens();
+    int_t n_points=0,i_j2000=-1;
+    struct statistics{
+        struct stat_param{
+            //rotation
+            vec w,x,z;
+            //if has orbit:
+            vec r,v;
+            double GM;
+        };
+        int_t pmid;
+        std::vector<stat_param> data;
+
+        statistics(int_t _pmid):pmid(_pmid){}
+    };
+    std::map<int_t,statistics> mstats;
+    ereader.update_physics_parallel_option=1;
+    ereader.update_bsystem=true;
+    ereader.update_physics=true;
+    ereader.update_orbits=true;
+    const double t_start=JDToTDB(JD_Elements);
+    for(double t_eph=t_start;t_eph<=-t_start;t_eph+=interval){
         if(!ereader.checkout(t_eph)){
             LogError("Checkout Failed at %llds\n",(int_t)t_eph);
-            break;
+            return 1;
+        }
+        if(n_points%256==0)LogInfo(" %lld\r",n_points);
+        if(t_eph==0)i_j2000=n_points;
+
+        for(auto &pm:pmodel.models){
+            const mass &mi=ms[pm.mid];
+            const auto &minfo=ereader.get_massinfo(pm.mid);
+            const auto &bi=bs[pm.mid];
+            if(bi.mid!=pm.mid||bi.hid>=0){
+                LogError("Weired bsystem.\n");
+                return 2;
+            }
+            const int_t pbid=bs[bi.tid].pid,pmid=pbid<0?-1:bs[pbid].mid;
+            if(n_points==0)
+                pm.pmid=pmid;
+            else if(pm.pmid!=pmid){
+                LogError("Parent changed, not supported.\n");
+                return 3;
+            }
+            auto &mrec=mstats.try_emplace(pm.mid,pmid).first->second.data.emplace_back();
+            //rotations
+            mrec.w=ICRS_Equator.tolocal(mi.w);
+            mrec.x=ICRS_Equator.tolocal(mi.s.x);
+            mrec.z=ICRS_Equator.tolocal(mi.s.z);
+            //orbits
+            if(pmid>=0){
+                mrec.GM=minfo.keplerian_GM;
+                mrec.r=ICRS_Equator.tolocal(minfo.state_vectors.r);
+                mrec.v=ICRS_Equator.tolocal(minfo.state_vectors.v);
+            }
         }
         ++n_points;
-        if(n_points%256==0)printf(" %lld\r",n_points);
+    }
+
+    //process statistics
+    auto make_ra=[](double alpha){
+        alpha=angle_reduce(alpha);
+        return (alpha<0?alpha+Constants::pi_mul2:alpha)/Constants::degree;
+    };
+    auto make_dec=[](double delta){
+        return delta/Constants::degree;
+    };
+    for(auto &pm:pmodel.models){
+        int_t mid=pm.mid;
+        auto &mstat=mstats.at(mid);
+        int_t pmid=mstat.pmid;
+        const auto &mdata=mstat.data;
+        const auto *pdata=pmid>=0?&mstats.at(pmid).data:nullptr;
+        if(mdata.size()!=n_points||pdata&&pdata->size()!=n_points){
+            LogError("Missing data.\n");
+            return 4;
+        }
+
+        vec jrot(0);
+        double ra2000(NAN),dec2000(NAN),W2000(NAN);
+        double rot_sum=0,last_rot;
+        bool rotation_failed=false/*,rotation_reverse=pm.angfreq<0*/;
+        for(int_t i=0;i<n_points;++i){
+            const auto &mdi=mdata[i];
+            const auto &pdi=pdata[i];
+
+            while(!rotation_failed){
+                jrot+=mdi.w;
+                vec mz=/*rotation_reverse?-mdi.z:*/mdi.z;
+                if(i==i_j2000&&pm.name=="Earth"){
+                    //fix earth's ra/dec to 0/90 at J2000, this may lead to some error... on the order of nutation & leap seconds.
+                    mz=vec(0,0,1);
+                }
+                double alpha=mz.lon();
+                double delta=mz.lat();
+                mat asc_node(vec::from_lon_lat(alpha+Constants::pi_div2,0),0,mz);
+                double W=asc_node.lon(mdi.x);
+                double rot_angle=alpha+Constants::pi_div2+W;
+                if(i){
+                    double rot_expect=last_rot+mdi.w.norm()*(/*rotation_reverse?-interval:*/interval);
+                    double delta_rot=angle_reduce(rot_angle-rot_expect);
+                    if(std::abs(delta_rot)>Constants::pi_div4){
+                        LogError("Rotation Error for %s.\n",pm.name.c_str());
+                        rotation_failed=true;
+                        break;
+                    }
+                    rot_angle=rot_expect+delta_rot;
+                    rot_sum+=rot_angle-last_rot;
+                }
+                last_rot=rot_angle;
+                if(i==i_j2000){
+                    ra2000=alpha;
+                    dec2000=delta;
+                    W2000=W;
+                }
+                break;
+            }
+        }
+        double total_time=(n_points-1)*interval;
+        if(!rotation_failed){
+            rot_sum/=total_time;
+            mat sj2000(1);
+            sj2000.rotz(Constants::pi_div2+ra2000).rotx(Constants::pi_div2-dec2000).rotz(W2000);
+            rotational_param_t rotparam(sj2000,sj2000.z*rot_sum);
+            bool rotation_reverse=!(pm.angfreq>0)&&ICRS_Equator.toworld(jrot).z<0;
+            if(rotation_reverse){
+                jrot=-jrot;
+                rot_sum=-rot_sum;
+                W2000=Constants::pi-W2000;
+                ra2000+=Constants::pi;
+                dec2000=-dec2000;
+            }
+            double mean_alpha=make_ra(jrot.lon()),mean_delta=make_dec(jrot.lat());
+            ra2000=make_ra(ra2000);
+            dec2000=make_dec(dec2000);
+            W2000=make_ra(W2000);
+            if(W2000>359.9999||W2000<0.0001)W2000=0;
+
+            //deg/d
+            double angular_freq=rot_sum*(86400/Constants::degree);
+            printf("rotfreq for %s is %f, principia: %f\n",pm.name.c_str(),angular_freq,pm.angfreq);
+            printf("mean [%f,%f], 2000 [%f,%f,%f], principia [%f,%f,%f]\n",
+                mean_alpha,mean_delta,
+                ra2000,dec2000,W2000,
+                pm.ra,pm.dec,pm.W
+                );
+
+            //error analysis
+            double err_x=0,err_z=0;
+            for(int_t i=0;i<n_points;++i){
+                const auto &mdi=mdata[i];
+                mat st;
+                vec wt;
+                rotparam.sw(t_start+i*interval,st,wt);
+                checked_maximize(err_x,(st.x-mdi.x).norm());
+                checked_maximize(err_z,(st.z-mdi.z).norm());
+            }
+            printf("maxerr on meridian, pole: [%f, %f] chord\n",err_x,err_z);
+        }
     }
 
     return 0;
