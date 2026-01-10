@@ -201,7 +201,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
         for(int_t mi=0;mi<mn;++mi){
             fprintf(&mf_readme,
-                "%12lld : %s\n",mi,(char*)&ms[mi].sid
+                "%12lld : %s\n",mi,ms[mi].get_ssid()
             );
         }
 

@@ -44,6 +44,28 @@ double keplerian::dkep(double x){
     return -2/x/(x*x);
 }
 
+double keplerian::mean_motion() const{
+    double rjj=-q*(q+2)/(j%j);
+    return sqrt(rjj)*rjj;
+}
+
+keplerian keplerian::tolocal(const mat &mat,const keplerian &src){
+    keplerian result(src);
+    result.j=mat.tolocal(src.j);
+    vec oldan=src.j.asc_node();
+    vec newan=mat.toworld(result.j.asc_node());
+    result.earg-=atan2(oldan*newan%src.j.unit(),oldan%newan);
+    return result;
+}
+keplerian keplerian::toworld(const mat &mat,const keplerian &src){
+    keplerian result(src);
+    result.j=mat.toworld(src.j);
+    vec oldan=src.j.asc_node();
+    vec newan=mat.tolocal(result.j.asc_node());
+    result.earg-=atan2(oldan*newan%src.j.unit(),oldan%newan);
+    return result;
+}
+
 keplerian::keplerian(const vec &r,const vec &v){
     //precision of j is crutial for further calculation...
     j=vec(mpvec(r)*mpvec(v));

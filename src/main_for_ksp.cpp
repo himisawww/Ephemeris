@@ -3,7 +3,8 @@
 #include"modules/ephemeris_generator.h"
 #include"math/state_parameters.h"
 #include"utils/logger.h"
-#pragma optimize("",off)
+#include"physics/geopotential.h"
+
 class principia_model{
     typedef const std::string &strref;
     static bool is_starts_with(strref s,const char *start){
@@ -71,7 +72,7 @@ public:
                 if(gpmodel.count(2)==gpmodel.size()&&use_jn(gpmodel.at(2)))
                     result+=strprintf(
                         "    j2                      = %.17e\n"
-                        ,gpmodel.at(2)[0].first
+                        ,gpmodel.at(2)[0].first/geopotential_factor(2,0)
                     );
                 else for(const auto &gp:gpmodel){
                     int n=gp.first;
@@ -87,7 +88,7 @@ public:
                             "        j     = %.17e\n"
                             "        sin   = 0.00000000000000000e+00\n"
                             "      }\n"
-                            ,gpn[0].first);
+                            ,gpn[0].first/geopotential_factor(n,0));
                     else for(int m=0;m<=n;++m){
                         if(!gpn[m].first&&!gpn[m].second)
                             continue;
@@ -190,7 +191,9 @@ public:
                             success=expect(cur_model.ref_radius,eqr,"m");
                     }
                     else if(eql=="j2"&&cur_model.gpmodel.empty()){
-                        success=expect(cur_model.gpmodel.try_emplace(2,3).first->second[0].first,eqr,"");
+                        double &j2=cur_model.gpmodel.try_emplace(2,3).first->second[0].first;
+                        if(success=expect(j2,eqr,""))
+                            j2*=geopotential_factor(2,0);
                     }
                     if(!success)
                         return;
@@ -210,8 +213,10 @@ public:
                 else{
                     auto &gp=cur_model.gpmodel.try_emplace(n,n+1).first->second[m];
                     bool success=false;
-                    if(eql=="j")
-                        success=m==0&&expect(gp.first,eqr,"");
+                    if(eql=="j"){
+                        if(success=m==0&&expect(gp.first,eqr,""))
+                            gp.first*=geopotential_factor(n,0);
+                    }
                     else if(eql=="cos")
                         success=expect(gp.first,eqr,"");
                     else if(eql=="sin")
@@ -272,10 +277,10 @@ static double JDToTDB(double JD){
     return 86400*(JD-2451545);
 }
 
-int main_for_ksp(const char *eph_path){
+int main_for_ksp(const char *eph_path,const char *principia_model_path,const char *export_path){
     ephemeris_reader ereader(eph_path);
     if(!ereader)
-        return -1;
+        return __LINE__;
     const msystem &ms=ereader.get_msystem();
 
     std::set<int_t> mids;
@@ -289,7 +294,7 @@ int main_for_ksp(const char *eph_path){
             vsun(-7.799754996220354e-03,-5.561927893069310e-03,-2.253148239533338e-03);
         rsun=ICRS_Equator.tolocal(ms["10"].r)/1000-rsun;
         vsun=ICRS_Equator.tolocal(ms["10"].v)/1000-vsun;
-        MFILE *fout=mopen(strprintf("r:\\ICRS_Equator_State[JD.%f].txt",JD_Pricipia),MFILE_STATE::WRITE_FILE);
+        MFILE *fout=mopen(strprintf("%sICRS_Equator_State[JD.%f].txt",export_path,JD_Pricipia),MFILE_STATE::WRITE_FILE);
         fprintf(fout,
             "Note: Instant state vectors at TDB JD %f, represented in ICRS-Equator.\n"
             "Note: Rotational states of highly librated objects (including most of moons, Luna, or even Earth) vary drastically "
@@ -298,7 +303,7 @@ int main_for_ksp(const char *eph_path){
             JD_Pricipia
         );
         for(const mass &m:ms){
-            const char *ssid=(const char *)&m.sid;
+            const char *ssid=m.get_ssid();
             if(*ssid=='A')
                 break;
             vec r=ICRS_Equator.tolocal(m.r)/1000;
@@ -309,22 +314,21 @@ int main_for_ksp(const char *eph_path){
             r-=rsun;
             v-=vsun;
             fprintf(fout,"[%16s] %s:\n",ereader.get_massinfo(ssid).name.c_str(),ssid);
-            fprintf(fout,"Position    { %+.17e, %+.17e, %+.17e }  km\n",r.x,r.y,r.z);
+            fprintf(fout,"Position    { %+.17e, %+.17e, %+.17e }  km\n"  ,r.x,r.y,r.z);
             fprintf(fout,"Velocity    { %+.17e, %+.17e, %+.17e }  km/s\n",v.x,v.y,v.z);
             fprintf(fout,"Rotation    { %+.17e, %+.17e, %+.17e } deg/d\n",w.x,w.y,w.z);
-            fprintf(fout,"       X    { %+.17e, %+.17e, %+.17e } unit\n",x.x,x.y,x.z);
-            fprintf(fout,"       Z    { %+.17e, %+.17e, %+.17e } unit\n",z.x,z.y,z.z);
+            fprintf(fout,"       X    { %+.17e, %+.17e, %+.17e } unit\n" ,x.x,x.y,x.z);
+            fprintf(fout,"       Z    { %+.17e, %+.17e, %+.17e } unit\n" ,z.x,z.y,z.z);
             fprintf(fout,"\n");
             mids.insert(ms.get_mid(ssid));
         }
         fclose(fout);
     }
 
-    const char *principia_model_path="E:\\SteamLibrary\\steamapps\\KSP_RSS\\GameData\\Principia\\real_solar_system\\gravity_model.cfg";
     principia_model pmodel(ereader,principia_model_path);
     if(!pmodel){
         LogError("Cannot load %s as Principia gravity_model.\n",principia_model_path);
-        return 1;
+        return __LINE__;
     }
 
     for(int_t mid:mids){
@@ -332,15 +336,10 @@ int main_for_ksp(const char *eph_path){
         const auto &minfo=ereader.get_massinfo(mid);
         pmodel.append(mid,minfo.name,mi.GM0,mi.R);
     }
-/*
-    MFILE *fpcfg=mopen("R:\\gravity_model.cfg",MFILE_STATE::WRITE_FILE);
-    std::string pcfg=pmodel.to_string();
-    fwrite(pcfg.c_str(),1,pcfg.size(),fpcfg);
-    fclose(fpcfg);*/
 
     //record data over 1951~2049
     constexpr double JD_Elements=2433647.5;
-    constexpr double interval=3600*60;
+    constexpr double interval=3600;
     const auto &bs=ms.get_barycens();
     int_t n_points=0,i_j2000=-1;
     struct statistics{
@@ -350,8 +349,14 @@ int main_for_ksp(const char *eph_path){
             //if has orbit:
             vec r,v;
             double GM;
+            //harmonics 2
+            mat h2;
         };
         int_t pmid;
+        mat eq_frame;
+        rotational_param_t rotparam;
+        double GM_nominal;
+        bool rotation_reverse;
         std::vector<stat_param> data;
 
         statistics(int_t _pmid):pmid(_pmid){}
@@ -365,7 +370,7 @@ int main_for_ksp(const char *eph_path){
     for(double t_eph=t_start;t_eph<=-t_start;t_eph+=interval){
         if(!ereader.checkout(t_eph)){
             LogError("Checkout Failed at %llds\n",(int_t)t_eph);
-            return 1;
+            return __LINE__;
         }
         if(n_points%256==0)LogInfo(" %lld\r",n_points);
         if(t_eph==0)i_j2000=n_points;
@@ -376,14 +381,14 @@ int main_for_ksp(const char *eph_path){
             const auto &bi=bs[pm.mid];
             if(bi.mid!=pm.mid||bi.hid>=0){
                 LogError("Weired bsystem.\n");
-                return 2;
+                return __LINE__;
             }
             const int_t pbid=bs[bi.tid].pid,pmid=pbid<0?-1:bs[pbid].mid;
             if(n_points==0)
                 pm.pmid=pmid;
             else if(pm.pmid!=pmid){
                 LogError("Parent changed, not supported.\n");
-                return 3;
+                return __LINE__;
             }
             auto &mrec=mstats.try_emplace(pm.mid,pmid).first->second.data.emplace_back();
             //rotations
@@ -396,11 +401,14 @@ int main_for_ksp(const char *eph_path){
                 mrec.r=ICRS_Equator.tolocal(minfo.state_vectors.r);
                 mrec.v=ICRS_Equator.tolocal(minfo.state_vectors.v);
             }
+            //harmonics
+            mrec.h2=fast_mpmat(mi.s).tolocal(mi.C_potential);
         }
         ++n_points;
     }
 
     //process statistics
+    const double total_time=(n_points-1)*interval;
     auto make_ra=[](double alpha){
         alpha=angle_reduce(alpha);
         return (alpha<0?alpha+Constants::pi_mul2:alpha)/Constants::degree;
@@ -408,25 +416,26 @@ int main_for_ksp(const char *eph_path){
     auto make_dec=[](double delta){
         return delta/Constants::degree;
     };
+    //build rotation & physical properties
     for(auto &pm:pmodel.models){
         int_t mid=pm.mid;
         auto &mstat=mstats.at(mid);
         int_t pmid=mstat.pmid;
         const auto &mdata=mstat.data;
-        const auto *pdata=pmid>=0?&mstats.at(pmid).data:nullptr;
-        if(mdata.size()!=n_points||pdata&&pdata->size()!=n_points){
+        if(mdata.size()!=n_points){
             LogError("Missing data.\n");
-            return 4;
+            return __LINE__;
         }
 
         vec jrot(0);
         double ra2000(NAN),dec2000(NAN),W2000(NAN);
         double rot_sum=0,last_rot;
         bool rotation_failed=false/*,rotation_reverse=pm.angfreq<0*/;
+        mat h2sum(0);
         for(int_t i=0;i<n_points;++i){
             const auto &mdi=mdata[i];
-            const auto &pdi=pdata[i];
 
+            h2sum+=mdi.h2;
             while(!rotation_failed){
                 jrot+=mdi.w;
                 vec mz=/*rotation_reverse?-mdi.z:*/mdi.z;
@@ -459,48 +468,238 @@ int main_for_ksp(const char *eph_path){
                 break;
             }
         }
-        double total_time=(n_points-1)*interval;
-        if(!rotation_failed){
+        {
+            pm.gravitational_parameter=ms[mid].GM0;
+
+            double c2[3],s2[2];
+            h2sum/=n_points;
+            h2sum.to_harmonics(c2[0],c2[1],c2[2],s2[0],s2[1]);
+
+            if(pm.gpmodel.empty()){
+                bool add_s21=std::abs(s2[0])>0.005;
+                bool add_s22=add_s21||std::abs(s2[1])>0.005;
+                bool add_c21=add_s21||std::abs(c2[1])>0.005;
+                bool add_c22=add_s22||std::abs(c2[2])>0.005;
+                bool add_j2=add_c22||std::abs(c2[0])>0.01;
+                if(add_j2||add_c21||add_c22||add_s21||add_s22){
+                    auto &hp=pm.gpmodel.try_emplace(2,3).first->second;
+                    if(add_j2)hp[0].first=NAN;
+                    if(add_c21)hp[1].first=NAN;
+                    if(add_s21)hp[1].second=NAN;
+                    if(add_c22)hp[2].first=NAN;
+                    if(add_s22)hp[2].second=NAN;
+                    pm.ref_radius=ms[mid].R;
+                }
+            }
+
+            double Rfac=ms[mid].R/pm.ref_radius;
+            const geopotential *mgp=ms[mid].gpmodel;
+            for(auto &hp:pm.gpmodel){
+                int n=hp.first;
+                for(int m=0;m<=n;++m){
+                    auto &cs=hp.second[m];
+                    bool has_cos=cs.first,has_sin=cs.second;
+                    if(!has_cos&&!has_sin)
+                        continue;
+                    double pfac=principia_model::geopotential_factor(n,m)*std::pow(Rfac,n);
+                    if(cs.first){
+                        if(n==2)cs.first=pfac*c2[m];
+                        else if(mgp){
+                            double cnm=mgp->get_C(n,m);
+                            if(cnm)cs.first=cnm*pfac;
+                        }
+                    }
+                    if(cs.second){
+                        if(n==2)cs.second=pfac*s2[m-1];
+                        else if(mgp){
+                            double snm=mgp->get_S(n,m);
+                            if(snm)cs.second=snm*pfac;
+                        }
+                    }
+                }
+            }
+        }
+        if(rotation_failed)
+            mstat.rotparam.w=NAN;
+        else{
             rot_sum/=total_time;
             mat sj2000(1);
             sj2000.rotz(Constants::pi_div2+ra2000).rotx(Constants::pi_div2-dec2000).rotz(W2000);
-            rotational_param_t rotparam(sj2000,sj2000.z*rot_sum);
-            bool rotation_reverse=!(pm.angfreq>0)&&ICRS_Equator.toworld(jrot).z<0;
-            if(rotation_reverse){
+            mstat.rotparam=rotational_param_t(sj2000,sj2000.z*rot_sum);
+            mstat.rotation_reverse=!(pm.angfreq>0)&&ICRS_Equator.toworld(jrot).z<0;
+            if(mstat.rotation_reverse){
                 jrot=-jrot;
                 rot_sum=-rot_sum;
                 W2000=Constants::pi-W2000;
                 ra2000+=Constants::pi;
                 dec2000=-dec2000;
             }
+            mstat.eq_frame=mat(1).rotz(Constants::pi_div2+ra2000).rotx(Constants::pi_div2-dec2000);
+            mstat.GM_nominal=pm.gravitational_parameter;
             double mean_alpha=make_ra(jrot.lon()),mean_delta=make_dec(jrot.lat());
             ra2000=make_ra(ra2000);
             dec2000=make_dec(dec2000);
             W2000=make_ra(W2000);
             if(W2000>359.9999||W2000<0.0001)W2000=0;
 
-            //deg/d
-            double angular_freq=rot_sum*(86400/Constants::degree);
-            printf("rotfreq for %s is %f, principia: %f\n",pm.name.c_str(),angular_freq,pm.angfreq);
-            printf("mean [%f,%f], 2000 [%f,%f,%f], principia [%f,%f,%f]\n",
-                mean_alpha,mean_delta,
-                ra2000,dec2000,W2000,
-                pm.ra,pm.dec,pm.W
-                );
+            pm.ra=ra2000;
+            pm.dec=dec2000;
+            pm.W=W2000;
+            pm.angfreq=rot_sum*(86400/Constants::degree);
+        }
+    }
 
-            //error analysis
-            double err_x=0,err_z=0;
+    //build orbit
+    double err_k=0;
+    int err_flag=0;
+    MFILE *forbit=mopen(strprintf("%sorbit_parameter[JD.%f].txt",export_path,JD_Elements),MFILE_STATE::WRITE_FILE);
+    for(auto &pm:pmodel.models){
+        int_t mid=pm.mid;
+        auto &mstat=mstats.at(mid);
+        int_t pmid=mstat.pmid;
+        const auto &mdata=mstat.data;
+        if(pmid<0)
+            continue;
+        const auto &pstat=mstats.at(pmid);
+        const auto &pdata=pstat.data;
+        const mat &ps=pstat.eq_frame;
+        if(pdata.size()!=n_points||!pstat.rotparam.w.is_finite()){
+            LogError("Missing orbit parent data.\n");
+            err_flag=__LINE__;
+            break;
+        }
+
+        double GM_sum=0;
+        double mean_motion_sum=0,last_mean_longitude;
+        double inclsum=0,esum=0;
+        double lan0(NAN),argp0(NAN),ml2000(NAN);
+        bool orbit_failed=false;
+        for(int_t i=0;i<n_points;++i){
+            const auto &mdi=mdata[i];
+
+            while(!orbit_failed){
+                const auto &pdi=pdata[i];
+                mat psi(pdi.x,0,pstat.rotation_reverse?-pdi.z:pdi.z);
+                GM_sum+=mdi.GM;
+                keplerian::mu mu(mdi.GM);
+                keplerian keq(mu,mdi.r,mdi.v),kprot(mu,psi.tolocal(mdi.r),psi.tolocal(mdi.v));
+                orbital_param_t orbeq(keq);
+                inclsum+=kprot.j.theta();
+                esum+=keq.q+1;
+                if(i){
+                    double ml_expect=last_mean_longitude+keq.mean_motion(mu)*interval;
+                    double delta_ml=angle_reduce(orbeq.ml-ml_expect);
+                    if(std::abs(delta_ml)>Constants::pi_div4){
+                        LogError("Orbit Error for %s.\n",pm.name.c_str());
+                        orbit_failed=true;
+                        break;
+                    }
+                    mean_motion_sum+=ml_expect+delta_ml-last_mean_longitude;
+                }
+                if(i==i_j2000)
+                    ml2000=orbeq.ml;
+                if(i==0){
+                    keplerian k0(mu,ps.tolocal(mdi.r),ps.tolocal(mdi.v));
+                    lan0=k0.j.asc_node().lon();
+                    argp0=k0.earg;
+                }
+                last_mean_longitude=orbeq.ml;
+                break;
+            }
+        }
+        if(!orbit_failed){
+            GM_sum/=n_points;
+            inclsum/=n_points;
+            esum/=n_points;
+            mean_motion_sum/=total_time;
+
+            //rebuild orbit using
+            //longitude of ascending node & argument of periapsis, in parent-body's equator frame, at Epoch 0;
+            //inclination about parent's equator & eccentricity & mean sidereal motion, averaged over [1951,2049];
+            //mean anomaly at Epoch 0, obtained by instant mean anomaly at J2000 and mean motion.
+            keplerian kprot;
+            keplerian::mu mu(GM_sum);
+            kprot.j=vec(0,0,1).rotx(inclsum).rotz(lan0);
+            kprot.q=esum-1;
+            kprot.earg=argp0;
+            kprot.m=0;
+            kprot.j*=std::cbrt(kprot.mean_motion(mu)/mean_motion_sum);
+
+            //convert to ICRS Equator
+            vec r,v,ri,vi;
+            keplerian keq=keplerian::toworld(ps,kprot);
+            double mfac=-keq.q*(keq.q+2);
+            mfac*=std::sqrt(mfac);
+            keq.m+=(angle_reduce(ml2000+mean_motion_sum*t_start)-orbital_param_t(keq).ml)/mfac;
+            kprot=keplerian::tolocal(ps,keq);
+
+            //orbital error analysis
+            double err_m=0,err_p=0;
             for(int_t i=0;i<n_points;++i){
+                const auto &mdi=mdata[i];
+                kprot.rv(mu,i*interval,r,v);
+                keq.rv(mu,i*interval,ri,vi);
+                checked_maximize(err_p,std::atan2((mdi.r*ri).norm(),mdi.r%ri));
+                ri=ps.tolocal(ri);
+                checked_maximize(err_k,std::atan2((ri*r).norm(),ri%r)/(1+mean_motion_sum*i*interval/Constants::pi_mul2));
+
+                double cur_ml=orbital_param_t(keplerian(mu,mdi.r,mdi.v)).ml;
+                double ml_expect=ml2000+(t_start+i*interval)*mean_motion_sum;
+                checked_maximize(err_m,std::abs(angle_reduce(cur_ml-ml_expect)));
+            }
+
+            //rotational error analysis
+            double err_x=0,err_z=0;
+            if(mstat.rotparam.w.is_finite())for(int_t i=0;i<n_points;++i){
                 const auto &mdi=mdata[i];
                 mat st;
                 vec wt;
-                rotparam.sw(t_start+i*interval,st,wt);
+                mstat.rotparam.sw(t_start+i*interval,st,wt);
                 checked_maximize(err_x,(st.x-mdi.x).norm());
                 checked_maximize(err_z,(st.z-mdi.z).norm());
             }
-            printf("maxerr on meridian, pole: [%f, %f] chord\n",err_x,err_z);
+            else err_x=err_z=NAN;
+            fprintf(forbit,
+                "%s[%s]:\n"
+                "   # maxerr of orbital mean longitude, position: [%f, %f] rad\n"
+                "   # maxerr of rotation meridian, pole: [%f, %f] chord\n"
+                "       meanMotion = %.17e\n"
+                "       semiMajorAxis = %.17e\n"
+                "       eccentricity = %.17f\n"
+                "       meanAnomalyAtEpochD = %.17f\n"
+                "   # in body mean equator frame of parent\n"
+                "       inclination = %.17f\n"
+                "       longitudeOfAscendingNode = %.17f\n"
+                "       argumentOfPeriapsis = %.17f\n"
+                "   # in ICRS Equator\n"
+                "       inclination = %.17f\n"
+                "       longitudeOfAscendingNode = %.17f\n"
+                "       argumentOfPeriapsis = %.17f\n"
+                "       epoch = 0\n"
+                ,pm.name.c_str(),ms[mid].get_ssid(),
+                err_m,err_p,err_x,err_z,
+                mean_motion_sum,
+                std::cbrt(pstat.GM_nominal/(mean_motion_sum*mean_motion_sum)),
+                esum,
+                make_ra(kprot.m*mfac),
+                make_dec(kprot.j.theta()),
+                make_ra(kprot.j.asc_node().lon()),
+                make_ra(kprot.earg),
+                make_dec(keq.j.theta()),
+                make_ra(keq.j.asc_node().lon()),
+                make_ra(keq.earg));
+
         }
     }
+    fclose(forbit);
+    if(err_flag)
+        return err_flag;
+    printf("max keplerian error %.17e\n",err_k);
+
+    MFILE *fpcfg=mopen(strprintf("%snew_gravity_model.cfg",export_path),MFILE_STATE::WRITE_FILE);
+    std::string pcfg=pmodel.to_string();
+    fwrite(pcfg.c_str(),1,pcfg.size(),fpcfg);
+    fclose(fpcfg);
 
     return 0;
 }

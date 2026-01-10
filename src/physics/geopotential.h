@@ -23,6 +23,10 @@ public:
     static bool is_same(const geopotential *,const geopotential *);
     //sizeof this structure
     int_t size() const;
+    int_t max_degree() const{ return Nz; }
+    double get_J(int_t n) const;
+    double get_C(int_t n,int_t m) const;
+    double get_S(int_t n,int_t m) const;
     //R: radius of the Extended Body
     //r: point mass position from the Extended Body,
     //      represented in body-fixed coordinate system
