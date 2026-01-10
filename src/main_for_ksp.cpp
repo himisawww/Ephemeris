@@ -553,6 +553,8 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 dec2000=-dec2000;
             }
             mstat.eq_frame=mat(1).rotz(Constants::pi_div2+ra2000).rotx(Constants::pi_div2-dec2000);
+            if(mid==0)
+                mstat.eq_frame=ICRS_Equator.transpose();
             mstat.GM_nominal=pm.gravitational_parameter;
             double mean_alpha=make_ra(jrot.lon()),mean_delta=make_dec(jrot.lat());
             ra2000=make_ra(ra2000);
@@ -574,6 +576,11 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
     double err_k=0;
     int err_flag=0;
     MFILE *forbit=mopen(strprintf("%sorbit_parameter[JD.%f].txt",export_path,JD_Elements),MFILE_STATE::WRITE_FILE);
+    fprintf(forbit,
+        "#Note: longitude of ascending node & argument of periapsis are in parent-body's equator frame, at Epoch 0;\n"
+        "#Note: inclination about parent's equator & eccentricity & mean sidereal motion are averaged over [1951,2049];\n"
+        "#Note: mean anomaly at Epoch 0 are obtained by instant mean anomaly at J2000 and mean motion.\n"
+    );
     for(auto &pm:pmodel.models){
         int_t mid=pm.mid;
         auto &mstat=mstats.at(mid);
@@ -601,6 +608,8 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             while(!orbit_failed){
                 const auto &pdi=pdata[i];
                 mat psi(pdi.x,0,pstat.rotation_reverse?-pdi.z:pdi.z);
+                if(pmid==0)
+                    psi=ps;
                 GM_sum+=mdi.GM;
                 keplerian::mu mu(mdi.GM);
                 keplerian keq(mu,mdi.r,mdi.v),kprot(mu,psi.tolocal(mdi.r),psi.tolocal(mdi.v));
@@ -634,10 +643,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             esum/=n_points;
             mean_motion_sum/=total_time;
 
-            //rebuild orbit using
-            //longitude of ascending node & argument of periapsis, in parent-body's equator frame, at Epoch 0;
-            //inclination about parent's equator & eccentricity & mean sidereal motion, averaged over [1951,2049];
-            //mean anomaly at Epoch 0, obtained by instant mean anomaly at J2000 and mean motion.
+            //rebuild orbit
             keplerian kprot;
             keplerian::mu mu(GM_sum);
             kprot.j=vec(0,0,1).rotx(inclsum).rotz(lan0);
@@ -697,7 +703,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 "       semiMajorAxis = %.17e   # nominal value deduced from meanMotion & GM = %.17e\n"
                 "       eccentricity = %.17f\n"
                 "       meanAnomalyAtEpochD = %.17f\n"
-                "   # in body mean equator frame of parent\n"
+                "   # in %s\n"
                 "       inclination = %.17f\n"
                 "       longitudeOfAscendingNode = %.17f\n"
                 "       argumentOfPeriapsis = %.17f\n"
@@ -712,6 +718,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 std::cbrt(pstat.GM_nominal/(mean_motion_sum*mean_motion_sum)),pstat.GM_nominal,
                 esum,
                 make_ra(kprot.m*mfac),
+                pmid==0?"ICRS Ecliptic":strprintf("body mean equator frame of %s",ereader.get_massinfo(mstat.pmid).name.c_str()).c_str(),
                 make_dec(kprot.j.theta()),
                 make_ra(kprot.j.asc_node().lon()),
                 make_ra(kprot.earg),
