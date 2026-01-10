@@ -283,7 +283,19 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         return __LINE__;
     const msystem &ms=ereader.get_msystem();
 
+    principia_model pmodel(ereader,principia_model_path);
+    if(!pmodel){
+        LogError("Cannot load %s as Principia gravity_model.\n",principia_model_path);
+        return __LINE__;
+    }
+
     std::set<int_t> mids;
+    std::vector<const char *> bonus{"N01S1","N02","N02S1","N02S2"};
+    for(auto &pm:pmodel.models)
+        mids.insert(pm.mid);
+    for(const char *ssid:bonus)
+        mids.insert(ms.get_mid(ssid));
+
     //initial state for Principia
     mat ICRS_Equator(1);
     ICRS_Equator.rotx(-Constants::J2000_obliquity);
@@ -302,10 +314,14 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             "Note: Rotational states of irregular/chaotic satellites may be not reliable.\n\n",
             JD_Pricipia
         );
+        bool skip=false;
         for(const mass &m:ms){
             const char *ssid=m.get_ssid();
-            if(*ssid=='A')
-                break;
+            int_t mid=ms.get_mid(ssid);
+            if(!skip&&*ssid=='A')
+                skip=true;
+            if(skip&&!mids.count(mid))
+                continue;
             vec r=ICRS_Equator.tolocal(m.r)/1000;
             vec v=ICRS_Equator.tolocal(m.v)/1000;
             vec w=ICRS_Equator.tolocal(m.w)*(86400/Constants::degree);
@@ -320,15 +336,9 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             fprintf(fout,"       X    { %+.17e, %+.17e, %+.17e } unit\n" ,x.x,x.y,x.z);
             fprintf(fout,"       Z    { %+.17e, %+.17e, %+.17e } unit\n" ,z.x,z.y,z.z);
             fprintf(fout,"\n");
-            mids.insert(ms.get_mid(ssid));
+            mids.insert(mid);
         }
         fclose(fout);
-    }
-
-    principia_model pmodel(ereader,principia_model_path);
-    if(!pmodel){
-        LogError("Cannot load %s as Principia gravity_model.\n",principia_model_path);
-        return __LINE__;
     }
 
     for(int_t mid:mids){
@@ -356,6 +366,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         mat eq_frame;
         rotational_param_t rotparam;
         double GM_nominal;
+        double ra,dec,W;
         bool rotation_reverse;
         std::vector<stat_param> data;
 
@@ -430,12 +441,14 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         vec jrot(0);
         double ra2000(NAN),dec2000(NAN),W2000(NAN);
         double rot_sum=0,last_rot;
+        double wsum=0;
         bool rotation_failed=false/*,rotation_reverse=pm.angfreq<0*/;
         mat h2sum(0);
         for(int_t i=0;i<n_points;++i){
             const auto &mdi=mdata[i];
 
             h2sum+=mdi.h2;
+            wsum+=mdi.w.norm();
             while(!rotation_failed){
                 jrot+=mdi.w;
                 vec mz=/*rotation_reverse?-mdi.z:*/mdi.z;
@@ -519,8 +532,13 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 }
             }
         }
-        if(rotation_failed)
+        if(rotation_failed){
             mstat.rotparam.w=NAN;
+            if(0*pm.ra*pm.dec*pm.W*pm.angfreq){
+                wsum/=n_points;
+                pm.angfreq=wsum*(86400/Constants::degree);
+            }
+        }
         else{
             rot_sum/=total_time;
             mat sj2000(1);
@@ -547,6 +565,9 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             pm.W=W2000;
             pm.angfreq=rot_sum*(86400/Constants::degree);
         }
+        mstat.ra=pm.ra;
+        mstat.dec=pm.dec;
+        mstat.W=pm.W;
     }
 
     //build orbit
@@ -658,13 +679,22 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 checked_maximize(err_x,(st.x-mdi.x).norm());
                 checked_maximize(err_z,(st.z-mdi.z).norm());
             }
-            else err_x=err_z=NAN;
+            else{
+                err_x=err_z=NAN;
+                if(0*pm.ra*pm.dec*pm.W&&!(0*pstat.ra*pstat.dec*pstat.W)){
+                    pm.ra=pstat.ra;
+                    pm.dec=pstat.dec;
+                    pm.W=0;
+                    if(pstat.rotation_reverse)
+                        pm.angfreq=-pm.angfreq;
+                }
+            }
             fprintf(forbit,
                 "%s[%s]:\n"
                 "   # maxerr of orbital mean longitude, position: [%f, %f] rad\n"
-                "   # maxerr of rotation meridian, pole: [%f, %f] chord\n"
+                "   # maxerr of      rotation meridian,     pole: [%f, %f] chord\n"
                 "       meanMotion = %.17e\n"
-                "       semiMajorAxis = %.17e\n"
+                "       semiMajorAxis = %.17e   # nominal value deduced from meanMotion & GM = %.17e\n"
                 "       eccentricity = %.17f\n"
                 "       meanAnomalyAtEpochD = %.17f\n"
                 "   # in body mean equator frame of parent\n"
@@ -679,7 +709,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 ,pm.name.c_str(),ms[mid].get_ssid(),
                 err_m,err_p,err_x,err_z,
                 mean_motion_sum,
-                std::cbrt(pstat.GM_nominal/(mean_motion_sum*mean_motion_sum)),
+                std::cbrt(pstat.GM_nominal/(mean_motion_sum*mean_motion_sum)),pstat.GM_nominal,
                 esum,
                 make_ra(kprot.m*mfac),
                 make_dec(kprot.j.theta()),
