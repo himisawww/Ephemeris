@@ -273,7 +273,7 @@ public:
 };
 
 //J2000=TDB 0
-static double JDToTDB(double JD){
+static constexpr double JDToTDB(double JD){
     return 86400*(JD-2451545);
 }
 
@@ -348,10 +348,15 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
     }
 
     //record data over 1951~2049
+    ereader.update_physics_parallel_option=1;
+    ereader.update_bsystem=true;
+    ereader.update_physics=true;
+    ereader.update_orbits=true;
     constexpr double JD_Elements=2433647.5;
+    constexpr double t_start=JDToTDB(JD_Elements);
     constexpr double interval=3600;
     const auto &bs=ms.get_barycens();
-    int_t n_points=0,i_j2000=-1;
+    int_t n_points=0;
     struct statistics{
         struct stat_param{
             //rotation
@@ -361,6 +366,7 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             double GM;
             //harmonics 2
             mat h2;
+            double rot_angle,mean_lon;
         };
         int_t pmid;
         mat eq_frame;
@@ -371,21 +377,28 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         std::vector<stat_param> data;
 
         statistics(int_t _pmid):pmid(_pmid){}
+        double fit_midval(double stat_param::*pval,const double mean_rate){
+            int_t n_points=data.size();
+            int_t midp=(n_points-1)/2;
+            double wsum=0,asum=0;
+            for(int_t i=0;i<n_points;++i){
+                double t=t_start+i*interval;
+                double w=t/t_start;
+                w=1/(1+4*w*w);
+                wsum+=w;
+                asum+=w*(data[i].*pval-mean_rate*t);
+            }
+            return asum/wsum;
+        }
     };
     std::map<int_t,statistics> mstats;
-    ereader.update_physics_parallel_option=1;
-    ereader.update_bsystem=true;
-    ereader.update_physics=true;
-    ereader.update_orbits=true;
-    const double t_start=JDToTDB(JD_Elements);
     for(double t_eph=t_start;t_eph<=-t_start;t_eph+=interval){
         if(!ereader.checkout(t_eph)){
             LogError("Checkout Failed at %llds\n",(int_t)t_eph);
             return __LINE__;
         }
         if(n_points%256==0)LogInfo(" %lld\r",n_points);
-        if(t_eph==0)i_j2000=n_points;
-
+        
         for(auto &pm:pmodel.models){
             const mass &mi=ms[pm.mid];
             const auto &minfo=ereader.get_massinfo(pm.mid);
@@ -432,35 +445,31 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         int_t mid=pm.mid;
         auto &mstat=mstats.at(mid);
         int_t pmid=mstat.pmid;
-        const auto &mdata=mstat.data;
+        auto &mdata=mstat.data;
         if(mdata.size()!=n_points){
             LogError("Missing data.\n");
             return __LINE__;
         }
 
-        vec jrot(0);
-        double ra2000(NAN),dec2000(NAN),W2000(NAN);
+        vec zrot(0);
         double rot_sum=0,last_rot;
         double wsum=0;
         bool rotation_failed=false/*,rotation_reverse=pm.angfreq<0*/;
         mat h2sum(0);
         for(int_t i=0;i<n_points;++i){
             const auto &mdi=mdata[i];
+            double &rot_angle=mdata[i].rot_angle;
 
             h2sum+=mdi.h2;
             wsum+=mdi.w.norm();
             while(!rotation_failed){
-                jrot+=mdi.w;
+                zrot+=mdi.z;
                 vec mz=/*rotation_reverse?-mdi.z:*/mdi.z;
-                if(i==i_j2000&&pm.name=="Earth"){
-                    //fix earth's ra/dec to 0/90 at J2000, this may lead to some error... on the order of nutation & leap seconds.
-                    mz=vec(0,0,1);
-                }
                 double alpha=mz.lon();
                 double delta=mz.lat();
                 mat asc_node(vec::from_lon_lat(alpha+Constants::pi_div2,0),0,mz);
                 double W=asc_node.lon(mdi.x);
-                double rot_angle=alpha+Constants::pi_div2+W;
+                rot_angle=alpha+Constants::pi_div2+W;
                 if(i){
                     double rot_expect=last_rot+mdi.w.norm()*(/*rotation_reverse?-interval:*/interval);
                     double delta_rot=angle_reduce(rot_angle-rot_expect);
@@ -473,11 +482,6 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                     rot_sum+=rot_angle-last_rot;
                 }
                 last_rot=rot_angle;
-                if(i==i_j2000){
-                    ra2000=alpha;
-                    dec2000=delta;
-                    W2000=W;
-                }
                 break;
             }
         }
@@ -541,12 +545,18 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         }
         else{
             rot_sum/=total_time;
+            if(mid==ms.get_mid("399"))
+                zrot.x=zrot.y=0;
+            double ra2000=zrot.lon();
+            double dec2000=zrot.lat();
+            mat asc_node(vec::from_lon_lat(ra2000+Constants::pi_div2,0),0,zrot.unit());
+            double W2000=angle_reduce(mstat.fit_midval(&statistics::stat_param::rot_angle,rot_sum))-(ra2000+Constants::pi_div2);
             mat sj2000(1);
             sj2000.rotz(Constants::pi_div2+ra2000).rotx(Constants::pi_div2-dec2000).rotz(W2000);
             mstat.rotparam=rotational_param_t(sj2000,sj2000.z*rot_sum);
-            mstat.rotation_reverse=!(pm.angfreq>0)&&ICRS_Equator.toworld(jrot).z<0;
+            mstat.rotation_reverse=!(pm.angfreq>0)&&ICRS_Equator.toworld(zrot).z<0;
             if(mstat.rotation_reverse){
-                jrot=-jrot;
+                zrot=-zrot;
                 rot_sum=-rot_sum;
                 W2000=Constants::pi-W2000;
                 ra2000+=Constants::pi;
@@ -556,7 +566,6 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             if(mid==0)
                 mstat.eq_frame=ICRS_Equator.transpose();
             mstat.GM_nominal=pm.gravitational_parameter;
-            double mean_alpha=make_ra(jrot.lon()),mean_delta=make_dec(jrot.lat());
             ra2000=make_ra(ra2000);
             dec2000=make_dec(dec2000);
             W2000=make_ra(W2000);
@@ -577,15 +586,20 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
     int err_flag=0;
     MFILE *forbit=mopen(strprintf("%sorbit_parameter[JD.%f].txt",export_path,JD_Elements),MFILE_STATE::WRITE_FILE);
     fprintf(forbit,
-        "#Note: longitude of ascending node & argument of periapsis are in parent-body's equator frame, at Epoch 0;\n"
-        "#Note: inclination about parent's equator & eccentricity & mean sidereal motion are averaged over [1951,2049];\n"
-        "#Note: mean anomaly at Epoch 0 are obtained by instant mean anomaly at J2000 and mean motion.\n"
+        "#  Note for orbital elements:\n"
+        "#      longitude of ascending node & argument of periapsis are in parent-body's equator frame, at Epoch 0;\n"
+        "#      inclination about parent's equator & eccentricity & mean sidereal motion are averaged over [1951,2049];\n"
+        "#      mean anomaly at Epoch 0 are obtained by fitting mean longitude over [1951,2049] with fixed mean motion;\n"
+        "#      for planets, instead of Sun's equator, ICRS Ecliptic is used as parent-body's equator frame.\n"
+        "#  Note for rotational configs:\n"
+        "#      angular_frequency & axis_right_ascension & axis_declination are averaged over [1951,2049];\n"
+        "#      reference_angle are obtained by fitting mean meridian longitude over [1951,2049] with fixed angular_frequency.\n"
     );
     for(auto &pm:pmodel.models){
         int_t mid=pm.mid;
         auto &mstat=mstats.at(mid);
         int_t pmid=mstat.pmid;
-        const auto &mdata=mstat.data;
+        auto &mdata=mstat.data;
         if(pmid<0)
             continue;
         const auto &pstat=mstats.at(pmid);
@@ -600,10 +614,11 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
         double GM_sum=0;
         double mean_motion_sum=0,last_mean_longitude;
         double inclsum=0,esum=0;
-        double lan0(NAN),argp0(NAN),ml2000(NAN);
+        double lan0(NAN),argp0(NAN);
         bool orbit_failed=false;
         for(int_t i=0;i<n_points;++i){
-            const auto &mdi=mdata[i];
+            auto &mdi=mdata[i];
+            double &ml=mdata[i].mean_lon;
 
             while(!orbit_failed){
                 const auto &pdi=pdata[i];
@@ -616,24 +631,24 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
                 orbital_param_t orbeq(keq);
                 inclsum+=kprot.j.theta();
                 esum+=keq.q+1;
+                ml=orbeq.ml;
                 if(i){
                     double ml_expect=last_mean_longitude+keq.mean_motion(mu)*interval;
-                    double delta_ml=angle_reduce(orbeq.ml-ml_expect);
+                    double delta_ml=angle_reduce(ml-ml_expect);
                     if(std::abs(delta_ml)>Constants::pi_div4){
                         LogError("Orbit Error for %s.\n",pm.name.c_str());
                         orbit_failed=true;
                         break;
                     }
-                    mean_motion_sum+=ml_expect+delta_ml-last_mean_longitude;
+                    ml=ml_expect+delta_ml;
+                    mean_motion_sum+=ml-last_mean_longitude;
                 }
-                if(i==i_j2000)
-                    ml2000=orbeq.ml;
                 if(i==0){
                     keplerian k0(mu,ps.tolocal(mdi.r),ps.tolocal(mdi.v));
                     lan0=k0.j.asc_node().lon();
                     argp0=k0.earg;
                 }
-                last_mean_longitude=orbeq.ml;
+                last_mean_longitude=ml;
                 break;
             }
         }
@@ -642,6 +657,8 @@ int main_for_ksp(const char *eph_path,const char *principia_model_path,const cha
             inclsum/=n_points;
             esum/=n_points;
             mean_motion_sum/=total_time;
+
+            double ml2000=mstat.fit_midval(&statistics::stat_param::mean_lon,mean_motion_sum);
 
             //rebuild orbit
             keplerian kprot;
