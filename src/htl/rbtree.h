@@ -41,6 +41,11 @@ struct _rbnode{
         if(_c)
             _p->_p=this;
     }
+    static void swap(_rbnode &_lhs,_rbnode &_rhs){
+        ::std::swap(_lhs,_rhs);
+        if(_lhs._p)_lhs._p->_p=&_lhs;
+        if(_rhs._p)_rhs._p->_p=&_rhs;
+    }
 
     struct _insert_location{
         _rbnode *parent;
@@ -339,6 +344,19 @@ struct _linked_rbnode:public _rbnode{
         if(_c){
             _ll->_lr=this;
             _lr->_ll=this;
+        }
+    }
+    static void swap(_linked_rbnode &_lhs,_linked_rbnode &_rhs){
+        _rbnode::swap(_lhs,_rhs);
+        ::std::swap(_lhs._ll,_rhs._ll);
+        ::std::swap(_lhs._lr,_rhs._lr);
+        if(_lhs._p){
+            _lhs._ll->_lr=&_lhs;
+            _lhs._lr->_ll=&_lhs;
+        }
+        if(_rhs._p){
+            _rhs._ll->_lr=&_rhs;
+            _rhs._lr->_ll=&_rhs;
         }
     }
     //debug
@@ -1068,7 +1086,7 @@ public:
         else if constexpr(!node_alloc_traits::is_always_equal::value)
             HTL_ASSERT(this_alloc==other_alloc);
         swap(_a.second.get_first(),_other._a.second.get_first());
-        swap(_a.second.second,_other._a.second.second);
+        node_base::swap(_a.second.second,_other._a.second.second);
     }
     friend void swap(_rbtree &_lhs,_rbtree &_rhs) noexcept(::std::is_nothrow_swappable_v<key_compare>&&
         (node_alloc_traits::propagate_on_container_swap::value||node_alloc_traits::is_always_equal::value)){
