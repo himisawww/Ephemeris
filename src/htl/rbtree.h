@@ -43,8 +43,8 @@ struct _rbnode{
     }
     static void swap(_rbnode &_lhs,_rbnode &_rhs){
         ::std::swap(_lhs,_rhs);
-        if(_lhs._p)_lhs._p->_p=&_lhs;
-        if(_rhs._p)_rhs._p->_p=&_rhs;
+        if(_lhs._p)_lhs._p->_p=::std::addressof(_lhs);
+        if(_rhs._p)_rhs._p->_p=::std::addressof(_rhs);
     }
 
     struct _insert_location{
@@ -351,12 +351,12 @@ struct _linked_rbnode:public _rbnode{
         ::std::swap(_lhs._ll,_rhs._ll);
         ::std::swap(_lhs._lr,_rhs._lr);
         if(_lhs._p){
-            _lhs._ll->_lr=&_lhs;
-            _lhs._lr->_ll=&_lhs;
+            _lhs._ll->_lr=::std::addressof(_lhs);
+            _lhs._lr->_ll=::std::addressof(_lhs);
         }
         if(_rhs._p){
-            _rhs._ll->_lr=&_rhs;
-            _rhs._lr->_ll=&_rhs;
+            _rhs._ll->_lr=::std::addressof(_rhs);
+            _rhs._lr->_ll=::std::addressof(_rhs);
         }
     }
     //debug
