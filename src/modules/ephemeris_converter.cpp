@@ -316,6 +316,8 @@ void ephemeris_compressor::compress_work::run(){
     ephemeris_interpolator irot(mrot,trange);
     max_r=max_v=max_xz=max_w=0;
     end_r=end_v=end_xz=end_w=0;
+    max_r_relative=0;
+    auto *state_error=iorb.data_format()==STATE_VECTORS?absolute_state_error:relative_state_error;
     for(size_t i=0;i<sorb.size();++i){
         orbital_state_t os;
         rotational_state_t rs;
@@ -323,6 +325,7 @@ void ephemeris_compressor::compress_work::run(){
         iorb(t,&os);
         irot.set_orbital_state(os.r,os.v);
         irot(t,&rs);
+        checked_maximize(max_r_relative,state_error(&sorb[i].r,&os.r));
         checked_maximize(max_r,(sorb[i].r-os.r).norm());
         checked_maximize(max_v,(sorb[i].v-os.v).norm());
         checked_maximize(max_w,(srot[i].w-rs.w).norm());
@@ -343,6 +346,7 @@ void ephemeris_compressor::compress_work::run(){
         iorb(t,&os);
         irot.set_orbital_state(os.r,os.v);
         irot(t,&rs);
+        checked_maximize(max_r_relative,state_error(&ssuborb[i].r,&os.r));
         checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
         checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
         checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
@@ -534,9 +538,13 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                             k==0?w.max_r:w.max_xz,
                             k==0?w.end_v:w.end_w,
                             k==0?w.max_v:w.max_w);
-                        if(!(pheader->relative_error<relative_error_warning_threshold))
+                        double err_rel=pheader->relative_error;
+                        //this maximize shall not change err_rel by much,
+                        // otherwise suspect erroneous subsystem link, recording inconsistent mainstep/substep data.
+                        checked_maximize(err_rel,k==0?w.max_r_relative:w.max_xz/2);
+                        if(!(err_rel<relative_error_warning_threshold))
                             LogWarning("Warning: Relative fit error (%.3e) too large for <%s>\n",
-                                pheader->relative_error,index.entry_name(k==1,false).c_str());
+                                err_rel,index.entry_name(k==1,false).c_str());
                     }
                 }
             }

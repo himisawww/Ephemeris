@@ -18,6 +18,7 @@ class ephemeris_substeper{
 
     friend class msystem;
     friend class ephemeris_collector;
+    int_t link(msystem &mssub,int_t tid);
 public:
     ephemeris_substeper():pms(nullptr){}
 
@@ -25,5 +26,5 @@ public:
     //  s.t. for tidal_childlist of mssub,
     //  decomposed states in mssub is the same as in *pms
     //  i.e. extract a sub-blist rooted from tidal_parent
-    int_t link(msystem &mssub,int_t tid=-1);
+    int_t link(msystem &mssub){ return link(mssub,-1); }
 };

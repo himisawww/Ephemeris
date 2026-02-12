@@ -157,6 +157,7 @@ private:
         size_t newsize[2],oldsize[2];
         double max_r,max_v,max_xz,max_w;
         double end_r,end_v,end_xz,end_w;
+        double max_r_relative;
         void run();
         int_t priority() const;
     };

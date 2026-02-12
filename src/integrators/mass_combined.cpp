@@ -423,24 +423,21 @@ int_t ephemeris_substeper::link(msystem &mssub,int_t bid){
 
     barycen sbi;
     const barycen &bi=blist[bid];
+    sbi.mid=mssub.get_mid(ms[bi.mid].sid);
+    if(sbi.mid<0)
+        return -1;
+
     if(bi.hid>=0){
-        const auto &h=blist[bi.hid];
-        const auto &g=blist[bi.gid];
-        int_t hmid=mssub.get_mid(ms[h.mid].sid);
-        int_t gmid=mssub.get_mid(ms[g.mid].sid);
-        if(gmid>=0){
-            sbi.hid=link(mssub,bi.hid);
-            sbi.gid=link(mssub,bi.gid);
-        }
-    }
-    else{
-        sbi.mid=mssub.get_mid(ms[bi.mid].sid);
+        sbi.hid=link(mssub,bi.hid);//cannot <0, otherwise early returned at sbi.mid<0
+        sbi.gid=link(mssub,bi.gid);
+        if(sbi.gid<0)
+            return sbi.hid;
     }
 
     for(auto cid:bi.children){
-        const auto &ci=blist[cid];
-        if(mssub.get_mid(ms[ci.mid].sid)>=0)
-            sbi.children.push_back(link(mssub,cid));
+        int_t scid=link(mssub,cid);
+        if(scid>=0)
+            sbi.children.push_back(scid);
     }
     int_t sbid=sublist.size();
     if(sbi.hid>=0){
