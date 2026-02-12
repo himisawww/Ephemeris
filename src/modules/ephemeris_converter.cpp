@@ -530,18 +530,18 @@ int_t ephemeris_compressor::compress(std::vector<MFILE> &ephemeris_data){
                             use_substep[" *"],clevel,
                             newsize,oldsize,100.*newsize/oldsize,oldsize/samplesize,
                             index.t_start,index.t_end);
-                        fprintf(mf_readme,
-                            k==0?"                 : %.3e [%.3e:%.3e m  , %.3e:%.3e m/s  ]\n"
-                                :"                 : %.3e [%.3e:%.3e rad, %.3e:%.3e rad/s]\n",
-                            pheader->relative_error,
-                            k==0?w.end_r:w.end_xz,
-                            k==0?w.max_r:w.max_xz,
-                            k==0?w.end_v:w.end_w,
-                            k==0?w.max_v:w.max_w);
                         double err_rel=pheader->relative_error;
                         //this maximize shall not change err_rel by much,
                         // otherwise suspect erroneous subsystem link, recording inconsistent mainstep/substep data.
                         checked_maximize(err_rel,k==0?w.max_r_relative:w.max_xz/2);
+                        fprintf(mf_readme,
+                            k==0?"                 : %.3e [%.3e:%.3e m  , %.3e:%.3e m/s  ]\n"
+                                :"                 : %.3e [%.3e:%.3e rad, %.3e:%.3e rad/s]\n",
+                            err_rel,
+                            k==0?w.end_r:w.end_xz,
+                            k==0?w.max_r:w.max_xz,
+                            k==0?w.end_v:w.end_w,
+                            k==0?w.max_v:w.max_w);
                         if(!(err_rel<relative_error_warning_threshold))
                             LogWarning("Warning: Relative fit error (%.3e) too large for <%s>\n",
                                 err_rel,index.entry_name(k==1,false).c_str());
