@@ -16,6 +16,7 @@ class ephemeris_compressor{
 private:
     static double infer_GM_from_data(const orbital_state_t *pdata,int_t N);
 
+    //error_function(&actual, &interpolated);
     static double relative_state_error(const vec *r,const vec *rp);
     static double absolute_state_error(const vec *r,const vec *rp);
     static double circular_kepler_error(const double *k,const double *kp);

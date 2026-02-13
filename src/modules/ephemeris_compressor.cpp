@@ -157,7 +157,8 @@ double ephemeris_compressor::axial_rotation_error(const double *a,const double *
     return quaternion_rotation_error(&q,&qp);
 }
 double ephemeris_compressor::quaternion_rotation_error(const quat *q,const quat *qp){
-    return std::sqrt(checked_min((*q-*qp).normsqr(),(*q+*qp).normsqr()));
+    quat nqp=qp->unit();
+    return std::sqrt(checked_min((*q-nqp).normsqr(),(*q+nqp).normsqr()));
 }
 
 int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
@@ -766,13 +767,13 @@ CONVERT_IMPLEMENT(AXIAL_OFFSET){
     pstate->z=saxis.z;
 }
 CONVERT_IMPLEMENT(QUATERNION){
-    mat s(*x);
+    mat s(x->unit());
     pstate->w=vec(2*(*v)/(*x));
     pstate->x=s.x;
     pstate->z=s.z;
 }
 CONVERT_IMPLEMENT(TIDAL_LOCK){
-    mat s(*x);
+    mat s(x->unit());
     pstate->w=vec(2*(*v)/(*x));
     pstate->x=s.x;
     pstate->z=s.z;
