@@ -199,7 +199,11 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
             ostates.emplace_back(keplerian(pdata[i].r,pdata[i].v*vfac));
     }
     bool can_kepler=!ostates.empty();
-
+    double wmax=0;
+    for(int_t i=0;i<N;++i)
+        checked_maximize(wmax,pdata[i].v.normsqr()/pdata[i].r.normsqr());
+    wmax=std::sqrt(wmax);
+    bool can_state=wmax*delta_t<max_state_rotation_per_sample;
     auto *state_error_fun=can_kepler?relative_state_error:absolute_state_error;
 
     if(dtest<1){//N==2 here
@@ -222,10 +226,12 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
                 fiterrs[1].*perr=kfac*state_error_fun(&pdata[1].r,&r1);
             }
         }
-        vec dr=pdata[1].r-pdata[0].r;
-        dr-=HALF*delta_t*(pdata[0].v+pdata[1].v);
-        double rerr=HALF*std::sqrt(dr.normsqr()/checked_min(pdata[0].r.normsqr(),pdata[1].r.normsqr()));
-        fiterrs[1].serr=fiterrs[0].serr=rerr;
+        if(can_state){
+            vec dr=pdata[1].r-pdata[0].r;
+            dr-=HALF*delta_t*(pdata[0].v+pdata[1].v);
+            double rerr=HALF*std::sqrt(dr.normsqr()/checked_min(pdata[0].r.normsqr(),pdata[1].r.normsqr()));
+            fiterrs[1].serr=fiterrs[0].serr=rerr;
+        }
     }
     else{
         int_t wing=(dtest+1)/2;
@@ -271,14 +277,16 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
                 const auto perr=circ?&fit_err_t::kcerr:&fit_err_t::krerr;
                 fiterrs[i].*perr=kfac*state_error_fun(&pdata[i].r,&r);
             }
-            r=0;
-            v=0;
-            for(int_t j=wing;j>0;--j){
-                const double wj=midinterp_coefs[j-1];
-                r+=wj*(pdata[i+j].r+pdata[i-j].r);
-                v+=wj*(pdata[i+j].v+pdata[i-j].v);
+            if(can_state){
+                r=0;
+                v=0;
+                for(int_t j=wing;j>0;--j){
+                    const double wj=midinterp_coefs[j-1];
+                    r+=wj*(pdata[i+j].r+pdata[i-j].r);
+                    v+=wj*(pdata[i+j].v+pdata[i-j].v);
+                }
+                fiterrs[i].serr=state_error_fun(&pdata[i].r,&r);
             }
-            fiterrs[i].serr=state_error_fun(&pdata[i].r,&r);
         }
 
         for(int_t i=0;i<wing;++i){
@@ -405,10 +413,11 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
     int_t d=std::min(max_bspline_degree,N-1);
     d-=d+1&1;
 
+    bool can_state=false;
     std::vector<MFILE> compressed_results;
     do{
-        vec wlocal(0);
         double wmax=0;
+        vec wlocal(0);
         for(int_t i=0;i<N;++i){
             mat s=mat(pdata[i].x,0,pdata[i].z);
             vec wi=s.tolocal(pdata[i].w);
@@ -416,6 +425,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
             checked_maximize(wmax,wi.normsqr());
         }
         wmax=std::sqrt(wmax);
+        can_state=wmax*delta_t<max_state_rotation_per_sample;
         double local_axis_theta=wlocal.theta(),local_axis_phi=wlocal.phi();
         mat local_axis(
             vec::from_theta_phi(local_axis_theta,local_axis_phi),
@@ -466,6 +476,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         vec left_w,right_w;
         std::vector<quat> fdata;
         fdata.reserve(N);
+        double dwmax=0;
         for(int_t i=0;;++i){
             orbital_state_t os;
             eorb(double(i)/(N-1)*time_span,&os);
@@ -480,11 +491,16 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
                 break;
             }
             fdata.emplace_back(js);
+            vec dw=pdata[i].w-w;
+            checked_maximize(dwmax,dw.normsqr());
             if(i==0||i+1==N){
-                (i==0?left_w:right_w)=jframe.tolocal(pdata[i].w-w);
+                (i==0?left_w:right_w)=jframe.tolocal(dw);
                 if(i)break;
             }
         }
+        dwmax=std::sqrt(dwmax);
+        if(!(dwmax*delta_t<max_state_rotation_per_sample))
+            break;
         if(fdata.empty())
             break;
         for(int_t i=1;i<N;++i)if(fdata[i-1]%fdata[i]<0)fdata[i]=-fdata[i];
@@ -494,7 +510,7 @@ int_t ephemeris_compressor::compress_rotational_data(MFILE &mf,double time_span,
         else tidal_lockable=true;
     } while(0);
 
-    if(!tidal_lockable){
+    if(can_state&&!tidal_lockable){
         std::vector<quat> fdata;
         fdata.reserve(N);
         for(int_t i=0;i<N;++i)fdata.emplace_back(mat(pdata[i].x,0,pdata[i].z));

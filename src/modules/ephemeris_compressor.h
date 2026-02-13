@@ -173,6 +173,8 @@ public:
     static constexpr double epsilon_absolute_error=1e-4;
     //emit warning if relative fit error not less than this
     static constexpr double relative_error_warning_threshold=1e-5;
+    //if state vector rotates more than this in 1 time step, forbid state-based compression methods
+    static constexpr double max_state_rotation_per_sample=1;
 
     // mf: contains raw orbital_state_t data
     // time_span: time between first & last data point, i.e. delta_t*(N-1)
