@@ -322,7 +322,7 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
     msystem &ms=ereader.ms;
     fast_real t_range=t_end-t_start;
     int dir=t_start<t_end?1:-1;
-    int_t t_key(dir>0?+t_eph:-t_eph);
+    int_t t_key=-int_t(dir>0?-t_eph:+t_eph);//ceil(dir*t_eph)
     if(t_key<dir*t_start||dir*t_end<t_key)
         return false;
     _interp_size=0;

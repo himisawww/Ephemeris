@@ -99,6 +99,28 @@ public:
         return re;
     }
 
+    friend INLINE dfloat_type floor(dfloat_type x){
+        dfloat_type re(std::round(x.hi),std::round(x.lo));
+        x.hi-=re.hi;
+        x.lo-=re.lo;
+        twosumq(x.hi,x.lo,x.hi,x.lo);
+        if(x.hi<0)re.lo-=1;
+        else if(x.hi==1&&x.lo>=0)re.lo+=1;
+        twosumq(re.hi,re.lo,re.hi,re.lo);
+        return re;
+    }
+
+    friend INLINE dfloat_type ceil(dfloat_type x){
+        dfloat_type re(std::round(x.hi),std::round(x.lo));
+        x.hi-=re.hi;
+        x.lo-=re.lo;
+        twosumq(x.hi,x.lo,x.hi,x.lo);
+        if(x.hi>0)re.lo+=1;
+        else if(x.hi==-1&&x.lo<=0)re.lo-=1;
+        twosumq(re.hi,re.lo,re.hi,re.lo);
+        return re;
+    }
+
     static INLINE void twosum(T x,T y,T &r,T &e){
         r=x+y;
         T t=r-x;
