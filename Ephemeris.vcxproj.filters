@@ -259,6 +259,9 @@
     <ClInclude Include="src\htl\set.h">
       <Filter>htl</Filter>
     </ClInclude>
+    <ClInclude Include="src\htl\expected.h">
+      <Filter>htl</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="initials\SolarSystem\SolarSystem_Config.txt">

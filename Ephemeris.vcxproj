@@ -157,6 +157,7 @@
     <ClInclude Include="src\configs.h" />
     <ClInclude Include="src\definitions.h" />
     <ClInclude Include="src\htl\base.h" />
+    <ClInclude Include="src\htl\expected.h" />
     <ClInclude Include="src\htl\map.h" />
     <ClInclude Include="src\htl\rbtree.h" />
     <ClInclude Include="src\htl\set.h" />

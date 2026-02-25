@@ -29,6 +29,13 @@ using remove_cvref_t=::std::remove_cv_t<::std::remove_reference_t<T>>;
 template<typename T>
 struct remove_cvref{ typedef remove_cvref_t<T> type; };
 
+template<typename T,template<typename ...>class C>
+struct is_specialization: ::std::false_type{};
+template<template<typename ...>class C,typename ...Args>
+struct is_specialization<C<Args...>,C>: ::std::true_type{};
+template<typename T,template<typename ...>class C>
+inline constexpr bool is_specialization_v=is_specialization<T,C>::value;
+
 template<typename E,typename T,bool=::std::is_empty_v<E>&&!::std::is_final_v<E>>
 class compressed_pair final:private E{
 
@@ -43,12 +50,12 @@ class compressed_pair final:private E{
 public:
     T second;
 
-    const E &get_first() const{ return *this; }
-    E &get_first(){ return *this; }
+    constexpr const E &get_first() const{ return *this; }
+    constexpr E &get_first(){ return *this; }
 
-    constexpr compressed_pair(){}
-    compressed_pair(const compressed_pair &)=default;
-    compressed_pair(compressed_pair &&)=default;
+    constexpr compressed_pair()=default;
+    constexpr compressed_pair(const compressed_pair &)=default;
+    constexpr compressed_pair(compressed_pair &&)=default;
     template<typename ...Args>
     constexpr compressed_pair(::std::nullopt_t,Args &&...args):second(::std::forward<Args>(args)...){}
     template<typename F,typename ...Args>
@@ -77,12 +84,12 @@ class compressed_pair<E,T,false> final{
 public:
     T second;
 
-    const E &get_first() const{ return first; }
-    E &get_first(){ return first; }
+    constexpr const E &get_first() const{ return first; }
+    constexpr E &get_first(){ return first; }
 
-    constexpr compressed_pair(){}
-    compressed_pair(const compressed_pair &)=default;
-    compressed_pair(compressed_pair &&)=default;
+    constexpr compressed_pair()=default;
+    constexpr compressed_pair(const compressed_pair &)=default;
+    constexpr compressed_pair(compressed_pair &&)=default;
     template<typename ...Args>
     constexpr compressed_pair(::std::nullopt_t,Args &&...args):second(::std::forward<Args>(args)...){}
     template<typename F,typename ...Args>
