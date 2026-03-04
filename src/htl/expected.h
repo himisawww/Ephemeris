@@ -152,7 +152,7 @@ class expected<T,E,::std::false_type>{
     static R _then(Ex &&_this,F &&f){
         //here does not require ::std::is_same_v<E,R::error_type>
         // as c++ standard said.
-        static_assert(is_specialization_v<R,htl::expected>,"F must return expect.");
+        static_assert(is_specialization_v<R,htl::expected>,"F must return expected.");
         if(!_this._b)
             return R(unexpect,::std::forward<Ex>(_this)._e);
         else
@@ -162,7 +162,7 @@ class expected<T,E,::std::false_type>{
     static R _else(Ex &&_this,F &&f){
         //here does not require ::std::is_same_v<T,R::value_type>
         // as c++ standard said.
-        static_assert(is_specialization_v<R,htl::expected>,"F must return expect.");
+        static_assert(is_specialization_v<R,htl::expected>,"F must return expected.");
         if(!_this._b)
             return ::std::invoke(::std::forward<F>(f),::std::forward<Ex>(_this)._e);
         else
@@ -521,7 +521,7 @@ class expected<T,E,::std::true_type>{
     static R _then(Ex &&_this,F &&f){
         //here does not require ::std::is_same_v<E,R::error_type>
         // as c++ standard said.
-        static_assert(is_specialization_v<R,htl::expected>,"F must return expect.");
+        static_assert(is_specialization_v<R,htl::expected>,"F must return expected.");
         if(!_this._b)
             return R(unexpect,::std::forward<Ex>(_this)._e);
         else
@@ -531,7 +531,7 @@ class expected<T,E,::std::true_type>{
     static R _else(Ex &&_this,F &&f){
         //here does not require ::std::is_same_v<T,R::value_type>
         // as c++ standard said.
-        static_assert(is_specialization_v<R,htl::expected>,"F must return expect.");
+        static_assert(is_specialization_v<R,htl::expected>,"F must return expected.");
         if(!_this._b)
             return ::std::invoke(::std::forward<F>(f),::std::forward<Ex>(_this)._e);
         else
