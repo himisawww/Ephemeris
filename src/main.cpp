@@ -88,6 +88,21 @@ int main_fun(int argc,const char **argv){
     return 0;
 }
 
+static int check_version(){
+    const char *vstr=Configs::VersionString;
+    size_t vsize=strlen(vstr);
+    if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
+        LogAnnouncement("Warning: This executable is compiled from development branch of code.\n");
+        if(!file_exist("./_NOTES/DEVELOP")){
+            LogCritical("\n         User shall either find a release version, or compile an executable using main branch.\n\n");
+            exit(0);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static volatile int chkv=check_version();
 
 int main(int argc,const char **argv){
     double s=CalcTime();
