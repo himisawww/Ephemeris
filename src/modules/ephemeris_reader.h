@@ -5,6 +5,34 @@
 #include"modules/ephemeris_compressor.h"
 
 class ephemeris_reader{
+public:
+    enum select_type:uint8_t{
+        NONE=0,
+        ORBIT=1,
+        ROTATION=2,
+        BOTH=3
+    };
+    class massinfo{
+        const mass *const mref;
+        mutable uint8_t config;
+        friend class ephemeris_reader;
+    public:
+        std::string name;
+        //followings are about/relative to orbital center:
+        //and is updated by checkout only-if update_orbits is true
+        keplerian parameters;
+        orbital_state_t state_vectors;
+        double keplerian_GM;
+
+        massinfo(const mass &_mref):mref(&_mref),config(NONE){}
+        const mass &operator *() const{ return *mref; }
+        const mass *operator->() const{ return  mref; }
+
+        //only checkout some part of system ephemerides, as an optimization
+        select_type select(select_type _s=BOTH) const;
+        select_type deselect(select_type _s=BOTH) const;
+    };
+private:
     class chapter:public izippack{
         //{dir*t_end, blist index over [t_start,t_end]}
         htl::map<int_t,ephemeris_entry> blist_index;
@@ -16,7 +44,6 @@ class ephemeris_reader{
         //ephm_files[ephemeris index.fid+(0/1)] = {orbital,rotational} ephemerides
         htl::vector<izipfile> ephm_files;
         htl::vector<ephemeris_interpolator> ephm_interps;
-        htl::vector<bool> ephm_expand;
 
         //if dir<0, t_end < t_start
         int_t t_start,t_end;
@@ -32,14 +59,8 @@ class ephemeris_reader{
 
         chapter(msystem &,const std::string &,int_t memory_budget);
         bool checkout(ephemeris_reader &,real t_eph);
-    };
-    struct massinfo{
-        std::string name;
-        //followings are about/relative to orbital center:
-        //and is updated by checkout only-if update_orbits is true
-        keplerian parameters;
-        orbital_state_t state_vectors;
-        double keplerian_GM;
+        //make 
+        bool make_cache();
     };
     //data and states
     msystem ms;
@@ -73,9 +94,18 @@ public:
     //free interpolator cache
     void unload();
 
-    const msystem &get_msystem() const{ return ms; }
-    const massinfo &get_massinfo(int_t mid) const{ return minfos[mid]; }
-    const massinfo &get_massinfo(const char *ssid) const{ return minfos[ms.get_mid(ssid)]; }
+    size_t size() const{ return ms.size(); }
+    bool empty() const{ return ms.empty(); }
+    auto begin() const{ return minfos.begin(); }
+    auto end() const{ return minfos.begin(); }
+    const massinfo &operator[](int_t mid){ return minfos[mid]; }
+    const massinfo &operator[](const char *ssid){ return minfos[ms.get_mid(ssid)]; }
+
+    size_t deselect_all();
+    //note: performance warning
+    size_t select_all(select_type _s=BOTH);
+
+    //must select something to checkout before call this
     bool checkout(real t_eph);
 private:
     //assume chapters[cur_chid valid]

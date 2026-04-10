@@ -6,6 +6,8 @@
 #include"tests/tests.h"
 #include"configs.h"
 #include"utils/logger.h"
+#include"modules/ephemeris_reader.h"
+#include"utils/calctime.h"
 
 int de_worker(ephemeris_generator *egen,int dir){
     return egen->make_ephemeris(dir);
@@ -88,6 +90,42 @@ int main_fun(int argc,const char **argv){
 
 
 int main(int argc,const char **argv){
+    double s=CalcTime();
+    ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
+    if(!ereader)
+        return -1;
+    printf("Loaded %llu objects in [%lld, %lld]\n",ereader.size(),ereader.t_min(),ereader.t_max());
+    MFILE *fout=mopen("r:\\test.bin",MFILE_STATE::WRITE_FILE);
+    if(!fout)
+        return -3;
+    const auto &earth=ereader["399"];
+    const auto &moon=ereader["301"];
+    earth.select(ereader.ORBIT);
+    moon.select(ephemeris_reader::ORBIT);
+    double rmin=INFINITY,rmax=-INFINITY,vavg=0,vcount=0;
+    for(double t=0;t<Constants::year*40;t+=3600){
+        if(!ereader.checkout(t))
+            return -2;
+        vec r(moon->r-earth->r),v(moon->v-earth->v);
+        fwrite(&r,sizeof(vec),1,fout);
+        fwrite(&v,sizeof(vec),1,fout);
+        vcount+=1;
+        vavg+=v.norm();
+        double rn=r.norm();
+        checked_minimize(rmin,rn);
+        checked_maximize(rmax,rn);
+    }
+    printf("%fs\n",CalcTime()-s);
+    printf("[%f, %f] km @ %f m/s\n",rmin/1000,rmax/1000,vavg/vcount);
+    fclose(fout);
+    /* not cached:
+    Loaded 504 objects in [-65008656000, 65008656000]
+    78.708161s,71.835861s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    return 0;
+
+
 #if 0
     htl::vector<const char*> subset{
         "10", "199", "299", "301", "399", "401", "402", "499", "501", "502",

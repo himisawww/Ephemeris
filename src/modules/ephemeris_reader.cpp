@@ -143,36 +143,6 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
         if(failure.size())break;
 
         ephm_interps.resize(n_files);
-        ephm_expand.resize(n_files);
-        memory_budget=std::max(int_t(0),memory_budget);
-        htl::vector<std::pair<int_t,int_t>> ephm_sizes;
-        int_t full_size=0;
-        for(int_t i=0;i<n_files;++i)
-            full_size+=ephm_sizes.emplace_back(ephm_files[i].size(),i).first;
-        std::sort(ephm_sizes.begin(),ephm_sizes.end());
-        _cache_bytes=0;
-        int_t used_budget=0;
-        for(int_t i=0,partial_size=0;i<n_files;++i){
-            auto &es=ephm_sizes[i];
-            int_t cur_size=es.first;
-            int_t cur_expect=partial_size+(n_files-i)*cur_size;
-            if(cur_expect>memory_budget)
-                break;
-            used_budget=cur_expect;
-            _cache_bytes=cur_size;
-            partial_size+=cur_size;
-        }
-        memory_budget-=used_budget;
-        for(int_t i=0,partial_size=0;i<n_files;++i){
-            auto &es=ephm_sizes[i];
-            int_t cur_size=es.first;
-            int_t cur_expect=(partial_size+cur_size)*(ephemeris_compressor::max_bspline_degree+1);
-            if(cur_expect>memory_budget)
-                break;
-            ephm_expand[es.second]=true;
-            partial_size+=cur_size;
-        }
-
         return;
     } while(0);
 
@@ -207,7 +177,8 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
                     failure+="    Invalid checkpoint;\n";
                     break;
                 }
-                minfos.resize(ms.size());
+                for(const auto &mi:ms)
+                    minfos.emplace_back(mi);
                 continue;
             }
             char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
@@ -350,8 +321,8 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
                         failed=true;
                         continue;
                     }
-                    if(ephm_expand[fid+k])
-                        einterp.expand();
+                    //if(ephm_expand[fid+k])
+                    //    einterp.expand();
                 }
                 _interp_size+=einterp.memory_size();
                 if(k==0){
@@ -435,4 +406,54 @@ void ephemeris_reader::lru(){
         }
         active_chapters.erase(active_chapters.begin(),active_chapters.begin()+n_unload);
     }
+}
+
+bool ephemeris_reader::chapter::make_cache(){
+    if(!izippack::operator bool())
+        return false;
+    int_t mn=ephm_index.size();
+
+
+}
+
+size_t ephemeris_reader::deselect_all(){
+    size_t retval=0;
+    for(massinfo &mi:minfos){
+        retval+=mi.config+1>>1;
+        mi.config=NONE;
+    }
+    return retval;
+}
+
+size_t ephemeris_reader::select_all(select_type _s){
+    size_t retval=0;
+    for(massinfo &mi:minfos){
+        if(_s&ORBIT){
+            mi.config|=ORBIT;
+            ++retval;
+        }
+        if(_s&ROTATION){
+            mi.config|=ROTATION;
+            ++retval;
+        }
+    }
+    return retval;
+}
+
+ephemeris_reader::select_type ephemeris_reader::massinfo::select(ephemeris_reader::select_type _s) const{
+    uint8_t oldconfig=config;
+    if(_s&ORBIT)
+        config|=ORBIT;
+    if(_s&ROTATION)
+        config|=ROTATION;
+    return select_type(oldconfig);
+}
+
+ephemeris_reader::select_type ephemeris_reader::massinfo::deselect(ephemeris_reader::select_type _s) const{
+    uint8_t oldconfig=config;
+    if(_s&ORBIT)
+        config&=~ORBIT;
+    if(_s&ROTATION)
+        config&=~ROTATION;
+    return select_type(oldconfig);
 }
