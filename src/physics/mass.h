@@ -52,6 +52,9 @@ public:
     int_t decompose(){ return decompose(root_id()); }
     //restore state vectors in blist to absolute
     int_t compose(){ return compose(root_id()); }
+    //get offset of barycen induced by its children combined
+    //requires children.r/v decomposed
+    void get_children_offset(const barycen &b,mpvec &cr,mpvec &cv) const;
     //get index of root, -1 if non-exist;
     int_t root_id() const;
 
@@ -195,7 +198,7 @@ struct mass_state{
 };
 
 class ephemeris_generator;
-class ephemeris_substeper;
+class ephemeris_collector;
 class ephemeris_reader;
 
 //stellar system
@@ -211,7 +214,7 @@ public:
     };
 
     friend class ephemeris_generator;
-    friend class ephemeris_substeper;
+    friend class ephemeris_collector;
     friend class ephemeris_reader;
 private:
     //relativistic coordinate time
@@ -236,7 +239,7 @@ private:
     fast_mpmat tidal_matrix;
     //above two is undefined if tidal_childlist.empty()
     htl::vector<int_t> tidal_childlist;
-    ephemeris_substeper *p_substeper;
+    ephemeris_collector *p_collector;
 
     //t_eph when blist is analysed
     real t_barycen;
@@ -271,7 +274,7 @@ private:
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
-    //used by combined_integrate with p_substeper
+    //used by combined_integrate with p_collector
     void record_substeps(fast_real dt,bool initialize=false);
 
 public:
@@ -297,7 +300,7 @@ public:
     //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
     //ps: if !nullptr, collects substeps of children in subsystems
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1,
-        ephemeris_substeper *ps=nullptr);
+        ephemeris_collector *pc=nullptr);
 
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;

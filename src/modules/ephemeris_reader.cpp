@@ -4,10 +4,10 @@
 #include"configs.h"
 #include"utils/logger.h"
 
-ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory_budget):izippack(_){
+ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t memory_budget)
+    :izippack(_chname),chname(_chname),_interp_size(0){
     std::string failure;
     do{
-        _interp_size=0;
         if(!izippack::operator bool())
             break;
         auto mf_files=load_central_directory();
@@ -147,7 +147,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_,int_t memory
     } while(0);
 
     if(failure.size())
-        LogError("Error loading %s:\n%s",_.c_str(),failure.c_str());
+        LogError("Error loading %s:\n%s",_chname.c_str(),failure.c_str());
     close();
 }
 
@@ -297,6 +297,7 @@ bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
     if(t_key<dir*t_start||dir*t_end<t_key)
         return false;
     _interp_size=0;
+    int_t _cache_bytes=0;
     bool failed=false;
     bsystem &blist=blists[blist_index.lower_bound(t_key)->second.fid];
     ms.update(fast_real(t_eph),&blist);
@@ -406,14 +407,6 @@ void ephemeris_reader::lru(){
         }
         active_chapters.erase(active_chapters.begin(),active_chapters.begin()+n_unload);
     }
-}
-
-bool ephemeris_reader::chapter::make_cache(){
-    if(!izippack::operator bool())
-        return false;
-    int_t mn=ephm_index.size();
-
-
 }
 
 size_t ephemeris_reader::deselect_all(){

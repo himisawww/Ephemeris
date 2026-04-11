@@ -105,10 +105,13 @@ static int check_version(){
 static volatile int chkv=check_version();
 
 int main(int argc,const char **argv){
+#if 0
     double s=CalcTime();
     ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
     if(!ereader)
         return -1;
+    int_t errs=ereader.make_cache();
+    if(errs)printf("cache error: %lld\n",errs);
     printf("Loaded %llu objects in [%lld, %lld]\n",ereader.size(),ereader.t_min(),ereader.t_max());
     MFILE *fout=mopen("r:\\test.bin",MFILE_STATE::WRITE_FILE);
     if(!fout)
@@ -157,13 +160,15 @@ int main(int argc,const char **argv){
 #endif
     return main_fun(argc,argv);
 
+#else
+#endif
     const char *m_argv[]={
         argv[0],
         //"F:\\Temp\\ephm\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
-        //"f:\\Temp\\ephm\\Ephemeris\\TestNew\\test5",
+        "f:\\Temp\\ephm\\Ephemeris\\Ephemeris\\SolarSystem",
         //"F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
-        //"0.05"
-        "RUN_TEST"
+        "-20"
+        //"RUN_TEST"
     };
     const int m_argc=sizeof(m_argv)/sizeof(char *);
     return main_fun(m_argc,m_argv);

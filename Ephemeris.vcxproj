@@ -65,7 +65,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalOptions>/wd4200 /wd4244 /wd4267 /wd4309 /wd4838 /D "_CRT_SECURE_NO_WARNINGS" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -73,7 +73,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <AdditionalOptions>-std=c++17 --expt-relaxed-constexpr -Wno-deprecated-gpu-targets -Xcompiler "/wd4200 /wd4244 /wd4267 /wd4309 /wd4838" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-std=c++17 --expt-relaxed-constexpr -Wno-deprecated-gpu-targets %(AdditionalOptions)</AdditionalOptions>
       <KeepDir>$(Platform)\$(Configuration)\</KeepDir>
       <CompileOut>$(Platform)\$(Configuration)\%(Filename)%(Extension).obj</CompileOut>
     </CudaCompile>
@@ -93,7 +93,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <AdditionalOptions>/wd4200 /wd4244 /wd4267 /wd4309 /wd4838 /D "_CRT_SECURE_NO_WARNINGS" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -104,7 +104,7 @@
     <CudaCompile>
       <CodeGeneration>compute_61,sm_61;compute_75,sm_75;compute_86,sm_86</CodeGeneration>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <AdditionalOptions>-std=c++17 --expt-relaxed-constexpr -Wno-deprecated-gpu-targets -Xcompiler "/wd4200 /wd4244 /wd4267 /wd4309 /wd4838" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-std=c++17 --expt-relaxed-constexpr -Wno-deprecated-gpu-targets %(AdditionalOptions)</AdditionalOptions>
       <CompileOut>$(Platform)\$(Configuration)\%(Filename)%(Extension).obj</CompileOut>
       <KeepDir>$(Platform)\$(Configuration)\</KeepDir>
     </CudaCompile>

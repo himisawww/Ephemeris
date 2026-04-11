@@ -34,6 +34,8 @@ public:
     };
 private:
     class chapter:public izippack{
+        //file name of chapter
+        std::string chname;
         //{dir*t_end, blist index over [t_start,t_end]}
         htl::map<int_t,ephemeris_entry> blist_index;
         //blists[blist index.fid] = system structure
@@ -47,7 +49,7 @@ private:
 
         //if dir<0, t_end < t_start
         int_t t_start,t_end;
-        int_t _interp_size,_cache_bytes;
+        int_t _interp_size;
 
         friend class ephemeris_reader;
     public:
@@ -59,8 +61,6 @@ private:
 
         chapter(msystem &,const std::string &,int_t memory_budget);
         bool checkout(ephemeris_reader &,real t_eph);
-        //make 
-        bool make_cache();
     };
     //data and states
     msystem ms;

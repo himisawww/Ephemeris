@@ -5,7 +5,6 @@
 #include<string>
 #include"physics/mass.h"
 #include"utils/memio.h"
-#include"integrators/mass_combined.h"
 
 struct ephemeris_entry{
     //0: barycen structure
@@ -29,24 +28,55 @@ class ephemeris_collector{
         MFILE orbital_data;
         MFILE rotational_data;
     };
-private:
+    struct cachepack_t{
+        int_t t_start;
+        int_t t_end;
+        MFILE offset_data;
+        MFILE offset_subdata;
+    };
     msystem &ms;
     bsystem blist;
     //t_eph when blist is bind with ms
     real t_bind;
 
     // { { mids of parent barycen, mids of child barycen }, index of pair }
-    htl::map<std::pair<htl::set<int_t>,htl::set<int_t>>,int_t> barycen_ids;
+    htl::map<std::pair<htl::set<int_t>,htl::set<int_t>>,int_t> barycen_ids,cache_ids;
     htl::vector<datapack_t> data;
+    htl::vector<cachepack_t> cache;
+    // [i-th barycen in ephm_index file]={{bid in ms::blist, cid in cache}...}
+    htl::vector<htl::map<int_t,int_t>> bcache_maps;
     int_t t_start;
 
     htl::map<uint64_t,int_t> file_index;
+
+    struct subdatapack_t{
+        MFILE orbital_data;
+        MFILE rotational_data;
+    };
+    struct subsystem_t{
+        bsystem sublist;
+        //{ bid in mssub, cid in cache}
+        htl::map<int64_t,int64_t> subcache_map;
+    };
+
+    fast_real t_substep;
+    real t_link;
+
+    htl::map<uint64_t,subsystem_t> sublists;
+    htl::map<uint64_t,subdatapack_t> subdata;
+
+    friend class msystem;
+    // returns corresponding bid in subsys::sublist for bid in ms::blist
+    int_t link(subsystem_t &subsys,msystem &mssub,int_t bid);
 public:
-    ephemeris_substeper m_substeper;
+
+    //build blist for a subsystem mssub of c::ms
+    //  s.t. for tidal_childlist of mssub,
+    //  decomposed states in mssub is the same as in c::ms
+    //  i.e. extract a sub-blist rooted from tidal_parent
+    int_t link(msystem &mssub);
 
     ephemeris_collector(msystem &_ms);
-
-    const bsystem &get_barycens() const{ return blist; }
 
     //record state vectors
     void record();
