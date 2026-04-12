@@ -17,6 +17,7 @@ public:
     INLINE dfloat_impl_t(){}
     INLINE dfloat_impl_t(T _hi,T _lo=0):hi(_hi),lo(_lo){}
     INLINE explicit operator T() const{ return hi+lo; }
+    INLINE explicit operator bool() const{ return hi+lo!=0; }
     template<typename I,typename=std::enable_if_t<std::is_integral_v<I>>>
     INLINE dfloat_impl_t(I i):hi((T)i){
         if constexpr(sizeof(I)>=sizeof(T))
