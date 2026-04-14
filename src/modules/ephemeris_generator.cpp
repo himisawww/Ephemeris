@@ -230,6 +230,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
 ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms){
     t_start=ms.ephemeris_time();
+    t_link=NAN;
     rebind();
 }
 

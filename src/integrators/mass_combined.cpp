@@ -38,6 +38,8 @@ static void do_thread_works(void *pworks,size_t thread_id){
 
 
 void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,ephemeris_collector *pc){
+    if(pc&&this!=&pc->ms)
+        pc=nullptr;
     real t_latest=analyse();
     int_t bn=blist.size();
     htl::map<int_t,int_t> clist;
@@ -82,7 +84,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
     int_t mn=mlist.size();
     
     for(const auto &p:cvecs)
-        Sn.insert({p.first,msystem()});
+        Sn.try_emplace(p.first);
     
     fast_real dt_long=dt*n_combine;
     for(int_t i_step=0;i_step<n_step;++i_step){
@@ -261,7 +263,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.p_collector=pc;
         }
 
-        if(pc&&this==&pc->ms&&(pc->t_link!=t_latest)){
+        if(pc&&pc->t_link!=t_latest){
             pc->t_substep=dt;
             pc->t_link=t_latest;
             pc->sublists.clear();

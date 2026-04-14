@@ -237,9 +237,9 @@ private:
     //tidal corrections
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
-    //above two is undefined if tidal_childlist.empty()
-    htl::vector<int_t> tidal_childlist;
     ephemeris_collector *p_collector;
+    //above three is undefined if tidal_childlist.empty()
+    htl::vector<int_t> tidal_childlist;
 
     //t_eph when blist is analysed
     real t_barycen;
