@@ -89,21 +89,21 @@ public:
     set(const linked_set<K,Comparer,Allocator> &,const allocator_type &)=delete;
     set &operator=(const linked_set<K,Comparer,Allocator> &)=delete;
 
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator==(const C &_other) const{
-        return ::std::equal(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
+        return rbtree_type::size()==_other.size()&&::std::equal(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator!=(const C &_other) const{ return !(*this==_other); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator< (const C &_other) const{
         return ::std::lexicographical_compare(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator<=(const C &_other) const{ return !(_other<*this); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator> (const C &_other) const{ return _other<*this; }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator>=(const C &_other) const{ return !(*this<_other); }
 };
 
@@ -151,21 +151,21 @@ public:
     multiset(const linked_multiset<K,Comparer,Allocator> &,const allocator_type &)=delete;
     multiset &operator=(const linked_multiset<K,Comparer,Allocator> &)=delete;
 
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator==(const C &_other) const{
-        return ::std::equal(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
+        return rbtree_type::size()==_other.size()&&::std::equal(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator!=(const C &_other) const{ return !(*this==_other); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator< (const C &_other) const{
         return ::std::lexicographical_compare(rbtree_type::begin(),rbtree_type::end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator<=(const C &_other) const{ return !(_other<*this); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator> (const C &_other) const{ return _other<*this; }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator>=(const C &_other) const{ return !(*this<_other); }
 };
 
@@ -252,21 +252,21 @@ public:
     const_reverse_iterator crbegin() const{ return const_reverse_iterator(end()); }
     const_reverse_iterator crend() const{ return const_reverse_iterator(begin()); }
 
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator==(const C &_other) const{
-        return ::std::equal(begin(),end(),_other.begin(),_other.end());
+        return rbtree_type::size()==_other.size()&&::std::equal(begin(),end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator!=(const C &_other) const{ return !(*this==_other); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator< (const C &_other) const{
         return ::std::lexicographical_compare(begin(),end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator<=(const C &_other) const{ return !(_other<*this); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator> (const C &_other) const{ return _other<*this; }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator>=(const C &_other) const{ return !(*this<_other); }
 
     //emplace directly before pos
@@ -396,21 +396,21 @@ public:
     const_reverse_iterator crbegin() const{ return const_reverse_iterator(end()); }
     const_reverse_iterator crend() const{ return const_reverse_iterator(begin()); }
 
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator==(const C &_other) const{
-        return ::std::equal(begin(),end(),_other.begin(),_other.end());
+        return rbtree_type::size()==_other.size()&&::std::equal(begin(),end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator!=(const C &_other) const{ return !(*this==_other); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator< (const C &_other) const{
         return ::std::lexicographical_compare(begin(),end(),_other.begin(),_other.end());
     }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator<=(const C &_other) const{ return !(_other<*this); }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator> (const C &_other) const{ return _other<*this; }
-    template<typename C,typename=::std::enable_if_t<::std::is_same_v<typename C::value_type,value_type>>>
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
     bool operator>=(const C &_other) const{ return !(*this<_other); }
 
     //emplace directly before pos
