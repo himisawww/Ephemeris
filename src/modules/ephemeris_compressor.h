@@ -181,7 +181,8 @@ public:
     // time_span: time between first & last data point, i.e. delta_t*(N-1)
     // return level of compression, 0 means failed and mf is untouched.
     // if successed, 0 <= relative_error < 1
-    static int_t compress_orbital_data(MFILE &mf,double time_span);
+    // for barycentric offset files, may_kepler should be false
+    static int_t compress_orbital_data(MFILE &mf,double time_span,bool may_kepler);
     // mf: contains raw rotational_state_t data
     // if(morb) also try to use TIDAL_LOCK method with orbital_data
     // others same as compress_orbital_data

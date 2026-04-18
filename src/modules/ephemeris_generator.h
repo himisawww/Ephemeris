@@ -9,14 +9,17 @@
 struct ephemeris_entry{
     //0: barycen structure
     //+: orbital&rotational data file, from 1...
+    //for orbital barycentric offset cache file: +index from 1...
     int_t fid;
     //for data file: sid of related mass
     //for barycen structure: vector<barycen>.size
+    //for orbital barycentric offset cache file: 0
     uint64_t sid;
     int_t t_start;
     int_t t_end;
 
     std::string entry_name(bool rotational,bool substep) const;
+    std::string offset_name(bool substep) const;
 };
 
 class ephemeris_collector{
@@ -87,7 +90,8 @@ public:
     //update datapacks::tid & pbarycen
     void rebind();
 
-    void extract(htl::vector<MFILE> &ephm_files,bool force);
+    //return error message
+    std::string extract(htl::vector<MFILE> &ephm_files,bool force);
 
     //convert zips to old data pack
     //for compressed format only:

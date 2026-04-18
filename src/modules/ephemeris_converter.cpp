@@ -234,36 +234,37 @@ int ephemeris_collector::convert_format(const char *path,int_t fix_interval,htl:
 }
 
 int_t ephemeris_compressor::compress_work::priority() const{
-    int_t sumsize=morb->size()+mrot->size();
-    if(msuborb)sumsize+=msuborb->size();
-    if(msubrot)sumsize+=msubrot->size();
+    int_t sumsize=morb->size()+(msuborb?msuborb->size():0);
+    if(pindex->sid)sumsize+=mrot->size()+(msubrot?msubrot->size():0);
     return sumsize;
 }
 
 void ephemeris_compressor::compress_work::run(){
     const auto &index=*pindex;
-
+    const bool is_mass=index.sid;
     // for debug
     htl::vector<orbital_state_t> sorb,ssuborb;
     htl::vector<rotational_state_t> srot,ssubrot;
     sorb.insert(sorb.begin(),
         (orbital_state_t*)morb->data(),
         (orbital_state_t*)(morb->data()+morb->size()));
-    srot.insert(srot.begin(),
-        (rotational_state_t*)mrot->data(),
-        (rotational_state_t*)(mrot->data()+mrot->size()));
     if(msuborb)
         ssuborb.insert(ssuborb.begin(),
             (orbital_state_t*)msuborb->data(),
             (orbital_state_t*)(msuborb->data()+msuborb->size()));
-    if(msubrot)
-        ssubrot.insert(ssubrot.begin(),
-            (rotational_state_t*)msubrot->data(),
-            (rotational_state_t*)(msubrot->data()+msubrot->size()));
+    if(is_mass){
+        srot.insert(srot.begin(),
+            (rotational_state_t*)mrot->data(),
+            (rotational_state_t*)(mrot->data()+mrot->size()));
+        if(msubrot)
+            ssubrot.insert(ssubrot.begin(),
+                (rotational_state_t*)msubrot->data(),
+                (rotational_state_t*)(msubrot->data()+msubrot->size()));
+    }
 
     //orbital,rotational
     double trange=double(index.t_end-index.t_start);
-    for(int k=0;k<2;++k){
+    for(int k=0;k<1+is_mass;++k){
         MFILE *&mbase=k==0?morb:mrot;
         MFILE *&msub=k==0?msuborb:msubrot;
 
@@ -273,7 +274,7 @@ void ephemeris_compressor::compress_work::run(){
         int_t target_clevel=1;
 
         int_t clevel=
-            k==0?compress_orbital_data(*mbase,trange)
+            k==0?compress_orbital_data(*mbase,trange,is_mass)
              :compress_rotational_data(*mbase,trange,morb);
         bool use_substep=false;
         if(clevel){
@@ -286,7 +287,7 @@ void ephemeris_compressor::compress_work::run(){
         }
         if(msub&&clevel<target_clevel){
             int_t subclevel=
-                k==0?compress_orbital_data(*msub,trange)
+                k==0?compress_orbital_data(*msub,trange,is_mass)
                  :compress_rotational_data(*msub,trange,morb);
             if(subclevel){
                 auto *psubheader=(header_base*)msub->data();
@@ -303,7 +304,7 @@ void ephemeris_compressor::compress_work::run(){
             continue;
         if(use_substep){
             std::swap(mbase,msub);
-            mbase->set_name(Configs::SaveNameDirectory+index.entry_name(k,false));
+            mbase->set_name(msub->get_name());
         }
         if(msub){
             msub->reset();
@@ -313,7 +314,7 @@ void ephemeris_compressor::compress_work::run(){
 
     //debug
     ephemeris_interpolator iorb(morb,trange);
-    ephemeris_interpolator irot(mrot,trange);
+    ephemeris_interpolator irot(is_mass?mrot:nullptr,trange);
     max_r=max_v=max_xz=max_w=0;
     end_r=end_v=end_xz=end_w=0;
     max_r_relative=0;
@@ -323,20 +324,24 @@ void ephemeris_compressor::compress_work::run(){
         rotational_state_t rs;
         double t=double(i)/(sorb.size()-1)*trange;
         iorb(t,&os);
-        irot.set_orbital_state(os.r,os.v);
-        irot(t,&rs);
         checked_maximize(max_r_relative,state_error(&sorb[i].r,&os.r));
         checked_maximize(max_r,(sorb[i].r-os.r).norm());
         checked_maximize(max_v,(sorb[i].v-os.v).norm());
-        checked_maximize(max_w,(srot[i].w-rs.w).norm());
-        checked_maximize(max_xz,(srot[i].x-rs.x).norm());
-        checked_maximize(max_xz,(srot[i].z-rs.z).norm());
+        if(is_mass){
+            irot.set_orbital_state(os.r,os.v);
+            irot(t,&rs);
+            checked_maximize(max_w,(srot[i].w-rs.w).norm());
+            checked_maximize(max_xz,(srot[i].x-rs.x).norm());
+            checked_maximize(max_xz,(srot[i].z-rs.z).norm());
+        }
         if(i==0||i+1==sorb.size()){
             checked_maximize(end_r,(sorb[i].r-os.r).norm());
             checked_maximize(end_v,(sorb[i].v-os.v).norm());
-            checked_maximize(end_w,(srot[i].w-rs.w).norm());
-            checked_maximize(end_xz,(srot[i].x-rs.x).norm());
-            checked_maximize(end_xz,(srot[i].z-rs.z).norm());
+            if(is_mass){
+                checked_maximize(end_w,(srot[i].w-rs.w).norm());
+                checked_maximize(end_xz,(srot[i].x-rs.x).norm());
+                checked_maximize(end_xz,(srot[i].z-rs.z).norm());
+            }
         }
     }
     for(size_t i=0;i<ssuborb.size();++i){
@@ -344,81 +349,130 @@ void ephemeris_compressor::compress_work::run(){
         rotational_state_t rs;
         double t=double(i)/(ssuborb.size()-1)*trange;
         iorb(t,&os);
-        irot.set_orbital_state(os.r,os.v);
-        irot(t,&rs);
         checked_maximize(max_r_relative,state_error(&ssuborb[i].r,&os.r));
         checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
         checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
-        checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
-        checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
-        checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
+        if(is_mass){
+            irot.set_orbital_state(os.r,os.v);
+            irot(t,&rs);
+            checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
+            checked_maximize(max_xz,(ssubrot[i].x-rs.x).norm());
+            checked_maximize(max_xz,(ssubrot[i].z-rs.z).norm());
+        }
         if(i==0||i+1==ssuborb.size()){
             checked_maximize(end_r,(ssuborb[i].r-os.r).norm());
             checked_maximize(end_v,(ssuborb[i].v-os.v).norm());
-            checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
-            checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
-            checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
+            if(is_mass){
+                checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
+                checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
+                checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
+            }
         }
     }
 }
 
 int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
-    struct entry_info{
-        int_t entry_id;
-        MFILE *pmfile;
-        bool rotational,substep;
+    MFILE *mf_readme=nullptr,*mf_cache=nullptr;
 
-        entry_info():entry_id(-1),pmfile(nullptr){}
-        void set_info(int_t _entry_id,bool _rotational,bool _substep){
-            entry_id=_entry_id;
-            rotational=_rotational;
-            substep=_substep;
-        }
-    };
-
-    MFILE *mf_readme=nullptr;
-
+    htl::vector<bsystem> blists;
     htl::vector<ephemeris_entry> indices;
-    htl::map<std::string,entry_info> indexmap;
+    htl::map<std::string,MFILE*> indexmap;
     for(MFILE &mf:ephemeris_data){
         std::string namestr=get_file_name(mf.get_name());
         if(namestr==Configs::SaveNameReadme){
             mf_readme=&mf;
             continue;
         }
+        if(namestr==Configs::SaveNameBarycentricOffsetIndex){
+            mf_cache=&mf;
+            continue;
+        }
         if(namestr!=Configs::SaveNameIndex){
-            indexmap[namestr].pmfile=&mf;
+            indexmap[namestr]=&mf;
             continue;
         }
         mf.publish();
         ephemeris_entry index;
         while(fread(&index,sizeof(index),1,&mf)==1){
             if(index.fid==0){
-                bsystem blist;
+                bsystem &blist=blists.emplace_back();
                 if(!blist.load_barycen_structure(&mf,index.sid)){
                     LogError("\nInvalid barycenter list.\n");
                     return -1;
                 }
             }
-            else{
-                int_t entry_id=indices.size();
-                indexmap[index.entry_name(true,false)].set_info(entry_id,true,false);
-                indexmap[index.entry_name(false,false)].set_info(entry_id,false,false);
-                indexmap[index.entry_name(true,true)].set_info(entry_id,true,true);
-                indexmap[index.entry_name(false,true)].set_info(entry_id,false,true);
+            else if(index.sid==0||index.sid>mass::max_sid){
+                LogError("\nInvalid sid <%llu>.\n",index.sid);
+                return -1;
+            }
+            else
+                indices.push_back(index);
+        }
+    }
+    htl::map<int_t,htl::set<std::pair<int_t,int_t>>> cmmap;
+    if(mf_cache){
+        mf_cache->publish();
+        int_t bremains=blists.size();
+        htl::set<int_t> vuse;
+        for(const bsystem &blist:blists){
+            size_t csize,bn=blist.size();
+            if(fread(&csize,sizeof(csize),1,mf_cache)!=1)break;
+            if(csize>bn)break;
+            htl::set<int_t> ks,vs;
+            for(int_t i=0;i<csize;++i){
+                int_t k,v;
+                if(fread(&k,sizeof(int_t),1,mf_cache)!=1||k>=bn
+                 ||fread(&v,sizeof(int_t),1,mf_cache)!=1||v==0)
+                    break;
+                const barycen &b=blist[k];
+                if(b.hid<0){
+                    if(b.mid<0)
+                        break;
+                    cmmap[v].emplace(b.mid,-1);
+                }
+                else if(b.hid<bn&&b.gid<bn){
+                    int_t gmid=blist[b.gid].mid;
+                    if(gmid<0)
+                        break;
+                    cmmap[v].emplace(b.mid,gmid);
+                }
+                else break;
+                ks.insert(k);
+                vs.insert(v);
+            }
+            if(ks.size()!=csize||vs.size()!=csize)
+                break;
+            vuse.insert(vs.begin(),vs.end());
+            --bremains;
+        }
+        bool success=false;
+        size_t n_indices=indices.size();
+        do{
+            if(bremains)break;
+            ephemeris_entry index;
+            int_t fremain;
+            while((fremain=fread(&index,sizeof(index),1,mf_cache))==1){
+                if(index.sid!=0||vuse.erase(index.fid)!=1)
+                    break;
                 indices.push_back(index);
             }
+            success=!fremain&&vuse.empty();
+        } while(0);
+        if(!success){
+            indices.resize(n_indices);
+            mf_cache=nullptr;
+            LogWarning("Warning: Invalid barycentric offset cache. Ignored.\n");
         }
     }
 
     htl::vector<compress_work> tasks;
-    for(const ephemeris_entry &index:indices){
-        MFILE *mrot=indexmap[index.entry_name(true,false)].pmfile;
-        MFILE *msubrot=indexmap[index.entry_name(true,true)].pmfile;
-        MFILE *morb=indexmap[index.entry_name(false,false)].pmfile;
-        MFILE *msuborb=indexmap[index.entry_name(false,true)].pmfile;
+    for(const ephemeris_entry &index:indices)if(index.sid>0){
+        MFILE *mrot=indexmap[index.entry_name(true,false)];
+        MFILE *msubrot=indexmap[index.entry_name(true,true)];
+        MFILE *morb=indexmap[index.entry_name(false,false)];
+        MFILE *msuborb=indexmap[index.entry_name(false,true)];
         if(!morb||!mrot){
-            LogError("\nError: Missing data for <%s>\n",&index.sid);
+            LogError("\nError: Missing data for <%s>.\n",&index.sid);
             return -1;
         }
 
@@ -434,8 +488,48 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
         work.msuborb=msuborb;
         work.msubrot=msubrot;
     }
+    else{
+        MFILE *moffset=indexmap[index.offset_name(false)];
+        MFILE *msuboffset=indexmap[index.offset_name(true)];
+        if(!moffset){
+            LogError("\nError: Missing offset file <%llu>.\n",index.fid);
+            return -1;
+        }
+
+        moffset->publish();
+        if(msuboffset)msuboffset->publish();
+        auto &work=tasks.emplace_back();
+        work.pindex=&index;
+        work.morb=moffset;
+        work.msuborb=msuboffset;
+    }
 
     const size_t n_tasks=tasks.size();
+    htl::map<uint64_t,htl::vector<size_t>> taskids_map;
+    htl::vector<uint64_t> key_orders;
+    for(size_t it=n_tasks;it>0;){
+        const auto &w=tasks[--it];
+        uint64_t sid=w.pindex->sid;
+        if(sid==0)
+            taskids_map[sid].push_back(it);
+        else{
+            size_t oldsize=taskids_map.size();
+            taskids_map[sid].push_back(it);
+            if(taskids_map.size()>oldsize)
+                key_orders.push_back(sid);
+        }
+    }
+    const int_t mn=key_orders.size();
+    key_orders.push_back(0);
+    std::reverse(key_orders.begin(),key_orders.end());
+    for(bsystem &blist:blists){
+        int_t cbn=blist.compatible_size();
+        if(cbn!=mn){
+            LogError("\nError: Uncompatible barycenter/mass system size: <%lld/%lld>.\n",cbn,mn);
+            return -1;
+        }
+    }
+
     ThreadPool *pthread_pool=ThreadPool::get_thread_pool();
     if(pthread_pool){
         htl::vector<std::pair<int_t,void*>> priorities;
@@ -460,18 +554,10 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
     LogInfo("\n");
 
     int_t error_count=0;
-
-    htl::map<uint64_t,htl::vector<size_t>> compress_info_map;
-    htl::vector<uint64_t> key_orders;
-    for(size_t it=n_tasks;it>0;){
-        const auto &w=tasks[--it];
+    for(const auto &w:tasks){
         error_count+=!w.pheaders[0];
-        error_count+=!w.pheaders[1];
-        uint64_t sid=w.pindex->sid;
-        size_t oldsize=compress_info_map.size();
-        compress_info_map[sid].push_back(it);
-        if(compress_info_map.size()>oldsize)
-            key_orders.push_back(sid);
+        if(w.pindex->sid)
+            error_count+=!w.pheaders[1];
     }
 
     do{
@@ -493,27 +579,49 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
         mf_readme->set_name(Configs::SaveNameReadme);
         fwrite(readmestr.c_str(),1,plocate-readmestr.c_str(),mf_readme);
         fprintf(mf_readme,"\n"
-            "Object List:\n"
-            "[    sid]  index :\n"
+            "Compressed Format:\n"
             "       data_file : method(degree, segments)\n"
             "                   [(substep*)compress_level, size/original_size, ratio @ original_sample_count in [t_start, t_end]]\n"
             "                 : relative_error [endpoints:max_state_error, endpoints:max_rate_error]:\n");
         int_t mi=0;
-        for(auto sit=key_orders.rbegin();sit!=key_orders.rend();++sit){
-            uint64_t sid=*sit;
-            const auto &v=compress_info_map.at(sid);
-            fprintf(mf_readme,"[%7s]%7lld :\n",(char*)&sid,mi);
-            ++mi;
+        const char *fexts[3]={Configs::SaveBarycentricOffsetDataExtension,Configs::SaveOrbitalDataExtension,Configs::SaveRotationalDataExtension};
+        for(uint64_t sid:key_orders){
+            const auto &v=taskids_map.at(sid);
+            const bool is_mass=sid>0;
+            if(!is_mass){
+                fprintf(mf_readme,"\n"
+                    "Barycentric Offset List:\n"
+                    "<sid[-companion], ...> :\n");
+            }
+            else{
+                fprintf(mf_readme,"%s[%7s]%7lld :\n",
+                    mi?"":"\n"
+                    "Object List:\n"
+                    "[    sid]  index :\n",(char*)&sid,mi);
+                ++mi;
+            }
             for(auto it=v.rbegin();it!=v.rend();++it){
                 const auto &w=tasks[*it];
                 const auto &index=*w.pindex;
-                for(int k=0;k<2;++k){
+                for(int k=0;k<1+is_mass;++k){
                     auto *pheader=w.pheaders[k];
+                    const char *fext=fexts[k+is_mass];
+                    if(!is_mass){
+                        std::string ssids;
+                        for(const auto &mip:cmmap[index.fid]){
+                            if(!ssids.empty())ssids+=", ";
+                            ssids+=(char*)&key_orders[mip.first+1];
+                            if(mip.second<0)continue;
+                            ssids+='-';
+                            ssids+=(char*)&key_orders[mip.second+1];
+                        }
+                        fprintf(mf_readme,"<%-15s :\n",(ssids+='>').c_str());
+                    }
                     if(!pheader){
                         fprintf(mf_readme,"%12lld%s : %18s(FAILED)\n",
-                            index.fid,k==0?Configs::SaveOrbitalDataExtension:Configs::SaveRotationalDataExtension,
+                            index.fid,fext,
                             format_name(ephemeris_format::NONE));
-                        LogError("Error: Failed to compress ephemeris file <%s>\n",index.entry_name(k==1,false).c_str());
+                        LogError("Error: Failed to compress ephemeris file <%s>\n",get_file_name((k?w.mrot:w.morb)->get_name()).c_str());
                     }
                     else{
                         bool use_substep=w.clevels[k]<0;
@@ -522,7 +630,7 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
                         // verbose info
                         int_t samplesize=(2+k)*sizeof(vec);
                         fprintf(mf_readme,"%12lld%s : %18s(%d, %lld)\n",
-                            index.fid,k==0?Configs::SaveOrbitalDataExtension:Configs::SaveRotationalDataExtension,
+                            index.fid,fext,
                             format_name(ephemeris_format(~pheader->uformat)),
                             (int)pheader->degree,pheader->n);
                         fprintf(mf_readme,
@@ -544,7 +652,7 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
                             k==0?w.max_v:w.max_w);
                         if(!(err_rel<relative_error_warning_threshold))
                             LogWarning("Warning: Relative fit error (%.3e) too large for <%s>\n",
-                                err_rel,index.entry_name(k==1,false).c_str());
+                                err_rel,get_file_name((k?w.mrot:w.morb)->get_name()).c_str());
                     }
                 }
             }

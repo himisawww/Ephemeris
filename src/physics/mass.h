@@ -145,6 +145,7 @@ public:
     fast_real min_distance;
     fast_real max_influence;
 
+    static constexpr uint64_t max_sid=(1ull<<56)-1;
     const char *get_ssid() const{ return (const char*)&sid; }
 
     INLINE void orthogonalize(){
@@ -161,11 +162,6 @@ public:
     //check sanity of states & params
     bool sanity(bool alert=false) const;
 };
-
-constexpr auto mass_constant_parameters_begin=&mass::sid;
-constexpr auto mass_constant_parameters_end=&mass::gpmodel;
-constexpr auto mass_auxiliary_variables=&mass::phi;
-constexpr auto mass_temporary_variables=&mass::Egrad;
 
 //short mass used in Runge-Kutta-integrators
 struct mass_state{
@@ -256,6 +252,11 @@ private:
     htl::vector<const geopotential *> gp_components;
     htl::vector<const ring *> ring_components;
 private:
+    static constexpr auto mass_constant_parameters_begin=&mass::sid;
+    static constexpr auto mass_constant_parameters_end=&mass::gpmodel;
+    static constexpr auto mass_auxiliary_variables=&mass::phi;
+    static constexpr auto mass_temporary_variables=&mass::Egrad;
+
     //load system from files
     //   fbase : basic parameters and initial states
     //    fext : extra parameters
