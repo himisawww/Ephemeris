@@ -50,6 +50,26 @@ public:
     Logger(Logger &&)=delete;
     ~Logger();
 
+    static Logger &get_default_logger();
+
+    class ScopedSettings{
+        Logger &logger;
+        Logger::LogLevelSettings push_log_levels;
+        ScopedSettings(ScopedSettings&&)=delete;
+    public:
+        ScopedSettings(Logger &_logger,LogLevel lv,LogTo select=LogTo::ALL)
+            :logger(_logger){
+            push_log_levels=logger.set_log_levels(lv,select);
+        }
+        ScopedSettings(LogLevel lv,LogTo select=LogTo::ALL)
+            :logger(get_default_logger()){
+            push_log_levels=logger.set_log_levels(lv,select);
+        }
+        ~ScopedSettings(){
+            logger.restore_log_levels(push_log_levels);
+        }
+    };
+
     LogLevelSettings get_log_levels(){ return all_levels; }
     //return old levels for restore_log_levels
     LogLevelSettings set_log_levels(LogLevel,LogTo select=LogTo::ALL);
@@ -59,25 +79,11 @@ public:
     size_t logformat(LogLevel lv,const char *format,...);
 };
 
-extern Logger global_logger;
-#define LogVerbose(...)  do{ global_logger.logformat(LogLevel::VERBOSE , __VA_ARGS__); } while(0)
-#define LogDebug(...)    do{ global_logger.logformat(LogLevel::DEBUG   , __VA_ARGS__); } while(0)
-#define LogInfo(...)     do{ global_logger.logformat(LogLevel::INFO    , __VA_ARGS__); } while(0)
-#define LogWarning(...)  do{ global_logger.logformat(LogLevel::WARNING , __VA_ARGS__); } while(0)
-#define LogError(...)    do{ global_logger.logformat(LogLevel::ERROR   , __VA_ARGS__); } while(0)
-#define LogCritical(...) do{ global_logger.logformat(LogLevel::CRITICAL, __VA_ARGS__); } while(0)
+#define LogVerbose(...)  do{ Logger::get_default_logger().logformat(LogLevel::VERBOSE , __VA_ARGS__); } while(0)
+#define LogDebug(...)    do{ Logger::get_default_logger().logformat(LogLevel::DEBUG   , __VA_ARGS__); } while(0)
+#define LogInfo(...)     do{ Logger::get_default_logger().logformat(LogLevel::INFO    , __VA_ARGS__); } while(0)
+#define LogWarning(...)  do{ Logger::get_default_logger().logformat(LogLevel::WARNING , __VA_ARGS__); } while(0)
+#define LogError(...)    do{ Logger::get_default_logger().logformat(LogLevel::ERROR   , __VA_ARGS__); } while(0)
+#define LogCritical(...) do{ Logger::get_default_logger().logformat(LogLevel::CRITICAL, __VA_ARGS__); } while(0)
 
 #define LogAnnouncement  printf
-
-class ScopedLogLevelSettings{
-    Logger &logger;
-    Logger::LogLevelSettings push_log_levels;
-public:
-    ScopedLogLevelSettings(Logger &_logger,LogLevel lv,LogTo select=LogTo::ALL)
-        :logger(_logger){
-        push_log_levels=logger.set_log_levels(lv,select);
-    }
-    ~ScopedLogLevelSettings(){
-        logger.restore_log_levels(push_log_levels);
-    }
-};

@@ -36,10 +36,10 @@ size_t fread(void *buffer,size_t e_size,size_t e_count,MFILE *mem);
 size_t fwrite(const void *buffer,size_t e_size,size_t e_count,MFILE *mem);
 std::string vstrprintf(const char *format,va_list _arg_list);
 std::string strprintf(const char *format,...);
-int fprintf(MFILE *mem,const char *format,...);
-int fseek(MFILE *_Stream,int64_t _Offset,int _Origin);
-int64_t ftell(MFILE *_Stream);
-int fclose(MFILE *_Stream);
+int64_t fprintf(MFILE *mem,const char *format,...);
+int fseek(MFILE *_stream,int64_t _offset,int _origin);
+int64_t ftell(MFILE *_stream);
+int fclose(MFILE *_stream);
 
 std::string readline(MFILE *mem);
 bool file_exist(const std::string &path);

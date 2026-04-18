@@ -18,7 +18,10 @@ std::string get_file_extension(const std::string &path){
     return path.substr(subpos&&!(path.find_first_of("/\\",subpos)+1)?subpos:path.size());
 }
 
-static htl::map<std::string,htl::vector<MFILE::byte_t>> mem_library;
+static auto &get_library(){
+    static htl::map<std::string,htl::vector<MFILE::byte_t>> mem_library;
+    return mem_library;
+}
 static bool s_publish_invalid_ofile=false;
 static std::string filepath_normalize(const std::string &fpath){
     std::string result;
@@ -71,6 +74,7 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     bool is_read_=is_read();
     bool is_cache_=is_cache();
     if(is_read_){
+        auto &mem_library=get_library();
         auto it=mem_library.find(filepath_normalize(_fname));
         if(it!=mem_library.end()){
             const auto &pmem=it->second;
@@ -204,15 +208,15 @@ int MFILE::seek(int64_t fpos,int forg){
     }
     return _fseeki64(fp,fpos,forg);
 }
-int fseek(MFILE *_Stream,int64_t _Offset,int _Origin){
-    return _Stream->seek(_Offset,_Origin);
+int fseek(MFILE *_stream,int64_t _offset,int _origin){
+    return _stream->seek(_offset,_origin);
 }
-int64_t ftell(MFILE *_Stream){
-    return _Stream->tell();
+int64_t ftell(MFILE *_stream){
+    return _stream->tell();
 }
-int fclose(MFILE *_Stream){
-    int ret=_Stream->close();
-    delete _Stream;
+int fclose(MFILE *_stream){
+    int ret=_stream->close();
+    delete _stream;
     return ret;
 }
 
@@ -314,7 +318,7 @@ bool MFILE::publish(){
 bool MFILE::publish(const std::string &fname){
     if(!publish())return false;
     if(fname.size()){
-        auto &pmem=mem_library[filepath_normalize(fname)];
+        auto &pmem=get_library()[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
         htl::vector<byte_t>().swap(cached_data);
@@ -331,7 +335,7 @@ size_t fwrite(const void *buffer,size_t e_size,size_t e_count,MFILE *mem){
 std::string readline(MFILE *mem){
     return mem->readline();
 }
-int fprintf(MFILE *mem,const char *format,...){
+int64_t fprintf(MFILE *mem,const char *format,...){
     va_list args;
     va_start(args,format);
     std::string result=vstrprintf(format,args);

@@ -2,7 +2,10 @@
 #include<cstdarg>
 #include"memio.h"
 
-Logger global_logger;
+Logger &Logger::get_default_logger(){
+    static Logger global_logger;
+    return global_logger;
+};
 
 Logger::Logger(LogTo _target,const char *_logfile,bool _use_cache){
     target=_target;
