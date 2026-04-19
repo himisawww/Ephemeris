@@ -162,7 +162,6 @@
     <ClInclude Include="src\htl\rbtree.h" />
     <ClInclude Include="src\htl\set.h" />
     <ClInclude Include="src\htl\vector.h" />
-    <ClInclude Include="src\integrators\mass_combined.h" />
     <ClInclude Include="src\math\basic_math.h" />
     <ClInclude Include="src\math\dfloat_t.h" />
     <ClInclude Include="src\math\distribute.h" />

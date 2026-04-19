@@ -239,27 +239,46 @@ int_t ephemeris_compressor::compress_work::priority() const{
     return sumsize;
 }
 
+template<typename T>
+static size_t check_debug_state(htl::vector<T> &sdata,MFILE *const mf){
+    if(mf){
+        size_t msize=mf->size();
+        const char *mdata=mf->data();
+        if(msize>=8&&msize%sizeof(T)==0&&std::isfinite(*(double*)mdata))
+            sdata.insert(sdata.begin(),(T*)mdata,(T*)(mdata+msize));
+    }
+    return sdata.size();
+}
+
 void ephemeris_compressor::compress_work::run(){
     const auto &index=*pindex;
     const bool is_mass=index.sid;
     // for debug
     htl::vector<orbital_state_t> sorb,ssuborb;
     htl::vector<rotational_state_t> srot,ssubrot;
-    sorb.insert(sorb.begin(),
-        (orbital_state_t*)morb->data(),
-        (orbital_state_t*)(morb->data()+morb->size()));
-    if(msuborb)
-        ssuborb.insert(ssuborb.begin(),
-            (orbital_state_t*)msuborb->data(),
-            (orbital_state_t*)(msuborb->data()+msuborb->size()));
+    if(!check_debug_state(sorb,morb))
+        morb=nullptr;
+    if(msuborb&&!check_debug_state(ssuborb,msuborb))
+        msuborb=nullptr;
     if(is_mass){
-        srot.insert(srot.begin(),
-            (rotational_state_t*)mrot->data(),
-            (rotational_state_t*)(mrot->data()+mrot->size()));
-        if(msubrot)
-            ssubrot.insert(ssubrot.begin(),
-                (rotational_state_t*)msubrot->data(),
-                (rotational_state_t*)(msubrot->data()+msubrot->size()));
+        if(!check_debug_state(srot,mrot)||srot.size()!=sorb.size())
+            mrot=nullptr;
+        if(msubrot&&!check_debug_state(ssubrot,msubrot)||ssubrot.size()!=ssuborb.size())
+            msubrot=nullptr;
+    }
+
+    float relative_factor=1;
+    bool fix_relative=false;
+    if(!is_mass&&morb){
+        fast_real max_distance=0;
+        for(const auto &s:sorb)
+            checked_maximize(max_distance,s.r.normsqr());
+        if(msuborb)for(const auto &s:ssuborb)
+            checked_maximize(max_distance,s.r.normsqr());
+        max_distance=std::sqrt(max_distance);
+        checked_maximize(max_distance,epsilon_absolute_error);
+        if(fix_relative=max_distance<min_state_reference)
+            relative_factor=float(min_state_reference/max_distance);
     }
 
     //orbital,rotational
@@ -267,10 +286,10 @@ void ephemeris_compressor::compress_work::run(){
     for(int k=0;k<1+is_mass;++k){
         MFILE *&mbase=k==0?morb:mrot;
         MFILE *&msub=k==0?msuborb:msubrot;
-
-        newsize[k]=oldsize[k]=mbase->size();
         header_base *&pheader=pheaders[k];
         pheader=nullptr;
+        if(!mbase)continue;
+        newsize[k]=oldsize[k]=mbase->size();
         int_t target_clevel=1;
 
         int_t clevel=
@@ -280,6 +299,8 @@ void ephemeris_compressor::compress_work::run(){
         if(clevel){
             newsize[k]=mbase->size();
             pheader=(header_base*)mbase->data();
+            if(fix_relative)
+                pheader->relative_error*=relative_factor;
             double ecrit=pheader->relative_error;
             ecrit=std::log10(ecrit/epsilon_relative_error);
             if(ecrit>0)
@@ -291,6 +312,8 @@ void ephemeris_compressor::compress_work::run(){
                  :compress_rotational_data(*msub,trange,morb);
             if(subclevel){
                 auto *psubheader=(header_base*)msub->data();
+                if(fix_relative)
+                    psubheader->relative_error*=relative_factor;
                 use_substep=!(pheader&&pheader->relative_error<=psubheader->relative_error);
                 if(use_substep){
                     newsize[k]=msub->size();
@@ -327,7 +350,7 @@ void ephemeris_compressor::compress_work::run(){
         checked_maximize(max_r_relative,state_error(&sorb[i].r,&os.r));
         checked_maximize(max_r,(sorb[i].r-os.r).norm());
         checked_maximize(max_v,(sorb[i].v-os.v).norm());
-        if(is_mass){
+        if(is_mass&&mrot){
             irot.set_orbital_state(os.r,os.v);
             irot(t,&rs);
             checked_maximize(max_w,(srot[i].w-rs.w).norm());
@@ -337,7 +360,7 @@ void ephemeris_compressor::compress_work::run(){
         if(i==0||i+1==sorb.size()){
             checked_maximize(end_r,(sorb[i].r-os.r).norm());
             checked_maximize(end_v,(sorb[i].v-os.v).norm());
-            if(is_mass){
+            if(is_mass&&mrot){
                 checked_maximize(end_w,(srot[i].w-rs.w).norm());
                 checked_maximize(end_xz,(srot[i].x-rs.x).norm());
                 checked_maximize(end_xz,(srot[i].z-rs.z).norm());
@@ -352,7 +375,7 @@ void ephemeris_compressor::compress_work::run(){
         checked_maximize(max_r_relative,state_error(&ssuborb[i].r,&os.r));
         checked_maximize(max_r,(ssuborb[i].r-os.r).norm());
         checked_maximize(max_v,(ssuborb[i].v-os.v).norm());
-        if(is_mass){
+        if(is_mass&&msubrot){
             irot.set_orbital_state(os.r,os.v);
             irot(t,&rs);
             checked_maximize(max_w,(ssubrot[i].w-rs.w).norm());
@@ -362,13 +385,15 @@ void ephemeris_compressor::compress_work::run(){
         if(i==0||i+1==ssuborb.size()){
             checked_maximize(end_r,(ssuborb[i].r-os.r).norm());
             checked_maximize(end_v,(ssuborb[i].v-os.v).norm());
-            if(is_mass){
+            if(is_mass&&msubrot){
                 checked_maximize(end_w,(ssubrot[i].w-rs.w).norm());
                 checked_maximize(end_xz,(ssubrot[i].x-rs.x).norm());
                 checked_maximize(end_xz,(ssubrot[i].z-rs.z).norm());
             }
         }
     }
+    if(fix_relative)
+        max_r_relative*=relative_factor;
 }
 
 int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
@@ -409,6 +434,7 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
                 indices.push_back(index);
         }
     }
+    //{cache id, {mid, companion mid || -1}}
     htl::map<int_t,htl::set<std::pair<int_t,int_t>>> cmmap;
     if(mf_cache){
         mf_cache->publish();
@@ -520,7 +546,7 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
         }
     }
     const int_t mn=key_orders.size();
-    key_orders.push_back(0);
+    if(taskids_map.count(0))key_orders.push_back(0);
     std::reverse(key_orders.begin(),key_orders.end());
     for(bsystem &blist:blists){
         int_t cbn=blist.compatible_size();
@@ -567,17 +593,18 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
         }
         mf_readme->publish();
         const char *pdata=(const char *)mf_readme->data();
-        const std::string readmestr(pdata,pdata+mf_readme->size());
+        const std::string copyreadme(pdata,pdata+mf_readme->size());
+        const char *readmestr=copyreadme.c_str();
         const char search_pattern[]="\n"
             "  Object List (index & sid):  \n";
-        const char *plocate=strstr(readmestr.c_str(),search_pattern);
+        const char *plocate=strstr(readmestr,search_pattern);
         if(!plocate){
             LogWarning("Warning: Unrecognized %s.\n",Configs::SaveNameReadme);
-            break;
+            plocate=readmestr+copyreadme.size();
         }
         mf_readme->reset();
         mf_readme->set_name(Configs::SaveNameReadme);
-        fwrite(readmestr.c_str(),1,plocate-readmestr.c_str(),mf_readme);
+        fwrite(readmestr,1,plocate-readmestr,mf_readme);
         fprintf(mf_readme,"\n"
             "Compressed Format:\n"
             "       data_file : method(degree, segments)\n"
@@ -621,7 +648,12 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
                         fprintf(mf_readme,"%12lld%s : %18s(FAILED)\n",
                             index.fid,fext,
                             format_name(ephemeris_format::NONE));
-                        LogError("Error: Failed to compress ephemeris file <%s>\n",get_file_name((k?w.mrot:w.morb)->get_name()).c_str());
+                        MFILE *mcomp=k?w.mrot:w.morb;
+                        if(mcomp)
+                            LogError("Error: Failed to compress ephemeris file <%s>\n",get_file_name(mcomp->get_name()).c_str());
+                        else
+                            LogWarning("Warning: Skipping <%s%s%lld%s>, maybe it is already compressed.\n",
+                                (char*)&sid,is_mass?".":"",index.fid,fext);
                     }
                     else{
                         bool use_substep=w.clevels[k]<0;
@@ -650,7 +682,7 @@ int_t ephemeris_compressor::compress(htl::vector<MFILE> &ephemeris_data){
                             k==0?w.max_r:w.max_xz,
                             k==0?w.end_v:w.end_w,
                             k==0?w.max_v:w.max_w);
-                        if(!(err_rel<relative_error_warning_threshold))
+                        if(!(err_rel<(is_mass?relative_error_warning_threshold:relative_offset_error_warning_threshold)))
                             LogWarning("Warning: Relative fit error (%.3e) too large for <%s>\n",
                                 err_rel,get_file_name((k?w.mrot:w.morb)->get_name()).c_str());
                     }

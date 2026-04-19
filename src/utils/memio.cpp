@@ -19,7 +19,7 @@ std::string get_file_extension(const std::string &path){
 }
 
 static auto &get_library(){
-    static htl::map<std::string,htl::vector<MFILE::byte_t>> mem_library;
+    static htl::map<std::string,htl::vector<char>> mem_library;
     return mem_library;
 }
 static bool s_publish_invalid_ofile=false;
@@ -64,7 +64,7 @@ MFILE::MFILE(){
     state=MFILE_STATE::WRITE_CACHE;
 }
 MFILE::MFILE(const void *_mem,size_t _size){
-    idata=(const byte_t *)_mem;
+    idata=(const char *)_mem;
     isize=_size;
     offset=0;
     state=MFILE_STATE::READ_CACHE;
@@ -136,7 +136,7 @@ int MFILE::close(){
         return 0;
     return fclose(fp);
 }
-MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
+char *MFILE::prepare(size_t new_cache_size){
     close();
     cached_data.resize(new_cache_size);
     if(cached_data.capacity()-new_cache_size>(new_cache_size>>1))
@@ -150,7 +150,7 @@ MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
 void MFILE::reset(){
     close();
     std::string().swap(filename);
-    htl::vector<byte_t>().swap(cached_data);
+    htl::vector<char>().swap(cached_data);
     fp=0;
     offset=0;
     state=MFILE_STATE::WRITE_CACHE;
@@ -159,7 +159,7 @@ void MFILE::reset(){
 void MFILE::load_data(){
     if(state==MFILE_STATE::READ_CACHE){
         if(idata!=cached_data.data()||isize!=cached_data.size()){
-            htl::vector<byte_t>(idata,idata+isize).swap(cached_data);
+            htl::vector<char>(idata,idata+isize).swap(cached_data);
             idata=cached_data.data();
         }
     }
@@ -321,7 +321,7 @@ bool MFILE::publish(const std::string &fname){
         auto &pmem=get_library()[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
-        htl::vector<byte_t>().swap(cached_data);
+        htl::vector<char>().swap(cached_data);
     }
     return true;
 }

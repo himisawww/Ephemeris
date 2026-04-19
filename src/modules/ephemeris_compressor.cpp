@@ -133,8 +133,7 @@ double ephemeris_compressor::relative_state_error(const vec *r,const vec *rp){
     return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
 };
 double ephemeris_compressor::absolute_state_error(const vec *r,const vec *rp){
-    constexpr double minref=epsilon_absolute_error/epsilon_relative_error;
-    return std::sqrt((*rp-*r).normsqr()/std::max(minref*minref,(*r).normsqr()));
+    return std::sqrt((*rp-*r).normsqr()/std::max(min_state_reference*min_state_reference,(*r).normsqr()));
 };
 double ephemeris_compressor::circular_kepler_error(const double *k,const double *kp){
     vec r,rp,v;
@@ -854,7 +853,7 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
     do{
         if(!fin||!fin->publish()||fin->size()<=sizeof(base_t))
             break;
-        const uint8_t *const fdata=fin->data();
+        const char *const fdata=fin->data();
         memcpy((base_t*)this,fdata,sizeof(base_t));
         double r=relative_error();
         if(!(0<=r&&r<1))

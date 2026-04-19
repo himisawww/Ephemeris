@@ -172,9 +172,15 @@ public:
     static constexpr double epsilon_relative_error=1e-12;
     //same, but for absolute positional error(m)
     static constexpr double epsilon_absolute_error=1e-4;
+    //minimum reference distance for STATE_VECTORS method using absolute_state_error
+    static constexpr double min_state_reference=epsilon_absolute_error/epsilon_relative_error;
     //emit warning if relative fit error not less than this
     static constexpr double relative_error_warning_threshold=1e-5;
-    //if state vector rotates more than this in 1 time step, forbid state-based compression methods
+    //for barycentric offset data, the only viable compression method is STATE_VECTORS,
+    // but the reference distance can be less than min_state_reference, 
+    // so use a greater warning threshold.
+    static constexpr double relative_offset_error_warning_threshold=1e-3;
+    //if state vector rotates more than this(radian) in 1 time step, forbid state-based compression methods
     static constexpr double max_state_rotation_per_sample=1;
 
     // mf: contains raw orbital_state_t data

@@ -47,10 +47,6 @@ std::string get_file_name(const std::string &path);
 std::string get_file_extension(const std::string &path);
 
 class MFILE{
-public:
-    typedef uint8_t byte_t;
-    typedef int64_t index_t;
-private:
     // specified when open a file.
     // WRITE_FILE && !fp : cache will be published in this name when close;
     // [otherwise]: auxiliary;
@@ -58,18 +54,18 @@ private:
     // local cache used for memory read/write
     // [READ_CACHE] : store data to be read;
     // WRITE_CACHE || WRITE_FILE && !fp : used to store wrote data;
-    htl::vector<byte_t> cached_data;
+    htl::vector<char> cached_data;
     // used for actuall disk io
     // READ_FILE || WRITE_FILE && fp : the file reading/writing;
     // WRITE_CACHE : if fp, cache will flush to this file when close;
     FILE *fp;
     // used for memory read
     // READ_CACHE : the begining address and byte size of reading cache
-    const byte_t *idata;
-    index_t isize;
+    const char *idata;
+    int64_t isize;
     // used for memory read/write
     // READ_CACHE || WRITE_CACHE || WRITE_FILE &&!fp : current position of io
-    index_t offset;
+    int64_t offset;
 
     /* usage of members under possible states:
         READ_CACHE:          [cached_data],   idata, isize, offset
@@ -95,7 +91,7 @@ public:
     int close();
     //resize local cache, set reading cache pointer to it, and set state to READ_CACHE.
     //return address of prepared local cache.
-    byte_t *prepare(size_t new_cache_size);
+    char *prepare(size_t new_cache_size);
     //empty local cache, and set state to WRITE_CACHE
     void reset();
 
@@ -105,7 +101,7 @@ public:
     // (READ_FILE/READ_CACHE) read file/memory to local cache and converts to READ_CACHE
     void load_data();
     // (WRITE_CACHE/READ_CACHE) get data
-    const byte_t *data() const{ return state==MFILE_STATE::READ_CACHE?idata:cached_data.data(); }
+    const char *data() const{ return state==MFILE_STATE::READ_CACHE?idata:cached_data.data(); }
     size_t size() const{ return state==MFILE_STATE::READ_CACHE?isize:cached_data.size(); }
 
     bool is_valid() const;
