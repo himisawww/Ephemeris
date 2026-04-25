@@ -88,23 +88,27 @@ int main_fun(int argc,const char **argv){
     return 0;
 }
 
-static int check_version(){
-    const char *vstr=Configs::VersionString;
-    size_t vsize=strlen(vstr);
-    if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
-        LogAnnouncement("Warning: This executable is compiled from development branch of code.\n");
-        if(!file_exist("./_NOTES/DEVELOP")){
-            LogCritical("\n         User shall either find a release version, or compile an executable using main branch.\n\n");
-            exit(0);
-            return -1;
-        }
-    }
-    return 0;
-}
-
-static volatile int chkv=check_version();
-
 int main(int argc,const char **argv){
+    struct check_version{
+        bool pass;
+        check_version():pass(true){
+            const char *vstr=Configs::VersionString;
+            size_t vsize=strlen(vstr);
+            if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
+                LogAnnouncement("Warning: This executable is compiled from development branch of code.\n");
+                if(!file_exist("./_NOTES/DEVELOP")){
+                    LogCritical("\n         User shall either find a release version, or compile an executable using main branch.\n\n");
+                    pass=false;
+                }
+            }
+        }
+        ~check_version(){
+            LogAnnouncement("The program is about to exit. Press Enter to continue...");
+            getchar();
+        }
+    } chkv;
+    if(!chkv.pass)return 0;
+
 #if 0
     double s=CalcTime();
     ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
@@ -167,7 +171,7 @@ int main(int argc,const char **argv){
         //"F:\\Temp\\ephm\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
         "f:\\Temp\\ephm\\Ephemeris\\Ephemeris\\SolarSystem",
         //"F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
-        "-20"
+        "60"
         //"RUN_TEST"
     };
     const int m_argc=sizeof(m_argv)/sizeof(char *);
