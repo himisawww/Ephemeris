@@ -429,7 +429,7 @@ void bsystem::get_children_offset(const barycen &b,mpvec &cr,mpvec &cv) const{
 
 int_t bsystem::compose(int_t bid){
     bsystem &blist=*this;
-    if(bid<0)return bid;
+    if(bid<0)return 0;
 
     barycen &b=blist[bid];
     int_t nret=1;
@@ -456,10 +456,16 @@ int_t bsystem::compose(int_t bid){
         }
     }
 
-    mpvec cr,cv;
-    blist.get_children_offset(b,cr,cv);
-    b.r=b.r_sys-cr;
-    b.v=b.v_sys-cv;
+    if(b.children.empty()){
+        b.r=b.r_sys;
+        b.v=b.v_sys;
+    }
+    else{
+        mpvec cr,cv;
+        blist.get_children_offset(b,cr,cv);
+        b.r=b.r_sys-cr;
+        b.v=b.v_sys-cv;
+    }
 
     if(b.gid>=0){
         nret+=compose(b.hid);

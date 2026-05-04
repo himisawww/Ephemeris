@@ -131,7 +131,8 @@ public:
         bool is_orbital() const{ return is_orbital_format(data_format()); }
         bool is_rotational() const{ return is_rotational_format(data_format()); }
 
-        // if data_format()==TIDAL_LOCK, orbital state at the same instant
+        bool requires_orbital_state() const{ return data_format()==TIDAL_LOCK; }
+        // if requires_orbital_state(), orbital state at the same instant
         // should be set by this function before interpolating rotational states.
         void set_orbital_state(const vec &r,const vec &v);
         // state = &orbital_state_t or &rotational_state_t

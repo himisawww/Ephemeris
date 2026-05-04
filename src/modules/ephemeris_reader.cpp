@@ -4,15 +4,15 @@
 #include"configs.h"
 #include"utils/logger.h"
 
-ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t memory_budget)
-    :izippack(_chname),chname(_chname),_interp_size(0){
+ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname)
+    :izippack(_chname),chname(_chname),_interp_size(0),_bselect(-1){
     std::string failure;
     do{
         if(!izippack::operator bool())
             break;
         auto mf_files=load_central_directory();
-        MFILE mf_index;
-        bool index_loaded=false,chpt_loaded=false;
+        MFILE mf_index,mf_offset;
+        bool index_loaded=false,chpt_loaded=false,offset_loaded=false;
         for(izipfile zf:mf_files){
             const std::string &zfn=zf.name();
             if(zfn==Configs::SaveNameIndex){
@@ -37,7 +37,15 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t 
                         failure+="    Incompatible celestial system between ephemerides;\n";
                 }
             }
-            if(failure.size()||index_loaded&&chpt_loaded)break;
+            else if(zfn==Configs::SaveNameBarycentricOffsetIndex){
+                if(offset_loaded)failure+="    Duplicated barycentric offset index;\n";
+                else{
+                    offset_loaded=true;
+                    zf.fetch();
+                    zf.dumpfile(mf_offset);
+                }
+            }
+            if(failure.size()||index_loaded&&chpt_loaded&&offset_loaded)break;
         }
         if(failure.size()||!(index_loaded&&chpt_loaded)){
             if(failure.empty())failure+="    Missing index/checkpoint;\n";
@@ -56,6 +64,7 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t 
         int dir=0;
         const size_t mn=ms.size();
         ephm_index.resize(mn);
+        htl::vector<ephemeris_entry> bindices;
         while(failure.empty()){
             ephemeris_entry index;
             if(1!=fread(&index,sizeof(index),1,&mf_index))
@@ -85,6 +94,11 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t 
                     failure+="    Error loading system structure;\n";
                 else if(blists.back().compatible_size()!=mn)
                     failure+="    Invalid structure;\n";
+                else{
+                    auto &bindex=bindices.emplace_back(index);
+                    bindex.t_start*=dir;
+                    bindex.t_end*=dir;
+                }
             }
             else{
                 auto itorb=allfiles.find(index.entry_name(false,false));
@@ -110,6 +124,68 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t 
         if(failure.size()||!dir){
             if(failure.empty())failure+="    Missing direction;\n";
             break;
+        }
+        
+        if(offset_loaded){
+            MFILE *mf_cache=&mf_offset;
+
+            int_t bremains=blists.size();
+            htl::set<int_t> vuse;
+            for(const bsystem &blist:blists){
+                size_t csize,bn=blist.size();
+                if(fread(&csize,sizeof(csize),1,mf_cache)!=1)break;
+                if(csize>bn)break;
+                auto &offset_map=offset_maps.emplace_back();
+                htl::set<int_t> vs;
+                for(int_t i=0;i<csize;++i){
+                    int_t k,v;
+                    if(fread(&k,sizeof(int_t),1,mf_cache)!=1||k>=bn
+                     ||fread(&v,sizeof(int_t),1,mf_cache)!=1||v==0)
+                        break;
+                    const barycen &b=blist[k];
+                    if(b.children.size()<2)break;
+                    offset_map[k].fid=v;
+                    vs.insert(v);
+                }
+                if(offset_map.size()!=csize||vs.size()!=csize)
+                    break;
+                vuse.insert(vs.begin(),vs.end());
+                --bremains;
+            }
+
+            bool success=false;
+            size_t old_size=ephm_files.size();
+            htl::map<int_t,ephemeris_entry> offset_index;
+            do{
+                if(bremains)break;
+                ephemeris_entry index;
+                int_t fremain;
+                while((fremain=fread(&index,sizeof(index),1,mf_cache))==1){
+                    if(index.sid!=0||vuse.erase(index.fid)!=1)
+                        break;
+
+                    auto itoffset=allfiles.find(index.offset_name(false));
+                    if(itoffset==allfiles.end())
+                        break;
+                    auto &oindex=offset_index.try_emplace(index.fid,index).first->second;
+                    oindex.fid=ephm_files.size();
+                    ephm_files.push_back(itoffset->second);
+                }
+                success=!fremain&&vuse.empty();
+                if(success)for(int_t i=0,nbsys=blists.size();i<nbsys;++i){
+                    const auto &bindex=bindices[i];
+                    for(auto &p:offset_maps[i]){
+                        p.second=offset_index.at(p.second.fid);
+                        if(!(dir*p.second.t_start<=bindex.t_start&&bindex.t_end<=dir*p.second.t_end))
+                            success=false;
+                    }
+                }
+            } while(0);
+            if(!success){
+                offset_maps.clear();
+                ephm_files.erase(ephm_files.begin()+old_size,ephm_files.end());
+                LogWarning("Warning: Invalid barycentric offset cache. Ignored.\n");
+            }
         }
 
         htl::set<izipfile> dedup_file(ephm_files.begin(),ephm_files.end());
@@ -151,9 +227,9 @@ ephemeris_reader::chapter::chapter(msystem &ms,const std::string &_chname,int_t 
     close();
 }
 
-ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budget){
+ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
     cur_chid=-1;
-    mem_budget=memory_budget;
+    set_memory_limit();
     update_physics_parallel_option=0;
     update_physics=false;
     update_bsystem=false;
@@ -236,7 +312,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path,int_t memory_budge
         std::string failure;
         do{
             std::string chname=strprintf("%s.%llu.%s.zip",ephemeris_path,++cur_index,fwdbak);
-            chapter curchpt(ms,chname,memory_budget/2);
+            chapter curchpt(ms,chname);
             if(!curchpt)
                 break;
             if(dir>0?curchpt.t_start>=curchpt.t_end:curchpt.t_start<=curchpt.t_end){
@@ -289,89 +365,310 @@ bool ephemeris_reader::checkout(real t_eph){
     return chapters[cur_chid].checkout(*this,t_eph);
 }
 
+//see bsystem::compose
+int_t ephemeris_reader::chapter::compose_active(int_t bid){
+    if(bid<0)return 0;
+    auto amask=active_map[bid];
+    if(!(amask&(REQUIRE_RVC|REQUIRE_RVSYSC)))return 0;
+    bsystem &blist=blists[_bselect];
+    barycen &b=blist[bid];
+    int_t nret=1;
+
+    mpvec cr,cv;
+    if(amask&LOADED_OFFSET){
+        cr=b.r_sys;
+        cv=b.v_sys;
+    }
+
+    if(b.pid<0){
+        b.r_sys=b.r;
+        b.v_sys=b.v;
+    }
+    else{
+        barycen &p=blist[b.pid];
+        if(bid==p.gid){
+            b.r_sys=b.r+blist[p.hid].r_sys;
+            b.v_sys=b.v+blist[p.hid].v_sys;
+        }
+        else if(bid==p.hid){
+            barycen &g=blist[p.gid];
+            real gdm=GM_map[p.gid].GM_sys(_ft_eph)/GM_map[b.pid].GM(_ft_eph);
+            b.r_sys=p.r-gdm*g.r;
+            b.v_sys=p.v-gdm*g.v;
+        }
+        else{
+            b.r_sys=b.r+p.r;
+            b.v_sys=b.v+p.v;
+        }
+    }
+
+    if(!(amask&REQUIRE_RVC))
+        return nret;
+
+    if(b.children.empty()){
+        b.r=b.r_sys;
+        b.v=b.v_sys;
+    }
+    else{
+        if(!(amask&LOADED_OFFSET)){
+            mpvec cracc(0),cvacc(0);
+            for(const auto cid:b.children){
+                const barycen &c=blist[cid];
+                real csys=GM_map[cid].GM_sys(_ft_eph);
+                cracc+=c.r*csys;
+                cvacc+=c.v*csys;
+            }
+            real bsys=GM_map[bid].GM_sys(_ft_eph);
+            cr=cracc/bsys;
+            cv=cvacc/bsys;
+        }
+        b.r=b.r_sys-cr;
+        b.v=b.v_sys-cv;
+    }
+
+    if(b.gid>=0){
+        nret+=compose_active(b.hid);
+        nret+=compose_active(b.gid);
+    }
+
+    for(const auto cid:b.children)
+        nret+=compose_active(cid);
+
+    return nret;
+}
+
+ephemeris_reader::active_info::active_info(active_type _type,int_t _bid,ephemeris_entry _e)
+    :type(_type),bid(_bid),fid(_e.fid),t_start(_e.t_start),t_end(_e.t_end){
+    fid+=_type==LOADED_ROTATION;
+}
+
 bool ephemeris_reader::chapter::checkout(ephemeris_reader &ereader,real t_eph){
     msystem &ms=ereader.ms;
-    fast_real t_range=t_end-t_start;
     int dir=t_start<t_end?1:-1;
     int_t t_key=-int_t(dir>0?-t_eph:+t_eph);//ceil(dir*t_eph)
     if(t_key<dir*t_start||dir*t_end<t_key)
         return false;
-    _interp_size=0;
-    int_t _cache_bytes=0;
-    bool failed=false;
-    bsystem &blist=blists[blist_index.lower_bound(t_key)->second.fid];
-    ms.update(fast_real(t_eph),&blist);
-    int_t bn=blist.size();
-    for(int_t i=0;i<bn;++i){
-        barycen &b=blist[i];
-        if(b.hid<0){
-            const ephemeris_entry &index=ephm_index[b.mid].lower_bound(t_key)->second;
-            int_t fid=index.fid;
-            fast_real t_offset(t_eph-real(index.t_start));
-            orbital_state_t orb;
-            rotational_state_t rot;
-            for(int_t k=0;k<2;++k){
-                auto &einterp=ephm_interps[fid+k];
-                if(!einterp){
-                    auto &efile=ephm_files[fid+k];
-                    if(efile.fetch())
-                        einterp=ephemeris_interpolator(get_file(),index.t_end-index.t_start,
-                            efile.offset(),efile.size(),_cache_bytes);
-                    if(!einterp){
-                        efile=izippack::end();
-                        failed=true;
-                        continue;
-                    }
-                    //if(ephm_expand[fid+k])
-                    //    einterp.expand();
-                }
-                _interp_size+=einterp.memory_size();
-                if(k==0){
-                    if(!ereader.update_orbits)
-                        einterp(t_offset,&orb);
-                    else{
-                        massinfo &mi=ereader.minfos[b.mid];
-                        mi.keplerian_GM=einterp(t_offset,&orb,mi.parameters);
-                        mi.state_vectors=orb;
-                    }
-                }
+    const int_t bsysid=blist_index.lower_bound(t_key)->second.fid;
+    bsystem &blist=blists[bsysid];
+    const int_t bn=blist.size(),mn=ms.size();
+    if(bsysid!=_bselect){
+        _bselect=-1;
+        _brootid=blist.root_id();
+        if(_brootid<0)return false;
+
+        bool full_checkout=ereader.update_physics;
+        auto *pcmap=offset_maps.empty()?nullptr:&offset_maps[bsysid];
+        //active_type
+        htl::vector<uint8_t>(bn,0).swap(active_map);
+        active_composed.clear();
+        for(int_t mid=0;mid<mn;++mid){
+            uint8_t mconfig=ereader[mid].config;
+            if(!full_checkout&&!mconfig)
+                continue;
+            active_composed.push_back(mid);
+            int_t bid=mid;
+            do{
+                /*
+                target: get rvc (r,v,composed) of selected blist[bid=mid]
+                bid.rvc depend on:
+                    bid.rv_sysc, depend on:
+                        if bid.pid<0:
+                            bid.rvd,
+                        else if bid==pid.gid:
+                            bid.rvd,
+                            [hid.rv_sysc], done.
+                        else if bid==pid.hid:
+                            [pid.rvc], done.
+                            gid.rvd,
+                            gid.GM_sys,
+                            pid.GM = gid.GM_sys + hid.GM_sys,
+                        else (bid==pid.cid)
+                            [pid.rvc], done.
+                            bid.rvd,
+                  if bid.children:
+                    crvd(cid.rvd and cid.GM_sys and bid.GM_sys), or, bid.offset,
+                */
+                active_map[bid]|=REQUIRE_RVC;
+                const barycen &b=blist[bid];
+                if(b.pid<0)
+                    active_map[bid]|=REQUIRE_RVD;
                 else{
-                    einterp.set_orbital_state(orb.r,orb.v);
-                    einterp(t_offset,&rot);
+                    const barycen &p=blist[b.pid];
+                    if(bid==p.gid){
+                        active_map[bid]|=REQUIRE_RVD;
+                        active_map[p.hid]|=REQUIRE_RVSYSC;
+                    }
+                    else if(bid==p.hid)
+                        active_map[p.gid]|=REQUIRE_RVD;
+                    else
+                        active_map[bid]|=REQUIRE_RVD;
                 }
+                if(b.children.size()){
+                    //always load offset if applicable,
+                    //avoid parent position influenced by children selection.
+                    if(pcmap&&pcmap->contains(bid))
+                        active_map[bid]|=REQUIRE_OFFSET;
+                    else for(int_t c:b.children)
+                        active_map[c]|=REQUIRE_RVD;
+                }
+                bid=b.pid;
+            } while(bid>=0);
+        }
+
+        active_files.clear();
+        //load offset
+        for(int_t bid=0;bid<bn;++bid){
+            auto &reqmask=active_map[bid];
+            if(active_map[bid]&REQUIRE_OFFSET){
+                reqmask^=REQUIRE_OFFSET|LOADED_OFFSET;
+                active_files.emplace_back(LOADED_OFFSET,bid,pcmap->at(bid));
             }
-            mass &m=ms[b.mid];
-            barycen &bt=blist[b.tid];
+        }
+        //load rvd & rotation
+        for(int_t mid=0;mid<mn;++mid){
+            auto &reqmask=active_map[blist[mid].tid];
+            bool load_rvd=reqmask&REQUIRE_RVD;
+            bool load_rot=full_checkout||ereader[mid].config&ROTATION;
+            if(!load_rot&&!load_rvd)continue;
+            const auto &eindex=ephm_index[mid].lower_bound(t_key)->second;
+            if(load_rvd){
+                reqmask^=REQUIRE_RVD|LOADED_RVD;
+                active_files.emplace_back(LOADED_RVD,mid,eindex);
+            }
+            if(load_rot)
+                active_files.emplace_back(LOADED_ROTATION,mid,eindex);
+        }
+        std::sort(active_files.begin(),active_files.end(),[this](const active_info &lhs,const active_info &rhs){
+            if((lhs.type==LOADED_ROTATION)!=(rhs.type==LOADED_ROTATION))
+                return rhs.type==LOADED_ROTATION;
+            return ephm_files[lhs.fid]<ephm_files[rhs.fid];
+        });
+
+        int_t full_size=0,n_files=active_files.size();
+        htl::vector<std::pair<int_t,int_t>> ephm_sizes;
+        for(int_t i=0;i<n_files;++i)
+            full_size+=ephm_sizes.emplace_back(ephm_files[active_files[i].fid].size(),i).first;
+        std::sort(ephm_sizes.begin(),ephm_sizes.end());
+
+        htl::vector<bool> ephm_expand(n_files,false);
+        int_t _cache_bytes=0,used_budget=0,memory_budget=std::max(int_t(0),ereader.memory_limit/2);
+        for(int_t i=0,partial_size=0;i<n_files;++i){
+            auto &es=ephm_sizes[i];
+            int_t cur_size=es.first;
+            int_t cur_expect=partial_size+(n_files-i)*cur_size;
+            if(cur_expect>memory_budget)
+                break;
+            used_budget=cur_expect;
+            _cache_bytes=cur_size;
+            partial_size+=cur_size;
+        }
+        memory_budget-=used_budget;
+        for(int_t i=0,partial_size=0;i<n_files;++i){
+            auto &es=ephm_sizes[i];
+            int_t cur_size=es.first;
+            int_t cur_expect=(partial_size+cur_size)*(ephemeris_compressor::max_bspline_degree+1);
+            if(cur_expect>memory_budget)
+                break;
+            ephm_expand[es.second]=true;
+            partial_size+=cur_size;
+        }
+
+        for(auto &einterp:ephm_interps)
+            einterp.clear();
+        for(int_t i=0;i<n_files;++i){
+            const auto &ainfo=active_files[i];
+            auto &einterp=ephm_interps[ainfo.fid];
+            auto &efile=ephm_files[ainfo.fid];
+            if(efile.fetch())
+                einterp=ephemeris_interpolator(izippack::get_file(),ainfo.t_end-ainfo.t_start,
+                    efile.offset(),efile.size(),_cache_bytes);
+            if(!einterp)
+                return false;
+            if(ephm_expand[i])
+                einterp.expand();
+        }
+
+        GM_map.resize(bn);
+        for(mass &mi:ms)std::swap(mi.GM0,mi.dGM);
+        ms.update(0,&blist);
+        for(int_t i=0;i<bn;++i){
+            GM_map[i].dGM=blist[i].GM;
+            GM_map[i].dGM_sys=blist[i].GM_sys;
+        }
+        for(mass &mi:ms)std::swap(mi.GM0,mi.dGM);
+        ms.update(0,&blist);
+        for(int_t i=0;i<bn;++i){
+            GM_map[i].GM0=blist[i].GM;
+            GM_map[i].GM0_sys=blist[i].GM_sys;
+        }
+
+        _bselect=bsysid;
+    }
+    if(_bselect<0)
+        return false;
+    _interp_size=0;
+    _ft_eph=fast_real(t_eph);
+    ms.t_eph=t_eph;
+    const bool full_update=ereader.update_bsystem||ereader.update_physics;
+    if(full_update)
+        ms.update(_ft_eph,&blist);
+    for(const auto &ainfo:active_files){
+        int_t i=ainfo.bid;
+        fast_real t_offset(t_eph-real(ainfo.t_start));
+        auto &einterp=ephm_interps[ainfo.fid];
+        if(ainfo.type==LOADED_OFFSET){
+            barycen &bi=blist[i];
+            orbital_state_t orb;
+            einterp(t_offset,&orb);
+            bi.r_sys=orb.r;
+            bi.v_sys=orb.v;
+        }
+        else if(ainfo.type==LOADED_RVD){
+            mass &m=ms[i];
+            barycen &bt=blist[blist[i].tid];
+            orbital_state_t orb;
+            if(!ereader.update_orbits)
+                einterp(t_offset,&orb);
+            else{
+                massinfo &mi=ereader.minfos[i];
+                mi.keplerian_GM=einterp(t_offset,&orb,mi.parameters);
+                mi.state_vectors=orb;
+            }
             bt.r=orb.r;
             bt.v=orb.v;
+        }
+        else{
+            mass &m=ms[i];
+            rotational_state_t rot;
+            if(einterp.requires_orbital_state()){
+                barycen &bt=blist[blist[i].tid];
+                einterp.set_orbital_state(bt.r,bt.v);
+            }
+            einterp(t_offset,&rot);
             m.s.x=rot.x;
             m.s.z=rot.z;
             m.s.y=m.s.z*m.s.x;
             m.w=rot.w;
             m.GL=NAN;
         }
+        _interp_size+=einterp.memory_size();
     }
-    if(failed)
-        ms.t_eph=NAN;
-    else{
-        blist.compose();
-        for(int_t i=0;i<bn;++i){
-            barycen &b=blist[i];
-            if(b.hid<0){
-                mass &m=ms[b.mid];
-                m.r=b.r;
-                m.v=b.v;
-            }
-        }
-        ms.t_eph=t_eph;
-        if(ereader.update_physics)
-            ms.accel(ereader.update_physics_parallel_option);
+    compose_active(_brootid);
+    for(int_t i:active_composed){
+        barycen &b=blist[i];
+        mass &m=ms[i];
+        m.r=b.r;
+        m.v=b.v;
+        if(!full_update)
+            m.update(_ft_eph);
     }
+    if(ereader.update_physics)
+        ms.accel(ereader.update_physics_parallel_option);
     if(ereader.update_bsystem){
         ms.blist=blist;
         ms.t_update=ms.t_eph;
     }
-    return !failed;
+    return true;
 }
 
 void ephemeris_reader::unload(){
@@ -394,8 +691,8 @@ void ephemeris_reader::lru(){
 
     int_t n_active=active_chapters.size();
     if(n_active>2){
-        int_t unload_target=interpolator_size()-chapters[active_chapters.back()].interpolator_size()+mem_budget/2;
-        unload_target-=mem_budget;
+        int_t unload_target=interpolator_size()-chapters[active_chapters.back()].interpolator_size()+memory_limit/2;
+        unload_target-=memory_limit;
         int_t n_unload=0;
         for(int_t i=0;i+2<n_active;++i){
             if(unload_target<=0)
@@ -409,44 +706,65 @@ void ephemeris_reader::lru(){
     }
 }
 
-size_t ephemeris_reader::deselect_all(){
+void ephemeris_reader::reset_selection(){
+    for(int_t ich:active_chapters)
+        chapters[ich]._bselect=-1;
+}
+
+size_t ephemeris_reader::deselect_all(select_type _s){
     size_t retval=0;
     for(massinfo &mi:minfos){
-        retval+=mi.config+1>>1;
-        mi.config=NONE;
+        retval+=(_s&mi.config)+1>>1;
+        mi.config&=~_s;
     }
+    if(retval)
+        reset_selection();
     return retval;
 }
 
 size_t ephemeris_reader::select_all(select_type _s){
     size_t retval=0;
     for(massinfo &mi:minfos){
-        if(_s&ORBIT){
+        if((_s&ORBIT)>(mi.config&ORBIT)){
             mi.config|=ORBIT;
             ++retval;
         }
-        if(_s&ROTATION){
+        if((_s&ROTATION)>(mi.config&ROTATION)){
             mi.config|=ROTATION;
             ++retval;
         }
     }
+    if(retval)
+        reset_selection();
     return retval;
 }
 
-ephemeris_reader::select_type ephemeris_reader::massinfo::select(ephemeris_reader::select_type _s) const{
+ephemeris_reader::select_type ephemeris_reader::select(const massinfo &minfo,select_type _s){
+    uint8_t &config=minfos[&minfo-minfos.data()].config;
     uint8_t oldconfig=config;
     if(_s&ORBIT)
         config|=ORBIT;
     if(_s&ROTATION)
         config|=ROTATION;
+    if(config!=oldconfig)
+        reset_selection();
     return select_type(oldconfig);
 }
 
-ephemeris_reader::select_type ephemeris_reader::massinfo::deselect(ephemeris_reader::select_type _s) const{
+ephemeris_reader::select_type ephemeris_reader::deselect(const massinfo &minfo,select_type _s){
+    uint8_t &config=minfos[&minfo-minfos.data()].config;
     uint8_t oldconfig=config;
-    if(_s&ORBIT)
-        config&=~ORBIT;
-    if(_s&ROTATION)
-        config&=~ROTATION;
+    config&=~_s;
+    if(config!=oldconfig)
+        reset_selection();
     return select_type(oldconfig);
 }
+
+bool ephemeris_reader::set_update_physics(bool new_setting){
+    bool retval=update_physics;
+    update_physics=new_setting;
+    if(retval!=new_setting)
+        reset_selection();
+    return retval;
+}
+

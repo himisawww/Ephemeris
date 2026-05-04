@@ -832,6 +832,13 @@ size_t bsystem::compatible_size() const{
     for(const barycen &b:blist)
         mn-=b.hid>=0;
 
+    //requires first mn barycen is mlist for msystem-compatible bsystem
+    for(int_t i=0;i<mn;++i){
+        const barycen &b=blist[i];
+        if(b.hid>=0||b.mid!=i)
+            return false;
+    }
+
     htl::vector<bool> has_done(bn,false);
     htl::vector<bool> has_mass(mn,false);
     htl::vector<bool> mid_done(bn,false);

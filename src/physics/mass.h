@@ -159,6 +159,9 @@ public:
     //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
+    //update time-variables of mass to epoch t
+    //see msystem::update
+    void update(fast_real t);
     //check sanity of states & params
     bool sanity(bool alert=false) const;
 };
