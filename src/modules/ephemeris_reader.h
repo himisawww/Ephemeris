@@ -113,7 +113,7 @@ public:
     size_t size() const{ return ms.size(); }
     bool empty() const{ return ms.empty(); }
     auto begin() const{ return minfos.begin(); }
-    auto end() const{ return minfos.begin(); }
+    auto end() const{ return minfos.end(); }
     const massinfo &operator[](int_t mid) const{ return minfos[mid]; }
     const massinfo &operator[](const char *ssid) const{ return minfos[ms.get_mid(ssid)]; }
 

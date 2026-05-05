@@ -680,6 +680,7 @@ void ephemeris_reader::unload(){
 void ephemeris_reader::chapter::unload(){
     for(auto &einterp:ephm_interps)
         einterp.clear();
+    _bselect=-1;
     _interp_size=0;
 }
 
