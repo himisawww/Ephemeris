@@ -55,6 +55,7 @@ MFILE::MFILE(MFILE &&mf):
     idata=mf.idata;
     isize=mf.isize;
     offset=mf.offset;
+    own=mf.own;
     state=mf.state;
     mf.state=MFILE_STATE::INVALID;
 }
@@ -91,6 +92,7 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     }
 
     fp=fopen(_fname,is_read_);
+    own=true;
     if(!fp&&(is_read_||!s_publish_invalid_ofile))
         state=MFILE_STATE::INVALID;
     else if(is_read_){
@@ -99,7 +101,30 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     }
     else{
         if(!fp||is_cache_)offset=0;
-        if(!fp&&!is_cache_)filename=_fname;
+        if(!fp){
+            state=MFILE_STATE::WRITE_FILE;
+            filename=_fname;
+        }
+    }
+}
+MFILE::MFILE(FILE *_fp,MFILE_STATE _state,bool take_own){
+    if(!_fp)
+        state=MFILE_STATE::INVALID;
+    else{
+        state=_state;
+        bool is_read_=is_read();
+        bool is_cache_=is_cache();
+        fp=_fp;
+        own=take_own;
+        if(is_read_){
+            state=MFILE_STATE::READ_FILE;
+            if(is_cache_)load_data();
+        }
+        else if(!is_write()){
+            state=MFILE_STATE::INVALID;
+            if(own)fclose(fp);
+        }
+        else if(is_cache_)offset=0;
     }
 }
 
@@ -134,7 +159,7 @@ int MFILE::close(){
     state=MFILE_STATE::INVALID;
     if(ostate==MFILE_STATE::READ_CACHE||!fp)
         return 0;
-    return fclose(fp);
+    return own?fclose(fp):0;
 }
 char *MFILE::prepare(size_t new_cache_size){
     close();
@@ -171,7 +196,7 @@ void MFILE::load_data(){
         cached_data.resize(isize);
         fread(cached_data.data(),1,isize,fp);
         idata=cached_data.data();
-        fclose(fp);
+        if(own)fclose(fp);
         state=MFILE_STATE::READ_CACHE;
     }
 }
@@ -258,7 +283,7 @@ size_t MFILE::write(const void *buffer,size_t e_size,size_t e_count){
         return e_count;
 }
 
-std::string MFILE::readline(){
+std::string MFILE::fgetstr(bool _enable_skip){
     std::string result;
     if(!is_read())return result;
     bool use_file=state==MFILE_STATE::READ_FILE;
@@ -293,6 +318,8 @@ std::string MFILE::readline(){
             result+=chbuf;
             if(result.back()=='\n'){
                 result.pop_back();
+                if(!_enable_skip)
+                    return result;
                 break;
             }
         } while(1);
@@ -332,8 +359,8 @@ size_t fread(void *buffer,size_t e_size,size_t e_count,MFILE *mem){
 size_t fwrite(const void *buffer,size_t e_size,size_t e_count,MFILE *mem){
     return mem->write(buffer,e_size,e_count);
 }
-std::string readline(MFILE *mem){
-    return mem->readline();
+std::string fgetstr(MFILE *mem,bool _enable_skip){
+    return mem->fgetstr(_enable_skip);
 }
 int64_t fprintf(MFILE *mem,const char *format,...){
     va_list args;

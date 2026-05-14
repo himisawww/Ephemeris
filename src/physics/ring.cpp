@@ -35,7 +35,7 @@ const ring *ring::load(const char *file,fast_real ref_GM,fast_real ref_R,fast_re
     bool failed=false;
     char rname[MAX_LINESIZE];
     htl::vector<disk> disks;
-    while((linebuf=readline(fin)).size()){
+    while((linebuf=fgetstr(fin,true)).size()){
         const char *chbuf=linebuf.c_str();
         if(linebuf.size()>=MAX_LINESIZE){
             LogError(

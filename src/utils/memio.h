@@ -41,7 +41,8 @@ int fseek(MFILE *_stream,int64_t _offset,int _origin);
 int64_t ftell(MFILE *_stream);
 int fclose(MFILE *_stream);
 
-std::string readline(MFILE *mem);
+// if _enable_skip, skip lines empty or starts with #
+std::string fgetstr(MFILE *mem,bool _enable_skip=false);
 bool file_exist(const std::string &path);
 std::string get_file_name(const std::string &path);
 std::string get_file_extension(const std::string &path);
@@ -66,14 +67,16 @@ class MFILE{
     // used for memory read/write
     // READ_CACHE || WRITE_CACHE || WRITE_FILE &&!fp : current position of io
     int64_t offset;
+    // if fp valid && fp, fp is owned by MFILE and will be closed at destruction
+    bool own;
 
     /* usage of members under possible states:
-        READ_CACHE:          [cached_data],   idata, isize, offset
-         READ_FILE:                        fp
-       WRITE_CACHE:           cached_data, fp,              offset
-    WRITE_FILE:          
-            &&  fp:                        fp
-            && !fp: filename, cached_data,                  offset
+        READ_CACHE:          [cached_data],         idata, isize, offset
+         READ_FILE:                        *fp, own
+       WRITE_CACHE:           cached_data, *fp, own,              offset
+    WRITE_FILE:
+            &&  fp:                        *fp, own
+            && !fp: filename, cached_data,                        offset
     */
     MFILE_STATE state;
 
@@ -85,6 +88,9 @@ public:
     MFILE(const void *_mem,size_t _size);
     // open file to read/write (read?READ:WRITE)_(cache?CACHE:FILE)
     MFILE(const std::string &_fname,MFILE_STATE _state=MFILE_STATE::READ_FILE);
+    // FILE * wrapper. caller should specify correct READ_FILE/WRITE_FILE _state. 
+    // if take_own, fclose(_fp) is called when MFILE destructs/closes.
+    MFILE(FILE *_fp,MFILE_STATE _state=MFILE_STATE::READ_FILE,bool take_own=false);
 
     ~MFILE(){ close(); }
 
@@ -116,7 +122,8 @@ public:
 
     size_t read(void *buffer,size_t e_size,size_t e_count);
     size_t write(const void *buffer,size_t e_size,size_t e_count);
-    std::string readline();
+    // if _enable_skip, skip lines empty or starts with #
+    std::string fgetstr(bool _enable_skip=false);
 
     // (WRITE_CACHE/READ_CACHE/READ_FILE)
     //  convert *this to READ_CACHE, load_data to local cache,
@@ -128,7 +135,7 @@ public:
     bool publish();
     bool publish(const std::string &filename);
 
-    // When open failed in WRITE_FILE mode, that is, cannot create FILE for writing,
+    // When open failed in WRITE_FILE/WRITE_CACHE mode, that is, cannot create FILE for writing,
     // if true: MFILE is still a valid WRITE_FILE stream, all wrote data will be
     //          cached in memory and published in its filename when close.
     // if false: MFILE will be INVALID.

@@ -259,7 +259,7 @@ ephemeris_reader::ephemeris_reader(const char *ephemeris_path){
             }
             char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
             while(failure.empty()){
-                std::string chbuf=readline(&mf);
+                std::string chbuf=fgetstr(&mf,true);
                 size_t lsize=chbuf.size();
                 if(lsize==0)break;
                 if(lsize>=MAX_LINESIZE){

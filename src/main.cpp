@@ -1,5 +1,4 @@
 #include"physics/mass.h"
-#include<iostream>
 #include<thread>
 #include"modules/ephemeris_generator.h"
 #include"utils/zipio.h"
@@ -13,7 +12,7 @@ int de_worker(ephemeris_generator *egen,int dir){
     return egen->make_ephemeris(dir);
 }
 
-int main_fun(int argc,const char **argv){
+int main_fun(bool &wait,int argc,const char **argv){
 
     LogAnnouncement("%s%s\n%s",
         "Ephemeris Integrator ",Configs::VersionString,
@@ -83,15 +82,16 @@ int main_fun(int argc,const char **argv){
         "   exe_name  .\\system_initial\\Edited_Config.txt  .\\custom\\dat  20\n\n"
         "press Enter to exit, or input [t/T] to run tests:"
     );
-    if(int i=getchar();i=='t'||i=='T')
+    if(int i=*MFILE(stdin).fgetstr().c_str();i=='t'||i=='T')
         return test_all();
+    wait=false;
     return 0;
 }
 
 int main(int argc,const char **argv){
     struct check_version{
-        bool pass;
-        check_version():pass(true){
+        bool pass,wait;
+        check_version():pass(true),wait(true){
             const char *vstr=Configs::VersionString;
             size_t vsize=strlen(vstr);
             if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
@@ -103,13 +103,15 @@ int main(int argc,const char **argv){
             }
         }
         ~check_version(){
-            LogAnnouncement("The program is about to exit. Press Enter to continue...");
-            getchar();
+            if(wait){
+                LogAnnouncement("The program is about to exit. Press Enter to continue...");
+                MFILE(stdin).fgetstr();
+            }
         }
     } chkv;
     if(!chkv.pass)return 0;
 
-#if 1
+#if 0
     double s=CalcTime();
     ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
     if(!ereader)
@@ -148,6 +150,7 @@ int main(int argc,const char **argv){
     return 0;
 
 
+#else
 #if 0
     htl::vector<const char*> subset{
         "10", "199", "299", "301", "399", "401", "402", "499", "501", "502",
@@ -162,9 +165,8 @@ int main(int argc,const char **argv){
     ephemeris_collector::convert_format("F:\\Temp\\ephm\\Ephemeris\\EphemerisCompressed\\SolarSystem",3600,&subset);
     return 0;
 #endif
-    return main_fun(argc,argv);
+    return main_fun(chkv.wait,argc,argv);
 
-#else
 #endif
     const char *m_argv[]={
         argv[0],
@@ -175,7 +177,7 @@ int main(int argc,const char **argv){
         //"RUN_TEST"
     };
     const int m_argc=sizeof(m_argv)/sizeof(char *);
-    return main_fun(m_argc,m_argv);
+    return main_fun(chkv.wait,m_argc,m_argv);
     
     //convert_format("R:\\testcg\\result");
     //return 0;

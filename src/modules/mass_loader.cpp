@@ -118,7 +118,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     }
 
     while(1){
-        std::string chbuf=readline(fin);
+        std::string chbuf=fgetstr(fin,true);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
             LogError(
@@ -349,7 +349,7 @@ bool msystem::load(
     }
     char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
     while(1){
-        std::string chbuf=readline(fin);
+        std::string chbuf=fgetstr(fin,true);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
             LogError(
@@ -479,7 +479,7 @@ bool msystem::load(
             return false;
         }
         while(1){
-            std::string chbuf=readline(finex);
+            std::string chbuf=fgetstr(finex,true);
             if(chbuf.size()==0)break;
             if(chbuf.size()>=MAX_LINESIZE){
                 LogError(

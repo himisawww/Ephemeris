@@ -18,7 +18,7 @@ const geopotential *geopotential::load(const char *file,fast_real ref_radius_fac
     geopotential *ret=nullptr;
     int_t lskip=0,hskip=0,dwarning=0;
     int_t Nzmax=0,Ntmax=0;
-    while((linebuf=readline(fin)).size()){
+    while((linebuf=fgetstr(fin,true)).size()){
         const char *chbuf=linebuf.c_str();
         if(Nz<0){
             if(2!=sscanf(chbuf,"%lld%lld",&Nz,&Nt)){
