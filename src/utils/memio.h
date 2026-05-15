@@ -73,7 +73,7 @@ class MFILE{
     /* usage of members under possible states:
         READ_CACHE:          [cached_data],         idata, isize, offset
          READ_FILE:                        *fp, own
-       WRITE_CACHE:           cached_data, *fp, own,              offset
+       WRITE_CACHE:           cached_data,  fp, own,              offset
     WRITE_FILE:
             &&  fp:                        *fp, own
             && !fp: filename, cached_data,                        offset

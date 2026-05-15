@@ -219,6 +219,28 @@ int ephemeris_generator::make_ephemeris(int dir){
         zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
 
+        //sort .zip
+        std::vector<std::pair<uint64_t,int_t>> index_sort;
+        for(int_t i=0,n=zms.size();i<n;++i){
+            const auto &zname=zms[i].get_name();
+            uint64_t k=!zname.find(SaveNameDirectory);
+            if(k){
+                auto fext='.'+get_file_extension(zname);
+                if(!fext.find(SaveBarycentricOffsetDataExtension))
+                    k=2;
+                else if(!fext.find(SaveRotationalDataExtension)
+                      ||!fext.find(SaveOrbitalDataExtension))
+                    k=3;
+            }
+            index_sort.emplace_back(k,i);
+        }
+        std::sort(index_sort.begin(),index_sort.end());
+        htl::vector<MFILE> szms;
+        szms.reserve(zms.size());
+        for(const auto &p:index_sort)
+            szms.emplace_back(std::move(zms[p.second]));
+        szms.swap(zms);
+
         io_mutex.lock();
         {
             check_newline();
