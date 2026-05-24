@@ -565,14 +565,14 @@ struct _rbinsert_return_type{
     N node;
 };
 
-template<typename I,bool L,bool Const,typename N>
+template<typename I,bool L,typename N>
 struct _rbitconv{};
-template<typename I,bool Const>
-struct _rbitconv<I,true,Const,_rbnode>{
+template<typename I>
+struct _rbitconv<I,true,_rbnode>{
     auto as_linked() const{ return static_cast<const I &>(*this).template _alterlink<_linked_rbnode>(); }
 };
-template<typename I,bool Const>
-struct _rbitconv<I,true,Const,_linked_rbnode>{
+template<typename I>
+struct _rbitconv<I,true,_linked_rbnode>{
     auto as_unlinked() const{ return static_cast<const I &>(*this).template _alterlink<_rbnode>(); }
 };
 
@@ -609,10 +609,9 @@ protected:
     typedef node_base *base_ptr;
 
     template<bool Const,typename N>
-    class _iterator:public _rbitconv<_iterator<Const,N>,Linked,Const,N>{
+    class _iterator:public _rbitconv<_iterator<Const,N>,Linked,N>{
         friend class _rbtree;
-        template<typename I,bool L,bool C2,typename N2>
-        friend struct _rbitconv;
+        friend struct _rbitconv<_iterator,Linked,N>;
         node_ptr _ptr;
         template<typename N2>
         auto _alterlink() const{
