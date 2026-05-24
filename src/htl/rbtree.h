@@ -565,23 +565,15 @@ struct _rbinsert_return_type{
     N node;
 };
 
-template<template<bool,typename> class I,bool L,bool Const,typename N>
+template<typename I,bool L,bool Const,typename N>
 struct _rbitconv{};
-template<template<bool,typename> class I,bool Const>
+template<typename I,bool Const>
 struct _rbitconv<I,true,Const,_rbnode>{
-    auto as_linked() const{
-        I<Const,_linked_rbnode> it;
-        it._ptr=this->_ptr;
-        return it;
-    }
+    auto as_linked() const{ return static_cast<const I &>(*this).template _alterlink<_linked_rbnode>(); }
 };
-template<template<bool,typename> class I,bool Const>
+template<typename I,bool Const>
 struct _rbitconv<I,true,Const,_linked_rbnode>{
-    auto as_unlinked() const{
-        I<Const,_rbnode> it;
-        it._ptr=this->_ptr;
-        return it;
-    }
+    auto as_unlinked() const{ return static_cast<const I &>(*this).template _alterlink<_rbnode>(); }
 };
 
 template<typename TreeTraits>
@@ -617,9 +609,17 @@ protected:
     typedef node_base *base_ptr;
 
     template<bool Const,typename N>
-    class _iterator:public _rbitconv<_iterator,Linked,Const,N>{
+    class _iterator:public _rbitconv<_iterator<Const,N>,Linked,Const,N>{
         friend class _rbtree;
+        template<typename I,bool L,bool C2,typename N2>
+        friend struct _rbitconv;
         node_ptr _ptr;
+        template<typename N2>
+        auto _alterlink() const{
+            _iterator<Const,N2> it;
+            it._ptr=_ptr;
+            return it;
+        }
     public:
         typedef _rbtree::difference_type difference_type;
         typedef _rbtree::value_type      value_type;
