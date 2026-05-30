@@ -116,10 +116,12 @@ int main(int argc,const char **argv){
     ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
     if(!ereader)
         return -1;
+    printf("Load %fs\n",CalcTime()-s);
     printf("Loaded %llu objects in [%lld, %lld]\n",ereader.size(),ereader.t_min(),ereader.t_max());
     MFILE *fout=mopen("r:\\test.bin",MFILE_STATE::WRITE_FILE);
     if(!fout)
         return -3;
+    s=CalcTime();
     const auto &earth=ereader.select("399",ereader.ORBIT);
     const auto &moon=ereader.select("301",ereader.ORBIT);
     double rmin=INFINITY,rmax=-INFINITY,vavg=0,vcount=0;
@@ -138,13 +140,21 @@ int main(int argc,const char **argv){
     printf("%fs\n",CalcTime()-s);
     printf("[%f, %f] km @ %f m/s\n",rmin/1000,rmax/1000,vavg/vcount);
     fclose(fout);
-    /* not cached:
+    /* not cached full checkout:
     Loaded 504 objects in [-65008656000, 65008656000]
     78.708161s,71.835861s
     [356445.428445, 406706.956274] km @ 1022.351862 m/s
     */
+    /* not cached partial checkout:
+    9.072424s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
     /* with cache:
     0.371420s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    /* with cache & load on fly:
+    0.359428s
     [356445.428445, 406706.956274] km @ 1022.351862 m/s
     */
     return 0;

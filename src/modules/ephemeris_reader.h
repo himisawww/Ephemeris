@@ -49,8 +49,6 @@ private:
         real GM_sys(fast_real t) const{ return GM0_sys+t*dGM_sys; }
     };
     class chapter:public izippack{
-        //file name of chapter
-        std::string chname;
         //{dir*t_end, blist index over [t_start,t_end]}
         htl::map<int_t,ephemeris_entry> blist_index;
         //blists[blist index.fid] = system structure
@@ -81,31 +79,36 @@ private:
     public:
         int_t t_min() const{ return std::min(t_start,t_end); }
         int_t t_max() const{ return std::max(t_end,t_start); }
+        //chapter is active if this > 0
         int_t interpolator_size() const{ return _interp_size; }
-        //free interpolator cache
-        void unload();
+        //free interpolator cache, deactivate, return interpolator_size() before deactivate
+        int_t unload();
 
         chapter(msystem &,const std::string &);
+        //may change active
         bool checkout(ephemeris_reader &,real t_eph);
     };
     //data and states
     msystem ms;
-    htl::vector<chapter> chapters;
-    htl::vector<int_t> active_chapters;
     htl::vector<massinfo> minfos;
-    int_t cur_chid;
+    std::string ephemeris_path;
+    //*begin is cur_chid, first ones are actives.
+    htl::linked_map<int_t,chapter> chapters;
     //configs
     int_t memory_limit;
     bool update_orbits;
     bool update_bsystem;
     bool update_physics;
     int update_physics_parallel_option;
+
+    void reset_selection();
+    htl::linked_map<int_t,chapter>::iterator seek(real t_eph);
 public:
-    ephemeris_reader(const char *ephemeris_path);
+    ephemeris_reader(const char *_ephemeris_path);
 
     explicit operator bool() const{ return !ms.empty(); }
-    int_t t_min() const{ return chapters.empty()?0:chapters.front().t_min(); }
-    int_t t_max() const{ return chapters.empty()?0:chapters.back().t_max(); }
+    int_t t_min() const;
+    int_t t_max() const;
     int_t interpolator_size() const;
     //free interpolator cache
     void unload();
@@ -158,9 +161,4 @@ public:
 
     //must select something to checkout before call this
     bool checkout(real t_eph);
-private:
-
-    void reset_selection();
-    //assume chapters[cur_chid valid]
-    void lru();
 };
