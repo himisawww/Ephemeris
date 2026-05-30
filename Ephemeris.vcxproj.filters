@@ -296,11 +296,6 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="src\integrators\RungeKutta.cu">
-      <Filter>integrators</Filter>
-    </CudaCompile>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="Ephemeris.rc">
       <Filter>resources</Filter>
     </ResourceCompile>

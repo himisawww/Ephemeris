@@ -14,7 +14,7 @@ int de_worker(ephemeris_generator *egen,int dir){
 
 int main_fun(bool &wait,int argc,const char **argv){
 
-    LogAnnouncement("%s%s\n%s",
+    LogAnnouncement("%s%s (cpu version)\n%s",
         "Ephemeris Integrator ",Configs::VersionString,
         "Github: https://github.com/himisawww/Ephemeris \n\n");
 

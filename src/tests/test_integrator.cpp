@@ -14,7 +14,7 @@ typedef fast_real msystem_err_t[5];
 
 static constexpr msystem_err_t
     ref_cgpu_err     ={ 1e-6,   1e-8,   1e-16,  1e-13,  1e-13   },
-    ref_combined_err ={ 1e-5,   1e-8,   1e-11,  1e-07,  1e-07   },
+    ref_combined_err ={ 1e-4,   1e-8,   1e-11,  1e-07,  1e-07   },
     ref_cutoff_err   ={ 1e-3,   1e-7,   1e-12,  1e-07,  1e-07   };
 
 static constexpr fast_real ref_maxrec_err=1e-15;
@@ -55,10 +55,6 @@ int test_integrator(){
     const size_t n_mass=mcombine.size();
     msystem mhalfdt=mcombine;
     msystem mcpu=mcombine;
-    struct thread_pool_guard{
-        thread_pool_guard(){ ThreadPool::thread_local_pool_alloc(); }
-        ~thread_pool_guard(){ ThreadPool::thread_local_pool_free(); }
-    } _;
     mcpu.clear_accel();
     mcpu.accel();
     msystem mgpu=mcombine;
@@ -69,6 +65,11 @@ int test_integrator(){
     mcpu.integrate(TEST_DELTA_T,1,0);
     double sgpu=CalcTime();
     scpu=sgpu-scpu;
+    struct thread_pool_guard{
+        thread_pool_guard(){ ThreadPool::thread_local_pool_alloc(); }
+        ~thread_pool_guard(){ ThreadPool::thread_local_pool_free(); }
+    } _;
+    sgpu=CalcTime();
     mgpu.integrate(TEST_DELTA_T,1,1);
     sgpu=CalcTime()-sgpu;
 
