@@ -112,6 +112,13 @@ int ephemeris_generator::make_ephemeris(int dir){
 
     ThreadPool::thread_local_pool_alloc();
     static bool newline=true;
+    auto check_newline=[](){
+        if(!newline){
+            LogInfo("\n");
+            newline=true;
+        }
+        return true;
+    };
     do{
         if(time_idx+iunit>isize)iunit=isize-time_idx;
 
@@ -129,24 +136,26 @@ int ephemeris_generator::make_ephemeris(int dir){
             if(i>0){
                 if(use_cpu     )ms.integrate         (dt,          jsize,0);
            else if(use_gpu     )ms.integrate         (dt,          jsize,1);
-           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc.m_substeper);
+           else if(use_combined)ms.combined_integrate(dt,n_combine,jsize,1,&ephc);
                 resync=!ephc.synchronized();
             }
 
             ephc.record();
 
+            std::string exerr;
             if(i==iunit)
-                ephc.extract(zms,true);
+                exerr=ephc.extract(zms,true);
             else if(resync)
-                ephc.extract(zms,false);
+                exerr=ephc.extract(zms,false);
 
             int_t mst_eph=ms.ephemeris_time();
             
             io_mutex.lock();
-            if(resync)LogInfo(
-                "\nInfo: At Ephemeris Time: %lld s\n"
+            if(resync&&check_newline())LogInfo(
+                "Info: At Ephemeris Time: %lld s\n"
                 "   System orbital structure is updated.\n",
                 mst_eph);
+            if(exerr.size()&&check_newline())LogWarning("%s",exerr.c_str());
             if(fix_dir||dir>0){
                 static double s=CalcTime();
                 static double oldt=-INFINITY;
@@ -210,10 +219,31 @@ int ephemeris_generator::make_ephemeris(int dir){
         zckpt=strprintf("%s.%llu.%s.zip",sop.c_str(),cur_index,fwdbak);
         ++cur_index;
 
+        //sort .zip
+        std::vector<std::pair<uint64_t,int_t>> index_sort;
+        for(int_t i=0,n=zms.size();i<n;++i){
+            const auto &zname=zms[i].get_name();
+            uint64_t k=!zname.find(SaveNameDirectory);
+            if(k){
+                auto fext='.'+get_file_extension(zname);
+                if(!fext.find(SaveBarycentricOffsetDataExtension))
+                    k=2;
+                else if(!fext.find(SaveRotationalDataExtension)
+                      ||!fext.find(SaveOrbitalDataExtension))
+                    k=3;
+            }
+            index_sort.emplace_back(k,i);
+        }
+        std::sort(index_sort.begin(),index_sort.end());
+        htl::vector<MFILE> szms;
+        szms.reserve(zms.size());
+        for(const auto &p:index_sort)
+            szms.emplace_back(std::move(zms[p.second]));
+        szms.swap(zms);
+
         io_mutex.lock();
         {
-            if(!newline)LogInfo("\n");
-            newline=true;
+            check_newline();
             ephemeris_compressor::compress(zms);
             ozippack zp(zckpt);
             zp.swap_content(zms);
@@ -230,6 +260,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
 ephemeris_collector::ephemeris_collector(msystem &_ms):ms(_ms){
     t_start=ms.ephemeris_time();
+    t_link=NAN;
     rebind();
 }
 
@@ -241,10 +272,9 @@ void ephemeris_collector::rebind(){
     t_bind=ms.analyse();
     blist=ms.get_barycens();
     int_t bn=blist.size();
+    int_t t_eph=ms.ephemeris_time();
     if(data.empty()){
-        int_t mn=ms.size();
-        int_t t_eph=ms.ephemeris_time();
-        data.resize(mn);
+        data.resize(ms.size());
         for(datapack_t &d:data)
             d.t_start=t_eph;
     }
@@ -276,7 +306,41 @@ void ephemeris_collector::rebind(){
         }
         auto &b=barycen_mids[d.tid];
         tids.insert(b.begin(),b.end());
-        d.parent_barycen_id=barycen_ids.insert({{pids,tids},(int_t)barycen_ids.size()}).first->second;
+        d.parent_barycen_id=barycen_ids.try_emplace({pids,tids},barycen_ids.size()).first->second;
+    }
+
+    auto &bcache_map=bcache_maps.emplace_back();
+    int_t ttag=t_eph+1;
+    for(auto &c:cache)c.t_end=t_eph;
+    for(int_t bi=0;bi<bn;++bi){
+        const barycen &b=blist[bi];
+        if(b.children.size()<=1)
+            continue;
+        htl::set<int_t> bids,chids;
+        if(b.hid<0)bids.insert(b.mid);
+        else{
+            auto &h=barycen_mids[b.hid];
+            auto &g=barycen_mids[b.gid];
+            bids.insert(h.begin(),h.end());
+            bids.insert(g.begin(),g.end());
+        }
+        for(int_t cid:b.children){
+            auto &c=barycen_mids[cid];
+            chids.insert(c.begin(),c.end());
+        }
+        auto ires=cache_ids.try_emplace({bids,chids},cache.size());
+        int_t cache_id=ires.first->second;
+        bcache_map.try_emplace(bi,cache_id);
+        if(ires.second)
+            cache.emplace_back().t_start=t_eph;
+        cache[cache_id].t_end=ttag;
+    }
+    for(auto it=cache_ids.begin();it!=cache_ids.end();){
+        const auto &c=cache[it->second];
+        if(c.t_end==ttag)
+            ++it;
+        else
+            it=cache_ids.erase(it);
     }
 }
 
@@ -298,20 +362,44 @@ void ephemeris_collector::record(){
         fwrite(&x,sizeof(vec),1,&d.rotational_data);
         fwrite(&z,sizeof(vec),1,&d.rotational_data);
     }
+
+    for(const auto &pbc:bcache_maps.back()){
+        cachepack_t &c=cache[pbc.second];
+        const barycen &b=blist[pbc.first];
+        mpvec cr,cv;
+        blist.get_children_offset(b,cr,cv);
+        c.t_end=t_eph;
+        vec r=cr,v=cv;
+        fwrite(&r,sizeof(vec),1,&c.offset_data);
+        fwrite(&v,sizeof(vec),1,&c.offset_data);
+    }
 }
 
 void msystem::record_substeps(fast_real dt,bool initialize){
-    if(tidal_childlist.empty()||!p_substeper)return;
-    auto &mc=*p_substeper;
+    if(tidal_childlist.empty()||!p_collector)return;
+    auto &mc=*p_collector;
     if(mc.t_substep!=dt){
-        p_substeper=nullptr;
+        p_collector=nullptr;
         return;
     }
 
-    bsystem &blist=mc.sublists.at(mlist[tidal_parent].sid);
+    auto &subsys=mc.sublists.at(mlist[tidal_parent].sid);
+    bsystem &blist=subsys.sublist;
 
     blist.update_barycens(*this);
     blist.decompose();
+    
+    for(auto &bp:subsys.subcache_map){
+        mpvec cr,cv;
+        const auto &b=blist[bp.first];
+        blist.get_children_offset(b,cr,cv);
+        MFILE *mcache=&mc.cache[bp.second].offset_subdata;
+        if(!(initialize&&mcache->size())){
+            vec r=cr,v=cv;
+            fwrite(&r,sizeof(vec),1,mcache);
+            fwrite(&v,sizeof(vec),1,mcache);
+        }
+    }
 
     int_t bn=blist.size();
     for(int_t i=0;i<bn;++i){
@@ -347,8 +435,23 @@ std::string ephemeris_entry::entry_name(bool rotational,bool substep) const{
         rotational?Configs::SaveRotationalDataExtension:Configs::SaveOrbitalDataExtension,
         substep?Configs::SaveSubstepDataExtension:"");
 }
+std::string ephemeris_entry::offset_name(bool substep) const{
+    return strprintf("%lld%s%s",fid,
+        Configs::SaveBarycentricOffsetDataExtension,
+        substep?Configs::SaveSubstepDataExtension:"");
+}
 
-void ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
+std::string ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
+    std::string err_msg;
+    auto push_back_substep=[this,&ephm_files,&err_msg](ephemeris_entry &idata,MFILE &mf,size_t channel_size){
+        size_t msize=mf.size();
+        if(msize%channel_size==0&&(int_t(msize/channel_size)-1)*t_substep==idata.t_end-idata.t_start)
+            ephm_files.push_back(std::move(mf));
+        else
+            err_msg+=strprintf("Unexpected size %llu when extracting <%s>.\n",msize,mf.get_name().c_str());
+        mf.reset();
+    };
+
     int_t mn=ms.size();
     htl::vector<int_t> ex_entry;
     const auto *pold_blist=&blist;
@@ -373,6 +476,37 @@ void ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
         ex_entry.reserve(mn);
         for(int_t i=0;i<mn;++i)
             ex_entry.push_back(i);
+        //also extract offset_cache here
+        MFILE mf_cindex;
+        for(const auto &v:bcache_maps){
+            size_t csize=v.size();
+            fwrite(&csize,sizeof(csize),1,&mf_cindex);
+            for(const auto &p:v){
+                int_t bi=p.first,cfid=p.second+1;
+                fwrite(&bi,sizeof(int_t),1,&mf_cindex);
+                fwrite(&cfid,sizeof(int_t),1,&mf_cindex);
+            }
+        }
+
+        int_t cache_index=0;
+        for(cachepack_t &c:cache){
+            ephemeris_entry icache;
+            icache.fid=++cache_index;
+            icache.sid=0;
+            icache.t_start=c.t_start;
+            icache.t_end=c.t_end;
+            fwrite(&icache,sizeof(icache),1,&mf_cindex);
+
+            c.offset_data.set_name(Configs::SaveNameDirectory+icache.offset_name(false));
+            ephm_files.push_back(std::move(c.offset_data));
+
+            if(c.offset_subdata.size()){
+                c.offset_subdata.set_name(Configs::SaveNameDirectory+icache.offset_name(true));
+                push_back_substep(icache,c.offset_subdata,2*sizeof(vec));
+            }
+        }
+        mf_cindex.set_name(Configs::SaveNameBarycentricOffsetIndex);
+        ephm_files.push_back(std::move(mf_cindex));
     }
     int_t t_eph=ms.ephemeris_time();
     for(auto i:ex_entry){
@@ -394,20 +528,18 @@ void ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
         ephm_files.push_back(std::move(d.rotational_data));
 
         //save substep data, if exist
-        auto it=m_substeper.subdata.find(m.sid);
-        if(it!=m_substeper.subdata.end()){
-            MFILE *morb=&it->second.orbital_data;
-            if((morb->size()/fast_real(2*sizeof(vec))-1)*m_substeper.t_substep==idat.t_end-idat.t_start){
-                morb->set_name(Configs::SaveNameDirectory+idat.entry_name(false,true));
-                ephm_files.push_back(std::move(*morb));
+        auto it=subdata.find(m.sid);
+        if(it!=subdata.end()){
+            MFILE &morb=it->second.orbital_data;
+            if(morb.size()){
+                morb.set_name(Configs::SaveNameDirectory+idat.entry_name(false,true));
+                push_back_substep(idat,morb,2*sizeof(vec));
             }
-            morb->reset();
-            MFILE *mrot=&it->second.rotational_data;
-            if((mrot->size()/fast_real(3*sizeof(vec))-1)*m_substeper.t_substep==idat.t_end-idat.t_start){
-                mrot->set_name(Configs::SaveNameDirectory+idat.entry_name(true,true));
-                ephm_files.push_back(std::move(*mrot));
+            MFILE &mrot=it->second.rotational_data;
+            if(mrot.size()){
+                mrot.set_name(Configs::SaveNameDirectory+idat.entry_name(true,true));
+                push_back_substep(idat,mrot,3*sizeof(vec));
             }
-            mrot->reset();
         }
 
         if(force)
@@ -439,4 +571,5 @@ void ephemeris_collector::extract(htl::vector<MFILE> &ephm_files,bool force){
     mf_struct.set_name(strprintf("structure[%lld,%lld].json",idat.t_start,idat.t_end));
 
     t_start=t_eph;
+    return err_msg;
 }

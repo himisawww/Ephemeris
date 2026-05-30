@@ -861,18 +861,25 @@ public:
         const const_pointer pbegin=_begin();
         return ::std::equal(pbegin,pbegin+_size,_other._begin());
     }
-    template<int I2,bool S2,typename A2>
-    bool operator!=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(*this==_other); }
-    template<int I2,bool S2,typename A2>
-    bool operator< (const autoplace_vector<T,I2,S2,A2> &_other) const{
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator==(const C &_other) const{
+        if constexpr(::std::is_convertible_v<typename ::std::iterator_traits<typename C::iterator>::iterator_category,::std::random_access_iterator_tag>)
+            return ::std::equal(begin(),end(),_other.begin(),_other.end());
+        else
+            return size()==_other.size()&&::std::equal(begin(),end(),_other.begin(),_other.end());
+    }
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator!=(const C &_other) const{ return !(*this==_other); }
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator< (const C &_other) const{
         return ::std::lexicographical_compare(begin(),end(),_other.begin(),_other.end());
     }
-    template<int I2,bool S2,typename A2>
-    bool operator<=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(_other<*this); }
-    template<int I2,bool S2,typename A2>
-    bool operator> (const autoplace_vector<T,I2,S2,A2> &_other) const{ return _other<*this; }
-    template<int I2,bool S2,typename A2>
-    bool operator>=(const autoplace_vector<T,I2,S2,A2> &_other) const{ return !(*this<_other); }
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator<=(const C &_other) const{ return !(_other<*this); }
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator> (const C &_other) const{ return _other<*this; }
+    template<typename C,typename=::std::enable_if_t<is_container_of_v<C,value_type>>>
+    bool operator>=(const C &_other) const{ return !(*this<_other); }
 
     template<typename ...Args>
     reference emplace_back(Args &&...args){

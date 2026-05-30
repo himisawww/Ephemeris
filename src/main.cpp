@@ -1,17 +1,18 @@
 #include"physics/mass.h"
-#include<iostream>
 #include<thread>
 #include"modules/ephemeris_generator.h"
 #include"utils/zipio.h"
 #include"tests/tests.h"
 #include"configs.h"
 #include"utils/logger.h"
+//#include"modules/ephemeris_reader.h"
+//#include"utils/calctime.h"
 
 int de_worker(ephemeris_generator *egen,int dir){
     return egen->make_ephemeris(dir);
 }
 
-int main_fun(int argc,const char **argv){
+int main_fun(bool &wait,int argc,const char **argv){
 
     LogAnnouncement("%s%s\n%s",
         "Ephemeris Integrator ",Configs::VersionString,
@@ -81,13 +82,85 @@ int main_fun(int argc,const char **argv){
         "   exe_name  .\\system_initial\\Edited_Config.txt  .\\custom\\dat  20\n\n"
         "press Enter to exit, or input [t/T] to run tests:"
     );
-    if(int i=getchar();i=='t'||i=='T')
+    if(int i=*MFILE(stdin).fgetstr().c_str();i=='t'||i=='T')
         return test_all();
+    wait=false;
     return 0;
 }
 
-
 int main(int argc,const char **argv){
+    struct check_version{
+        bool pass,wait;
+        check_version():pass(true),wait(true){
+            const char *vstr=Configs::VersionString;
+            size_t vsize=strlen(vstr);
+            if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
+                LogAnnouncement("Warning: This executable is compiled from development branch of code.\n");
+                if(!file_exist("./_NOTES/DEVELOP")){
+                    LogCritical("\n         User shall either find a release version, or compile an executable using main branch.\n\n");
+                    pass=false;
+                }
+            }
+        }
+        ~check_version(){
+            if(wait){
+                LogAnnouncement("The program is about to exit. Press Enter to continue...");
+                MFILE(stdin).fgetstr();
+            }
+        }
+    } chkv;
+    if(!chkv.pass)return 0;
+
+#if 0
+    double s=CalcTime();
+    ephemeris_reader ereader("f:\\temp\\ephm\\ephemeris\\Ephemeris\\SolarSystem");
+    if(!ereader)
+        return -1;
+    printf("Load %fs\n",CalcTime()-s);
+    printf("Loaded %llu objects in [%lld, %lld]\n",ereader.size(),ereader.t_min(),ereader.t_max());
+    MFILE *fout=mopen("r:\\test.bin",MFILE_STATE::WRITE_FILE);
+    if(!fout)
+        return -3;
+    s=CalcTime();
+    const auto &earth=ereader.select("399",ereader.ORBIT);
+    const auto &moon=ereader.select("301",ereader.ORBIT);
+    double rmin=INFINITY,rmax=-INFINITY,vavg=0,vcount=0;
+    for(double t=0;t<Constants::year*40;t+=3600){
+        if(!ereader.checkout(t))
+            return -2;
+        vec r(moon->r-earth->r),v(moon->v-earth->v);
+        fwrite(&r,sizeof(vec),1,fout);
+        fwrite(&v,sizeof(vec),1,fout);
+        vcount+=1;
+        vavg+=v.norm();
+        double rn=r.norm();
+        checked_minimize(rmin,rn);
+        checked_maximize(rmax,rn);
+    }
+    printf("%fs\n",CalcTime()-s);
+    printf("[%f, %f] km @ %f m/s\n",rmin/1000,rmax/1000,vavg/vcount);
+    fclose(fout);
+    /* not cached full checkout:
+    Loaded 504 objects in [-65008656000, 65008656000]
+    78.708161s,71.835861s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    /* not cached partial checkout:
+    9.072424s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    /* with cache:
+    0.371420s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    /* with cache & load on fly:
+    0.359428s
+    [356445.428445, 406706.956274] km @ 1022.351862 m/s
+    */
+    return 0;
+
+
+#else
 #if 0
     htl::vector<const char*> subset{
         "10", "199", "299", "301", "399", "401", "402", "499", "501", "502",
@@ -102,18 +175,19 @@ int main(int argc,const char **argv){
     ephemeris_collector::convert_format("F:\\Temp\\ephm\\Ephemeris\\EphemerisCompressed\\SolarSystem",3600,&subset);
     return 0;
 #endif
-    return main_fun(argc,argv);
+    return main_fun(chkv.wait,argc,argv);
 
+#endif
     const char *m_argv[]={
         argv[0],
         //"F:\\Temp\\ephm\\Ephemeris\\SolarSystem\\SolarSystem_Config.txt",
-        //"f:\\Temp\\ephm\\Ephemeris\\TestNew\\test5",
+        "f:\\Temp\\ephm\\Ephemeris\\Ephemeris\\SolarSystem",
         //"F:\\Temp\\ephm\\MoonsFit\\grad\\Test401",
-        //"0.05"
-        "RUN_TEST"
+        "60"
+        //"RUN_TEST"
     };
     const int m_argc=sizeof(m_argv)/sizeof(char *);
-    return main_fun(m_argc,m_argv);
+    return main_fun(chkv.wait,m_argc,m_argv);
     
     //convert_format("R:\\testcg\\result");
     //return 0;

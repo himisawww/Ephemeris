@@ -14,7 +14,7 @@
 #include<memory>
 
 // for debugging features, change this to #if 0
-#if 1
+#ifndef _DEBUG
 #define HTL_ASSERT(...) ((void)0)
 #else
 #define HTL_ASSERT HTL_RUNTIME_ASSERT
@@ -35,6 +35,13 @@ template<template<typename ...>class C,typename ...Args>
 struct is_specialization<C<Args...>,C>: ::std::true_type{};
 template<typename T,template<typename ...>class C>
 inline constexpr bool is_specialization_v=is_specialization<T,C>::value;
+
+template<typename C,typename T>
+struct is_container_of: ::std::false_type{};
+template<typename C>
+struct is_container_of<C,typename ::std::iterator_traits<typename C::iterator>::value_type>: ::std::true_type{};
+template<typename C,typename T>
+inline constexpr bool is_container_of_v=is_container_of<C,T>::value;
 
 template<typename E,typename T,bool=::std::is_empty_v<E>&&!::std::is_final_v<E>>
 class compressed_pair final:private E{

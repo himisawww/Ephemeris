@@ -57,7 +57,7 @@ int test_order(){
     int_t order_weight=0;
     double order_translational=0,order_rotational=0;
     {
-        ScopedLogLevelSettings loglvset(global_logger,LogLevel::ERROR);
+        Logger::ScopedSettings loglvset(LogLevel::ERROR);
 
         moon_state states[test_size];
         for(int_t i=0;i<test_size;++i){

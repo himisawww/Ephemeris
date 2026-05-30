@@ -25,13 +25,13 @@ void mass::scale(fast_real factor){
     rR2G_4c*=f3;
 }
 
+void mass::update(fast_real t){
+    GM=GM0+dGM*t;
+    exJ2=dJ2*t;
+}
+
 void msystem::update(fast_real t,bsystem *pblist){
-    int_t mn=mlist.size();
-    for(int_t i=0;i<mn;++i){
-        mass &mi=mlist[i];
-
-        mi.GM=mi.GM0+mi.dGM*t;
-
+    for(mass &mi:mlist)mi.update(t);
         /*if(i==3){//earth rotation adjust
             fast_real targetw=2*pi/(86164.10013880364+0.00172/(86400*365.25*100)*t);
             fast_real wn=mi.w.norm();
@@ -43,9 +43,7 @@ void msystem::update(fast_real t,bsystem *pblist){
             dc.z.z=2;
             mi.C_static+=dc*AmC.z.z*dw/(2*wn);
         }*/
-        mi.exJ2=mi.dJ2*t;
 
-    }
     if(!pblist)
         return;
 

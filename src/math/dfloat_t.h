@@ -17,17 +17,18 @@ public:
     INLINE dfloat_impl_t(){}
     INLINE dfloat_impl_t(T _hi,T _lo=0):hi(_hi),lo(_lo){}
     INLINE explicit operator T() const{ return hi+lo; }
+    INLINE explicit operator bool() const{ return hi+lo!=0; }
     template<typename I,typename=std::enable_if_t<std::is_integral_v<I>>>
-    INLINE explicit dfloat_impl_t(I i):hi(i){
+    INLINE dfloat_impl_t(I i):hi((T)i){
         if constexpr(sizeof(I)>=sizeof(T))
-            lo=i-I(hi);
+            lo=T(i-I(hi));
         else
             lo=0;
     }
     //actually, floor
     template<typename I,typename=std::enable_if_t<std::is_integral_v<I>>>
     INLINE explicit operator I() const{
-        I iapprox=std::round(hi+lo);
+        I iapprox=(I)std::round(hi+lo);
         iapprox+=(I)std::floor(T(*this-dfloat_type(iapprox)));
         return iapprox;
     }

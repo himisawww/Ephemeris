@@ -18,7 +18,10 @@ std::string get_file_extension(const std::string &path){
     return path.substr(subpos&&!(path.find_first_of("/\\",subpos)+1)?subpos:path.size());
 }
 
-static htl::map<std::string,htl::vector<MFILE::byte_t>> mem_library;
+static auto &get_library(){
+    static htl::map<std::string,htl::vector<char>> mem_library;
+    return mem_library;
+}
 static bool s_publish_invalid_ofile=false;
 static std::string filepath_normalize(const std::string &fpath){
     std::string result;
@@ -52,6 +55,7 @@ MFILE::MFILE(MFILE &&mf):
     idata=mf.idata;
     isize=mf.isize;
     offset=mf.offset;
+    own=mf.own;
     state=mf.state;
     mf.state=MFILE_STATE::INVALID;
 }
@@ -61,7 +65,7 @@ MFILE::MFILE(){
     state=MFILE_STATE::WRITE_CACHE;
 }
 MFILE::MFILE(const void *_mem,size_t _size){
-    idata=(const byte_t *)_mem;
+    idata=(const char *)_mem;
     isize=_size;
     offset=0;
     state=MFILE_STATE::READ_CACHE;
@@ -71,6 +75,7 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     bool is_read_=is_read();
     bool is_cache_=is_cache();
     if(is_read_){
+        auto &mem_library=get_library();
         auto it=mem_library.find(filepath_normalize(_fname));
         if(it!=mem_library.end()){
             const auto &pmem=it->second;
@@ -87,6 +92,7 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     }
 
     fp=fopen(_fname,is_read_);
+    own=true;
     if(!fp&&(is_read_||!s_publish_invalid_ofile))
         state=MFILE_STATE::INVALID;
     else if(is_read_){
@@ -95,7 +101,30 @@ MFILE::MFILE(const std::string &_fname,MFILE_STATE _state){
     }
     else{
         if(!fp||is_cache_)offset=0;
-        if(!fp&&!is_cache_)filename=_fname;
+        if(!fp){
+            state=MFILE_STATE::WRITE_FILE;
+            filename=_fname;
+        }
+    }
+}
+MFILE::MFILE(FILE *_fp,MFILE_STATE _state,bool take_own){
+    if(!_fp)
+        state=MFILE_STATE::INVALID;
+    else{
+        state=_state;
+        bool is_read_=is_read();
+        bool is_cache_=is_cache();
+        fp=_fp;
+        own=take_own;
+        if(is_read_){
+            state=MFILE_STATE::READ_FILE;
+            if(is_cache_)load_data();
+        }
+        else if(!is_write()){
+            state=MFILE_STATE::INVALID;
+            if(own)fclose(fp);
+        }
+        else if(is_cache_)offset=0;
     }
 }
 
@@ -130,9 +159,9 @@ int MFILE::close(){
     state=MFILE_STATE::INVALID;
     if(ostate==MFILE_STATE::READ_CACHE||!fp)
         return 0;
-    return fclose(fp);
+    return own?fclose(fp):0;
 }
-MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
+char *MFILE::prepare(size_t new_cache_size){
     close();
     cached_data.resize(new_cache_size);
     if(cached_data.capacity()-new_cache_size>(new_cache_size>>1))
@@ -146,7 +175,7 @@ MFILE::byte_t *MFILE::prepare(size_t new_cache_size){
 void MFILE::reset(){
     close();
     std::string().swap(filename);
-    htl::vector<byte_t>().swap(cached_data);
+    htl::vector<char>().swap(cached_data);
     fp=0;
     offset=0;
     state=MFILE_STATE::WRITE_CACHE;
@@ -155,7 +184,7 @@ void MFILE::reset(){
 void MFILE::load_data(){
     if(state==MFILE_STATE::READ_CACHE){
         if(idata!=cached_data.data()||isize!=cached_data.size()){
-            htl::vector<byte_t>(idata,idata+isize).swap(cached_data);
+            htl::vector<char>(idata,idata+isize).swap(cached_data);
             idata=cached_data.data();
         }
     }
@@ -167,7 +196,7 @@ void MFILE::load_data(){
         cached_data.resize(isize);
         fread(cached_data.data(),1,isize,fp);
         idata=cached_data.data();
-        fclose(fp);
+        if(own)fclose(fp);
         state=MFILE_STATE::READ_CACHE;
     }
 }
@@ -204,15 +233,15 @@ int MFILE::seek(int64_t fpos,int forg){
     }
     return _fseeki64(fp,fpos,forg);
 }
-int fseek(MFILE *_Stream,int64_t _Offset,int _Origin){
-    return _Stream->seek(_Offset,_Origin);
+int fseek(MFILE *_stream,int64_t _offset,int _origin){
+    return _stream->seek(_offset,_origin);
 }
-int64_t ftell(MFILE *_Stream){
-    return _Stream->tell();
+int64_t ftell(MFILE *_stream){
+    return _stream->tell();
 }
-int fclose(MFILE *_Stream){
-    int ret=_Stream->close();
-    delete _Stream;
+int fclose(MFILE *_stream){
+    int ret=_stream->close();
+    delete _stream;
     return ret;
 }
 
@@ -254,7 +283,7 @@ size_t MFILE::write(const void *buffer,size_t e_size,size_t e_count){
         return e_count;
 }
 
-std::string MFILE::readline(){
+std::string MFILE::fgetstr(bool _enable_skip){
     std::string result;
     if(!is_read())return result;
     bool use_file=state==MFILE_STATE::READ_FILE;
@@ -289,6 +318,8 @@ std::string MFILE::readline(){
             result+=chbuf;
             if(result.back()=='\n'){
                 result.pop_back();
+                if(!_enable_skip)
+                    return result;
                 break;
             }
         } while(1);
@@ -314,10 +345,10 @@ bool MFILE::publish(){
 bool MFILE::publish(const std::string &fname){
     if(!publish())return false;
     if(fname.size()){
-        auto &pmem=mem_library[filepath_normalize(fname)];
+        auto &pmem=get_library()[filepath_normalize(fname)];
         pmem.swap(cached_data);
         idata=pmem.data();
-        htl::vector<byte_t>().swap(cached_data);
+        htl::vector<char>().swap(cached_data);
     }
     return true;
 }
@@ -328,10 +359,10 @@ size_t fread(void *buffer,size_t e_size,size_t e_count,MFILE *mem){
 size_t fwrite(const void *buffer,size_t e_size,size_t e_count,MFILE *mem){
     return mem->write(buffer,e_size,e_count);
 }
-std::string readline(MFILE *mem){
-    return mem->readline();
+std::string fgetstr(MFILE *mem,bool _enable_skip){
+    return mem->fgetstr(_enable_skip);
 }
-int fprintf(MFILE *mem,const char *format,...){
+int64_t fprintf(MFILE *mem,const char *format,...){
     va_list args;
     va_start(args,format);
     std::string result=vstrprintf(format,args);

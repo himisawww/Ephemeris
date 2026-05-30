@@ -133,8 +133,7 @@ double ephemeris_compressor::relative_state_error(const vec *r,const vec *rp){
     return std::sqrt((*rp-*r).normsqr()/(*r).normsqr());
 };
 double ephemeris_compressor::absolute_state_error(const vec *r,const vec *rp){
-    constexpr double minref=epsilon_absolute_error/epsilon_relative_error;
-    return std::sqrt((*rp-*r).normsqr()/std::max(minref*minref,(*r).normsqr()));
+    return std::sqrt((*rp-*r).normsqr()/std::max(min_state_reference*min_state_reference,(*r).normsqr()));
 };
 double ephemeris_compressor::circular_kepler_error(const double *k,const double *kp){
     vec r,rp,v;
@@ -161,7 +160,7 @@ double ephemeris_compressor::quaternion_rotation_error(const quat *q,const quat 
     return std::sqrt(checked_min((*q-nqp).normsqr(),(*q+nqp).normsqr()));
 }
 
-int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
+int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span,bool may_kepler){
     mf.load_data();
     int_t N=mf.size();
     const orbital_state_t *pdata=(const orbital_state_t*)mf.prepare(N);
@@ -190,11 +189,11 @@ int_t ephemeris_compressor::compress_orbital_data(MFILE &mf,double time_span){
     memset(fiterrs.data(),-1,N*sizeof(fit_err_t));
 
     htl::vector<orbital_param_t> ostates;
-    double GM=infer_GM_from_data(pdata,N);
+    double GM=may_kepler?infer_GM_from_data(pdata,N):0;
     const double tfac=std::sqrt(GM);
-    const double vfac=1/tfac;
     const double h=delta_t*tfac;
     if(GM>=Constants::G){
+        const double vfac=1/tfac;
         ostates.reserve(N);
         for(int_t i=0;i<N;++i)
             ostates.emplace_back(keplerian(pdata[i].r,pdata[i].v*vfac));
@@ -854,7 +853,7 @@ interp_t::interpolator(MFILE *fin,double _range):t_range(_range){
     do{
         if(!fin||!fin->publish()||fin->size()<=sizeof(base_t))
             break;
-        const uint8_t *const fdata=fin->data();
+        const char *const fdata=fin->data();
         memcpy((base_t*)this,fdata,sizeof(base_t));
         double r=relative_error();
         if(!(0<=r&&r<1))

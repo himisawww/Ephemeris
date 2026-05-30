@@ -41,10 +41,10 @@ struct _rbnode{
         if(_c)
             _p->_p=this;
     }
-    static void swap(_rbnode &_lhs,_rbnode &_rhs){
-        ::std::swap(_lhs,_rhs);
-        if(_lhs._p)_lhs._p->_p=::std::addressof(_lhs);
-        if(_rhs._p)_rhs._p->_p=::std::addressof(_rhs);
+    static void swap(_rbnode *_lhs,_rbnode *_rhs){
+        ::std::swap(*_lhs,*_rhs);
+        if(_lhs->_p)_lhs->_p->_p=_lhs;
+        if(_rhs->_p)_rhs->_p->_p=_rhs;
     }
 
     struct _insert_location{
@@ -346,17 +346,17 @@ struct _linked_rbnode:public _rbnode{
             _lr->_ll=this;
         }
     }
-    static void swap(_linked_rbnode &_lhs,_linked_rbnode &_rhs){
+    static void swap(_linked_rbnode *_lhs,_linked_rbnode *_rhs){
         _rbnode::swap(_lhs,_rhs);
-        ::std::swap(_lhs._ll,_rhs._ll);
-        ::std::swap(_lhs._lr,_rhs._lr);
-        if(_lhs._p){
-            _lhs._ll->_lr=::std::addressof(_lhs);
-            _lhs._lr->_ll=::std::addressof(_lhs);
+        ::std::swap(_lhs->_ll,_rhs->_ll);
+        ::std::swap(_lhs->_lr,_rhs->_lr);
+        if(_lhs->_p){
+            _lhs->_ll->_lr=_lhs;
+            _lhs->_lr->_ll=_lhs;
         }
-        if(_rhs._p){
-            _rhs._ll->_lr=::std::addressof(_rhs);
-            _rhs._lr->_ll=::std::addressof(_rhs);
+        if(_rhs->_p){
+            _rhs->_ll->_lr=_rhs;
+            _rhs->_lr->_ll=_rhs;
         }
     }
     //debug
@@ -565,6 +565,17 @@ struct _rbinsert_return_type{
     N node;
 };
 
+template<typename I,bool L,typename N>
+struct _rbitconv{};
+template<typename I>
+struct _rbitconv<I,true,_rbnode>{
+    auto as_linked() const{ return static_cast<const I &>(*this).template _alterlink<_linked_rbnode>(); }
+};
+template<typename I>
+struct _rbitconv<I,true,_linked_rbnode>{
+    auto as_unlinked() const{ return static_cast<const I &>(*this).template _alterlink<_rbnode>(); }
+};
+
 template<typename TreeTraits>
 class _rbtree{
     template<typename TreeTraits2>
@@ -598,9 +609,16 @@ protected:
     typedef node_base *base_ptr;
 
     template<bool Const,typename N>
-    class _iterator{
+    class _iterator:public _rbitconv<_iterator<Const,N>,Linked,N>{
         friend class _rbtree;
+        friend struct _rbitconv<_iterator,Linked,N>;
         node_ptr _ptr;
+        template<typename N2>
+        auto _alterlink() const{
+            _iterator<Const,N2> it;
+            it._ptr=_ptr;
+            return it;
+        }
     public:
         typedef _rbtree::difference_type difference_type;
         typedef _rbtree::value_type      value_type;
@@ -1086,7 +1104,7 @@ public:
         else if constexpr(!node_alloc_traits::is_always_equal::value)
             HTL_ASSERT(this_alloc==other_alloc);
         swap(_a.second.get_first(),_other._a.second.get_first());
-        node_base::swap(_a.second.second,_other._a.second.second);
+        node_base::swap(_end(),_other._end());
     }
     friend void swap(_rbtree &_lhs,_rbtree &_rhs) noexcept(::std::is_nothrow_swappable_v<key_compare>&&
         (node_alloc_traits::propagate_on_container_swap::value||node_alloc_traits::is_always_equal::value)){

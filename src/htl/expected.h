@@ -80,11 +80,6 @@ class expected<T,E,::std::false_type>{
         ::new (::std::addressof(new_val))N(::std::forward<Args>(args)...);
     }
 
-    const T &_value() const{ HTL_ASSERT( _b); return _t; }
-          T &_value()      { HTL_ASSERT( _b); return _t; }
-    const E &_error() const{ HTL_ASSERT(!_b); return _e; }
-          E &_error()      { HTL_ASSERT(!_b); return _e; }
-
     template<typename From>
     static constexpr bool may_convertible=
         ::std::disjunction_v<::std::is_same<bool,::std::remove_cv_t<T>>,::std::negation<::std::disjunction<
@@ -435,20 +430,20 @@ public:
     template<typename=::std::enable_if_t<is_swappable_v>>
     friend void swap(expected &_lhs,expected &_rhs) noexcept(is_nothrow_swappable_v){ _lhs.swap(_rhs); }
 
-    const T  *operator->() const   noexcept{ return ::std::addressof(_value()); }
-          T  *operator->()         noexcept{ return ::std::addressof(_value()); }
-    const T  &operator *() const  &noexcept{ return _value(); }
-          T  &operator *()        &noexcept{ return _value(); }
-    const T &&operator *() const &&noexcept{ return ::std::move(_value()); }
-          T &&operator *()       &&noexcept{ return ::std::move(_value()); }
-    const T  &value() const  &{ return _value(); }
-          T  &value()        &{ return _value(); }
-    const T &&value() const &&{ return ::std::move(_value()); }
-          T &&value()       &&{ return ::std::move(_value()); }
-    const E  &error() const  &{ return _error(); }
-          E  &error()        &{ return _error(); }
-    const E &&error() const &&{ return ::std::move(_error()); }
-          E &&error()       &&{ return ::std::move(_error()); }
+    const T  *operator->() const   noexcept{ HTL_ASSERT( _b); return ::std::addressof(_t); }
+          T  *operator->()         noexcept{ HTL_ASSERT( _b); return ::std::addressof(_t); }
+    const T  &operator *() const  &noexcept{ HTL_ASSERT( _b); return _t; }
+          T  &operator *()        &noexcept{ HTL_ASSERT( _b); return _t; }
+    const T &&operator *() const &&noexcept{ HTL_ASSERT( _b); return ::std::move(_t); }
+          T &&operator *()       &&noexcept{ HTL_ASSERT( _b); return ::std::move(_t); }
+    const T  &value() const  &{ HTL_RUNTIME_ASSERT( _b); return _t; }
+          T  &value()        &{ HTL_RUNTIME_ASSERT( _b); return _t; }
+    const T &&value() const &&{ HTL_RUNTIME_ASSERT( _b); return ::std::move(_t); }
+          T &&value()       &&{ HTL_RUNTIME_ASSERT( _b); return ::std::move(_t); }
+    const E  &error() const  &{ HTL_ASSERT(!_b); return _e; }
+          E  &error()        &{ HTL_ASSERT(!_b); return _e; }
+    const E &&error() const &&{ HTL_ASSERT(!_b); return ::std::move(_e); }
+          E &&error()       &&{ HTL_ASSERT(!_b); return ::std::move(_e); }
     template<typename U=::std::remove_cv_t<T>>
     T value_or(U &&default_value) const &{ return  _b?            _t :static_cast<T>(::std::forward<U>(default_value)); }
     template<typename U=::std::remove_cv_t<T>>
@@ -486,11 +481,6 @@ class expected<T,E,::std::true_type>{
     template<typename ...Args>
     E *_construct_error(Args &&...args){ return ::new (::std::addressof(_e))E(::std::forward<Args>(args)...); }
     void _destroy_error(){ _e.~E(); }
-
-    T _value() const{ HTL_ASSERT(_b); }
-    T _value()      { HTL_ASSERT(_b); }
-    const E &_error() const{ HTL_ASSERT(!_b); return _e; }
-          E &_error()      { HTL_ASSERT(!_b); return _e; }
 
     template<typename U,typename G>
     struct convert_from{
@@ -730,12 +720,12 @@ public:
     template<typename=::std::enable_if_t<is_swappable_v>>
     friend void swap(expected &_lhs,expected &_rhs) noexcept(is_nothrow_swappable_v){ _lhs.swap(_rhs); }
 
-    T operator *() const noexcept{ return _value(); }
-    T value() const{ return _value(); }
-    const E  &error() const  &{ return _error(); }
-          E  &error()        &{ return _error(); }
-    const E &&error() const &&{ return ::std::move(_error()); }
-          E &&error()       &&{ return ::std::move(_error()); }
+    T operator *() const noexcept{ HTL_ASSERT( _b); }
+    T      value() const { HTL_RUNTIME_ASSERT( _b); }
+    const E  &error() const  &{ HTL_ASSERT(!_b); return _e; }
+          E  &error()        &{ HTL_ASSERT(!_b); return _e; }
+    const E &&error() const &&{ HTL_ASSERT(!_b); return ::std::move(_e); }
+          E &&error()       &&{ HTL_ASSERT(!_b); return ::std::move(_e); }
     template<typename G=E>
     E error_or(G &&defalut_value) const &{ return !_b?            _e :static_cast<E>(::std::forward<G>(defalut_value)); }
     template<typename G=E>

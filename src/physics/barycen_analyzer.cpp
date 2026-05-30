@@ -415,9 +415,21 @@ int_t bsystem::decompose(int_t bid){
     return nret+1;
 }
 
+void bsystem::get_children_offset(const barycen &b,mpvec &cr,mpvec &cv) const{
+    const bsystem &blist=*this;
+    mpvec cracc(0),cvacc(0);
+    for(const auto cid:b.children){
+        const barycen &c=blist[cid];
+        cracc+=c.r*c.GM_sys;
+        cvacc+=c.v*c.GM_sys;
+    }
+    cr=cracc/b.GM_sys;
+    cv=cvacc/b.GM_sys;
+}
+
 int_t bsystem::compose(int_t bid){
     bsystem &blist=*this;
-    if(bid<0)return bid;
+    if(bid<0)return 0;
 
     barycen &b=blist[bid];
     int_t nret=1;
@@ -444,14 +456,16 @@ int_t bsystem::compose(int_t bid){
         }
     }
 
-    mpvec cracc(0),cvacc(0);
-    for(const auto cid:b.children){
-        barycen &c=blist[cid];
-        cracc+=c.r*c.GM_sys;
-        cvacc+=c.v*c.GM_sys;
+    if(b.children.empty()){
+        b.r=b.r_sys;
+        b.v=b.v_sys;
     }
-    b.r=b.r_sys-cracc/b.GM_sys;
-    b.v=b.v_sys-cvacc/b.GM_sys;
+    else{
+        mpvec cr,cv;
+        blist.get_children_offset(b,cr,cv);
+        b.r=b.r_sys-cr;
+        b.v=b.v_sys-cv;
+    }
 
     if(b.gid>=0){
         nret+=compose(b.hid);

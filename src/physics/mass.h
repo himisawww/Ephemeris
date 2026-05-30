@@ -52,6 +52,9 @@ public:
     int_t decompose(){ return decompose(root_id()); }
     //restore state vectors in blist to absolute
     int_t compose(){ return compose(root_id()); }
+    //get offset of barycen induced by its children combined
+    //requires children.r/v decomposed
+    void get_children_offset(const barycen &b,mpvec &cr,mpvec &cv) const;
     //get index of root, -1 if non-exist;
     int_t root_id() const;
 
@@ -142,6 +145,7 @@ public:
     fast_real min_distance;
     fast_real max_influence;
 
+    static constexpr uint64_t max_sid=(1ull<<56)-1;
     const char *get_ssid() const{ return (const char*)&sid; }
 
     INLINE void orthogonalize(){
@@ -155,14 +159,12 @@ public:
     //resize the radius by a factor
     //updates all relevant parameters
     void scale(fast_real factor);
+    //update time-variables of mass to epoch t
+    //see msystem::update
+    void update(fast_real t);
     //check sanity of states & params
     bool sanity(bool alert=false) const;
 };
-
-constexpr auto mass_constant_parameters_begin=&mass::sid;
-constexpr auto mass_constant_parameters_end=&mass::gpmodel;
-constexpr auto mass_auxiliary_variables=&mass::phi;
-constexpr auto mass_temporary_variables=&mass::Egrad;
 
 //short mass used in Runge-Kutta-integrators
 struct mass_state{
@@ -195,7 +197,7 @@ struct mass_state{
 };
 
 class ephemeris_generator;
-class ephemeris_substeper;
+class ephemeris_collector;
 class ephemeris_reader;
 
 //stellar system
@@ -211,7 +213,7 @@ public:
     };
 
     friend class ephemeris_generator;
-    friend class ephemeris_substeper;
+    friend class ephemeris_collector;
     friend class ephemeris_reader;
 private:
     //relativistic coordinate time
@@ -234,9 +236,9 @@ private:
     //tidal corrections
     int_t tidal_parent;
     fast_mpmat tidal_matrix;
-    //above two is undefined if tidal_childlist.empty()
+    ephemeris_collector *p_collector;
+    //above three is undefined if tidal_childlist.empty()
     htl::vector<int_t> tidal_childlist;
-    ephemeris_substeper *p_substeper;
 
     //t_eph when blist is analysed
     real t_barycen;
@@ -253,6 +255,11 @@ private:
     htl::vector<const geopotential *> gp_components;
     htl::vector<const ring *> ring_components;
 private:
+    static constexpr auto mass_constant_parameters_begin=&mass::sid;
+    static constexpr auto mass_constant_parameters_end=&mass::gpmodel;
+    static constexpr auto mass_auxiliary_variables=&mass::phi;
+    static constexpr auto mass_temporary_variables=&mass::Egrad;
+
     //load system from files
     //   fbase : basic parameters and initial states
     //    fext : extra parameters
@@ -271,7 +278,7 @@ private:
     //calculate deformation matrices(C_potential) and inertia matrices(GI)
     //calculate Newtonian acceleration(naccel) & potential(phi)
     void deform();
-    //used by combined_integrate with p_substeper
+    //used by combined_integrate with p_collector
     void record_substeps(fast_real dt,bool initialize=false);
 
 public:
@@ -297,7 +304,7 @@ public:
     //USE_GPU:   use CPU(0)/GPU(1) for combined integration of full system
     //ps: if !nullptr, collects substeps of children in subsystems
     void combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU=1,
-        ephemeris_substeper *ps=nullptr);
+        ephemeris_collector *pc=nullptr);
 
     //analyse position of masses to build barycen list
     //reconstruct: if true, analyse from scratch;

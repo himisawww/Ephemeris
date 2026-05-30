@@ -23,12 +23,18 @@ static int publish_resource(int resource_id,const char *filename){
     FreeResource(hResData);
     return 0;
 }
-
-static msystem ms;
-const msystem &get_test_msystem(){
-    return ms;
+static msystem *make_test_msystem(){
+    static msystem ms;
+    ms.load_internal();
+    return &ms;
 }
-msystem get_test_subsystem(htl::vector<const char *> sids){
+
+const msystem &get_test_msystem(){
+    static auto test_ms_state=make_test_msystem();
+    return *test_ms_state;
+}
+msystem get_test_subsystem(const htl::vector<const char *> &sids){
+    const msystem &ms=get_test_msystem();
     msystem msdst;
     msdst.copy_params(ms);
     for(const char *ssid:sids){
@@ -67,7 +73,7 @@ bool msystem::load_internal(const char *fckpt){
 }
 
 int test_prepare(){
-    if(!ms.load_internal())
+    if(get_test_msystem().empty())
         return 1;
     
     LogInfo("      Passed, ");

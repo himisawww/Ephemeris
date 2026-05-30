@@ -229,9 +229,6 @@
     <ClInclude Include="src\math\basic_math.h">
       <Filter>math</Filter>
     </ClInclude>
-    <ClInclude Include="src\integrators\mass_combined.h">
-      <Filter>integrators</Filter>
-    </ClInclude>
     <ClInclude Include="src\math\distribute.h">
       <Filter>math</Filter>
     </ClInclude>

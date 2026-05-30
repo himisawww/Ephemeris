@@ -118,7 +118,7 @@ bool msystem::load(const char *fconfig,const char *fcheckpoint){
     }
 
     while(1){
-        std::string chbuf=readline(fin);
+        std::string chbuf=fgetstr(fin,true);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
             LogError(
@@ -349,7 +349,7 @@ bool msystem::load(
     }
     char sname[MAX_LINESIZE],sid[MAX_LINESIZE];
     while(1){
-        std::string chbuf=readline(fin);
+        std::string chbuf=fgetstr(fin,true);
         if(chbuf.size()==0)break;
         if(chbuf.size()>=MAX_LINESIZE){
             LogError(
@@ -479,7 +479,7 @@ bool msystem::load(
             return false;
         }
         while(1){
-            std::string chbuf=readline(finex);
+            std::string chbuf=fgetstr(finex,true);
             if(chbuf.size()==0)break;
             if(chbuf.size()>=MAX_LINESIZE){
                 LogError(
@@ -832,6 +832,13 @@ size_t bsystem::compatible_size() const{
     for(const barycen &b:blist)
         mn-=b.hid>=0;
 
+    //requires first mn barycen is mlist for msystem-compatible bsystem
+    for(int_t i=0;i<mn;++i){
+        const barycen &b=blist[i];
+        if(b.hid>=0||b.mid!=i)
+            return false;
+    }
+
     htl::vector<bool> has_done(bn,false);
     htl::vector<bool> has_mass(mn,false);
     htl::vector<bool> mid_done(bn,false);
@@ -941,8 +948,8 @@ msystem &msystem::operator =(const msystem &other){
     clear();
     copy_member(tidal_parent);
     copy_member(tidal_matrix);
+    copy_member(p_collector);
     copy_member(tidal_childlist);
-    copy_member(p_substeper);
     copy_member(t_barycen);
     copy_member(t_update);
     copy_member(blist);

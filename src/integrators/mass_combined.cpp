@@ -1,4 +1,4 @@
-#include"mass_combined.h"
+#include"modules/ephemeris_generator.h"
 #include"htl/map.h"
 #include"math/distribute.h"
 #include"physics/geopotential.h"
@@ -37,7 +37,9 @@ static void do_thread_works(void *pworks,size_t thread_id){
 }
 
 
-void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,ephemeris_substeper *ps){
+void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int USE_GPU,ephemeris_collector *pc){
+    if(pc&&this!=&pc->ms)
+        pc=nullptr;
     real t_latest=analyse();
     int_t bn=blist.size();
     htl::map<int_t,int_t> clist;
@@ -82,7 +84,7 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
     int_t mn=mlist.size();
     
     for(const auto &p:cvecs)
-        Sn.insert({p.first,msystem()});
+        Sn.try_emplace(p.first);
     
     fast_real dt_long=dt*n_combine;
     for(int_t i_step=0;i_step<n_step;++i_step){
@@ -258,16 +260,15 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
             sn.t_eph=t_eph;
             sn.build_mid();
             sn.accel();
-            sn.p_substeper=ps;
+            sn.p_collector=pc;
         }
 
-        if(ps&&(ps->pms!=this||ps->t_link!=t_latest)){
-            ps->pms=this;
-            ps->t_substep=dt;
-            ps->t_link=t_latest;
-            ps->sublists.clear();
+        if(pc&&pc->t_link!=t_latest){
+            pc->t_substep=dt;
+            pc->t_link=t_latest;
+            pc->sublists.clear();
             for(auto &sns:Sn){
-                ps->link(sns.second);
+                pc->link(sns.second);
                 //initialize, avoid concurrent modification of orbital_subdata map
                 sns.second.record_substeps(dt,true);
             }
@@ -406,39 +407,42 @@ void msystem::combined_integrate(fast_real dt,int_t n_combine,int_t n_step,int U
 }
 
 
-int_t ephemeris_substeper::link(msystem &mssub,int_t bid){
-    const msystem &ms=*pms;
+int_t ephemeris_collector::link(msystem &mssub){
     const auto &blist=ms.get_barycens();
-
     uint64_t psid=mssub[mssub.tidal_parent].sid;
-    bsystem &sublist=sublists[psid];
-    if(bid<0){
-        int_t pmid=ms.get_mid(psid);
-        //assume for ms.mlist[i], ms.blist[i].mid==i
-        int_t pbid=link(mssub,blist[pmid].tid);
-        sublist[pbid].pid=-1;
-        sublist.fill_tid();
-        return sublist.size();
+    auto &subsys=sublists[psid];
+    bsystem &sublist=subsys.sublist;
+    int_t pbid=link(subsys,mssub,blist[ms.get_mid(psid)].tid);
+    sublist[pbid].pid=-1;
+
+    const auto &cur_bcmap=bcache_maps.back();
+    for(int_t bi=0,bn=sublist.size();bi<bn;++bi){
+        const auto &b=sublist[bi];
+        auto it=cur_bcmap.find(b.tid);
+        if(it!=cur_bcmap.end())
+            subsys.subcache_map.try_emplace(bi,it->second);
     }
+
+    sublist.fill_tid();
+    return sublist.size();
+}
+
+int_t ephemeris_collector::link(subsystem_t &subsys,msystem &mssub,int_t bid){
+    const auto &blist=ms.get_barycens();
+    bsystem &sublist=subsys.sublist;
 
     barycen sbi;
     const barycen &bi=blist[bid];
+    //must exist, i.e. >=0
     sbi.mid=mssub.get_mid(ms[bi.mid].sid);
-    if(sbi.mid<0)
-        return -1;
 
     if(bi.hid>=0){
-        sbi.hid=link(mssub,bi.hid);//cannot <0, otherwise early returned at sbi.mid<0
-        sbi.gid=link(mssub,bi.gid);
-        if(sbi.gid<0)
-            return sbi.hid;
+        sbi.hid=link(subsys,mssub,bi.hid);
+        sbi.gid=link(subsys,mssub,bi.gid);
     }
 
-    for(auto cid:bi.children){
-        int_t scid=link(mssub,cid);
-        if(scid>=0)
-            sbi.children.push_back(scid);
-    }
+    for(auto cid:bi.children)
+        sbi.children.push_back(link(subsys,mssub,cid));
     int_t sbid=sublist.size();
     if(sbi.hid>=0){
         sublist[sbi.hid].pid=sbid;
@@ -446,6 +450,8 @@ int_t ephemeris_substeper::link(msystem &mssub,int_t bid){
     }
     for(auto scid:sbi.children)
         sublist[scid].pid=sbid;
+    //use tid record bid in ms::blist temporarily when link()
+    sbi.tid=bid;
     sublist.push_back(sbi);
     return sbid;
 }
