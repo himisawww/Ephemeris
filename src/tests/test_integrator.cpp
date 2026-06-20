@@ -55,10 +55,7 @@ int test_integrator(){
     const size_t n_mass=mcombine.size();
     msystem mhalfdt=mcombine;
     msystem mcpu=mcombine;
-    struct thread_pool_guard{
-        thread_pool_guard(){ ThreadPool::thread_local_pool_alloc(); }
-        ~thread_pool_guard(){ ThreadPool::thread_local_pool_free(); }
-    } _;
+    ThreadPool::LocalGuard _;
     mcpu.clear_accel();
     mcpu.accel();
     msystem mgpu=mcombine;
@@ -98,9 +95,8 @@ int test_integrator(){
     }
 
     std::thread thhalf([&](){
-        ThreadPool::thread_local_pool_alloc();
+        ThreadPool::LocalGuard _;
         mhalfdt.combined_integrate(TEST_DELTA_T/2,TEST_COMBINED_T/TEST_DELTA_T,2*TEST_TOTAL_T/TEST_COMBINED_T,0);
-        ThreadPool::thread_local_pool_free();
         });
 
     mcombine.combined_integrate(TEST_DELTA_T,TEST_COMBINED_T/TEST_DELTA_T,TEST_TOTAL_T/TEST_COMBINED_T-1);

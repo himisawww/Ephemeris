@@ -36,6 +36,9 @@ tests.push_back({T,S,L})
         "Test convertion between state vectors and orbital keplerian\n"
         "   parameters.\n"
     );
+    DECLARE_TEST(test_threadpool,   "ThreadPool",
+        "Test performance and stability of thread pool by recursive tasks.\n"
+    );
     DECLARE_TEST(test_integrator,   "Integrator",
         "Test consistency and convergency of integrators.\n"
     );

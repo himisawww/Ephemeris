@@ -1,34 +1,20 @@
 #include"threadpool.h"
 
-static thread_local ThreadPool *this_thread_pool=nullptr;
-static thread_local size_t this_thread_id=ThreadPool::npos_tid;
-static thread_local size_t this_stack_depth=0;
-void ThreadPool::set_thread_pool(ThreadPool *pPool){
-    this_thread_pool=pPool;
-}
-void ThreadPool::set_thread_id(size_t thread_id){
-    this_thread_id=thread_id;
-}
+thread_local ThreadPool *ThreadPool::this_thread_pool=nullptr;
+thread_local size_t ThreadPool::this_thread_id=ThreadPool::npos_tid;
+thread_local size_t ThreadPool::this_stack_depth=0;
 
-void ThreadPool::thread_local_pool_alloc(){
-    if(!this_thread_pool){
-        thread_local ThreadPool thread_pool;
-        this_thread_pool=&thread_pool;
-    }
+ThreadPool::LocalGuard::LocalGuard(size_t n_threads){
+    if(_alloc=!this_thread_pool)
+        this_thread_pool=new ThreadPool(n_threads);
 }
-void ThreadPool::thread_local_pool_free(){
-    if(this_thread_pool&&(this_thread_id==npos_tid)){
-        this_thread_pool->resize(0);
+ThreadPool::LocalGuard::~LocalGuard(){
+    if(this_thread_id==npos_tid&&this_thread_pool){
+        delete this_thread_pool;
         this_thread_pool=nullptr;
     }
 }
 
-ThreadPool *ThreadPool::get_thread_pool(){
-    return this_thread_pool;
-}
-size_t ThreadPool::get_thread_id(){
-    return this==this_thread_pool?this_thread_id:npos_tid;
-}
 size_t ThreadPool::get_stack_depth(){
     return this==this_thread_pool?this_stack_depth:0;
 }
@@ -60,8 +46,8 @@ ThreadPool::ThreadTask ThreadPool::TaskQueue::pop(){
 
 void ThreadPool::thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *pc){
     if(!pc){
-        set_thread_pool(pPool);
-        set_thread_id(thread_id);
+        this_thread_pool=pPool;
+        this_thread_id=thread_id;
     }
     do{
         if(pc&&!pc->load())
@@ -147,7 +133,7 @@ size_t ThreadPool::expand_unchecked(size_t n_threads){
     return old_size;
 }
 size_t ThreadPool::resize(size_t n_threads){
-    if(!wait_for_all())return npos_tid;
+    wait_for_all();
     size_t old_size=m_size.exchange(n_threads);
     if(n_threads<old_size){
         (void)std::lock_guard<std::mutex>(this->m_mutex_distribute);
@@ -192,31 +178,4 @@ void ThreadPool::assign_task(size_t thread_id,TaskFunction f,void *param,TaskGro
 }
 void ThreadPool::run(){
     m_distribute.notify_all();
-}
-
-bool ThreadPool::wait_for_all(TaskGroup *pc,std::function<void()> callback,double wakeup_seconds){
-    size_t thread_id=get_thread_id();
-    if(thread_id!=npos_tid){
-        if(!pc)return false;
-        ++this_stack_depth;
-        thread_loop(this,thread_id,pc);
-        --this_stack_depth;
-        return true;//assert(!pc.load());
-    }
-
-    std::unique_lock<std::mutex> lock(m_mutex_collect);
-    do{
-        if(pc?!pc->load():!busy())break;
-        if(callback){
-            m_collect.wait_for(lock,std::chrono::duration<double>(std::max(minimum_wait_for,wakeup_seconds)));
-            callback();
-        }
-        else
-            m_collect.wait(lock);
-    } while(1);
-    return true;
-}
-
-size_t ThreadPool::busy(){
-    return m_busy.load();
 }

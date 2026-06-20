@@ -14,7 +14,7 @@
 #include<memory>
 
 // for debugging features, change this to #if 0
-#ifndef _DEBUG
+#ifdef NDEBUG
 #define HTL_ASSERT(...) ((void)0)
 #else
 #define HTL_ASSERT HTL_RUNTIME_ASSERT

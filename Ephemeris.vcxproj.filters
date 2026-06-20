@@ -147,6 +147,9 @@
     <ClCompile Include="src\modules\ephemeris_reader.cpp">
       <Filter>modules</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\test_threadpool.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\physics\geopotential.impl">

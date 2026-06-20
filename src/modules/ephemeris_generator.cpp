@@ -110,7 +110,7 @@ int ephemeris_generator::make_ephemeris(int dir){
 
     int_t time_idx=0;
 
-    ThreadPool::thread_local_pool_alloc();
+    ThreadPool::LocalGuard _;
     static bool newline=true;
     auto check_newline=[](){
         if(!newline){
@@ -220,7 +220,7 @@ int ephemeris_generator::make_ephemeris(int dir){
         ++cur_index;
 
         //sort .zip
-        std::vector<std::pair<uint64_t,int_t>> index_sort;
+        htl::vector<std::pair<uint64_t,int_t>> index_sort;
         for(int_t i=0,n=zms.size();i<n;++i){
             const auto &zname=zms[i].get_name();
             uint64_t k=!zname.find(SaveNameDirectory);
@@ -253,7 +253,6 @@ int ephemeris_generator::make_ephemeris(int dir){
         
         time_idx+=iunit;
     }while(time_idx<isize);
-    ThreadPool::thread_local_pool_free();
 
     return 0;
 }

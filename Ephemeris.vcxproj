@@ -136,6 +136,7 @@
     <ClCompile Include="src\tests\test_kepler.cpp" />
     <ClCompile Include="src\tests\test_prepare.cpp" />
     <ClCompile Include="src\Tests\test_geopotential.cpp" />
+    <ClCompile Include="src\tests\test_threadpool.cpp" />
     <ClCompile Include="src\utils\calctime.cpp" />
     <ClCompile Include="src\utils\crc32.cpp" />
     <ClCompile Include="src\utils\logger.cpp" />

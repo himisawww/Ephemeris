@@ -3,7 +3,8 @@
 #include<mutex>
 #include<condition_variable>
 #include<deque>
-#include<functional>
+#include<utility>
+#include<chrono>
 
 class ThreadPool{
 public:
@@ -27,6 +28,11 @@ public:
     static constexpr double minimum_wait_for=0.015625;
     static constexpr size_t maximum_default_concurrency=16;
 private:
+    static thread_local ThreadPool *this_thread_pool;
+    static thread_local size_t this_thread_id;
+    static thread_local size_t this_stack_depth;
+    struct EmptyCallBack{};
+
     struct ThreadTask{
         TaskFunction task_function;
         void *parameter;
@@ -55,11 +61,7 @@ private:
     std::atomic_size_t m_busy;
     
     static void thread_loop(ThreadPool *pPool,size_t thread_id,TaskGroup *p_group);
-    static inline void set_thread_pool(ThreadPool *);
-    static inline void set_thread_id(size_t);
 
-    // return thread_id if current thread is in this pool, npos_tid(-1) otherwise
-    inline size_t get_thread_id();
     // return depth in stack if current thread is in this pool, 0 otherwise
     inline size_t get_stack_depth();
     // return size() before call
@@ -71,17 +73,22 @@ public:
     ThreadPool(size_t n_threads=maximum_default_concurrency);
     ~ThreadPool();
 
-    //if called, subsequent functions in the same thread can use a thread pool
-    // returned by get_thread_pool() to do tasks in parallel.
-    //if current thread is a worker of a thread pool, calling this is unnecessary (and effectless),
+    //RAII wrapper of allocating a thread_local ThreadPool:
+    //if a variable of this type is declared,
+    // subsequent functions in the same thread can use get_thread_pool() to do tasks in parallel,
+    // as long as the declared variable is in its life-time.
+    //if current thread is a worker of a thread pool, declaring this is unnecessary (and effectless),
     //  as get_thread_pool() will return its parent thread pool.
-    static void thread_local_pool_alloc();
-    //must call this in the same thread if thread_local_pool_alloc() is called,
-    //  otherwise, dead wait will occur when the thread joins/exits.
-    static void thread_local_pool_free();
-    //return either the pool created by thread_local_pool_alloc(), or the pool to which current thread is in;
+    class LocalGuard{
+        bool _alloc;
+    public:
+        LocalGuard(size_t n_threads=maximum_default_concurrency);
+        ~LocalGuard();
+    };
+
+    //return either the pool created by LocalGuard, or the pool to which current thread is in;
     //nullptr if none.
-    static ThreadPool *get_thread_pool();
+    static ThreadPool *get_thread_pool(){ return this_thread_pool; }
 
     // task can be consumed by any thread
     // if size()<1, a resize(1) will occur
@@ -103,16 +110,38 @@ public:
 
     // number of worker threads
     size_t size();
-    // return npos_tid (and fails) if called from a worker thread of this
+    // shall not be called from a worker thread of this
     // otherwise return size() before call
     // internally calls wait_for_all() to ensure no resize while busy
     size_t resize(size_t n_threads);
     // return number of unfinished tasks
-    size_t busy();
+    size_t busy(){ return m_busy.load(); }
 
+    // every wakeup_seconds, callback will be called if present
+    template<typename Pred>
+    void wait_for_all(TaskGroup *p_group,Pred &&callback,double wakeup_seconds=minimum_wait_for){
+        const size_t thread_id=this==this_thread_pool?this_thread_id:npos_tid;
+        if(thread_id!=npos_tid){
+            HTL_RUNTIME_ASSERT(p_group);//dead wait: a task is waiting for all tasks of the same pool, including itself.
+            ++this_stack_depth;
+            thread_loop(this,thread_id,p_group);
+            --this_stack_depth;
+            return;//assert(!p_group.load());
+        }
+
+        std::unique_lock<std::mutex> lock(m_mutex_collect);
+        while(p_group?p_group->load():m_busy.load()){
+            if constexpr(std::is_same_v<Pred,EmptyCallBack>){
+                m_collect.wait(lock);
+            }
+            else{
+                m_collect.wait_for(lock,std::chrono::duration<double>((std::max)(minimum_wait_for,wakeup_seconds)));
+                callback();
+            }
+        }
+    }
     // block until all tasks are done
     // return true when success
     // return false if called from a worker thread of this without specifying a group (to avoid deadwait)
-    // every wakeup_seconds, callback will be called if present
-    bool wait_for_all(TaskGroup *p_group=nullptr,std::function<void()> callback=nullptr,double wakeup_seconds=minimum_wait_for);
+    void wait_for_all(TaskGroup *p_group=nullptr){ return wait_for_all(p_group,EmptyCallBack{}); }
 };
