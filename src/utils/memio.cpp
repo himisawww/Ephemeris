@@ -287,6 +287,7 @@ std::string MFILE::fgetstr(bool _enable_skip){
     std::string result;
     if(!is_read())return result;
     bool use_file=state==MFILE_STATE::READ_FILE;
+    constexpr char utf8bom[4]={char(0xef),char(0xbb),char(0xbf)};
     const int bufsize=16;
     char chbuf[bufsize];
     char *fret;
@@ -324,9 +325,10 @@ std::string MFILE::fgetstr(bool _enable_skip){
             }
         } while(1);
 
-        auto cpos=result.find('#');
-        if(cpos==0)
-            result.resize(cpos);
+        if(!result.find(utf8bom))
+            result.assign(result.c_str()+3,result.size()-3);
+        if(!result.find('#'))
+            result.resize(0);
 
     } while(result.size()==0&&fret);
     return result;
