@@ -91,7 +91,7 @@ int main_fun(bool &wait,int argc,const char **argv){
 int main(int argc,const char **argv){
     struct check_version{
         bool pass,wait;
-        check_version():pass(true),wait(true){
+        check_version(bool _wait):pass(true),wait(_wait){
             const char *vstr=Configs::VersionString;
             size_t vsize=strlen(vstr);
             if(vsize==0||'0'>vstr[vsize-1]||vstr[vsize-1]>'9'){
@@ -108,7 +108,7 @@ int main(int argc,const char **argv){
                 MFILE(stdin).fgetstr();
             }
         }
-    } chkv;
+    } chkv(argc==1);
     if(!chkv.pass)return 0;
 
 #if 0
