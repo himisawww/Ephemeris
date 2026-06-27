@@ -5,6 +5,7 @@
 #include<cstdlib>
 #include<cstring>
 #include<cstdio>
+#include<climits>
 #include<utility>
 #include<tuple>
 #include<optional>
@@ -42,6 +43,17 @@ template<typename C>
 struct is_container_of<C,typename ::std::iterator_traits<typename C::iterator>::value_type>: ::std::true_type{};
 template<typename C,typename T>
 inline constexpr bool is_container_of_v=is_container_of<C,T>::value;
+
+template<typename T,typename ...Args>
+inline constexpr bool is_any_of_v=(::std::is_same_v<T,Args>||...);
+template<typename T,typename ...Args>
+struct is_any_of: ::std::bool_constant<is_any_of_v<T,Args...>>{};
+
+template<typename T>
+inline constexpr bool is_unsigned_integer_v=is_any_of_v<::std::remove_cv_t<T>,
+    unsigned char,unsigned short,unsigned int,unsigned long,unsigned long long>;
+template<typename T>
+struct is_unsigned_integer: ::std::bool_constant<is_unsigned_integer_v<T>>{};
 
 template<typename E,typename T,bool=::std::is_empty_v<E>&&!::std::is_final_v<E>>
 class compressed_pair final:private E{
