@@ -137,6 +137,10 @@ RUNGE_KUTTA{
                     j*=dt;
                     xi.Egrad=w%j*(ir%w+xi.GI%j*irdet)+w*irtq+ir%(j*irtq-2*(w*tq)+tqdot);
                     xi.Egrad*=w;
+                    // use sinc to avoid exploding dt^4 correction when using large dt
+                    fast_real sw2=w.normsqr();
+                    sw2=sw2<DBL_EPSILON?1:std::sin(sw2)/sw2;
+                    xi.Egrad*=sw2*sw2;
                 }
 
                 xi.v=0;

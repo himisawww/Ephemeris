@@ -86,7 +86,7 @@ public:
     fast_real GM,exJ2;
 
     //constant parameters:
-    //sid: unique object id, actually is char[8]
+    //sid: unique object id, actually is char[8], must satisfy 0 < sid < 2^56
     uint64_t sid;
     //GM0: GM at epoch 0.
     //dGM: dGM/dt, mass loss rate, should be <0 for stars
@@ -147,10 +147,15 @@ public:
 
     static constexpr uint64_t max_sid=(1ull<<56)-1;
     const char *get_ssid() const{ return (const char*)&sid; }
+    static uint64_t make_sid(const char *ssid);
 
     INLINE void orthogonalize(){
         fast_mpmat fmis(s);
         s+=0.5*fmis%(1-fmis.transpose()%fmis);
+    }
+
+    INLINE void update_GI(const fast_mpmat &C){
+        GI=fast_real(-2)/3*R2*(C-A);
     }
 
     //calculate deformation matrix(C_potential) and inertia matrix(GI)
@@ -164,6 +169,10 @@ public:
     void update(fast_real t);
     //check sanity of states & params
     bool sanity(bool alert=false) const;
+
+    //create a test mass
+    mass &initialize(fast_real GM,fast_real radius,fast_real recpt=0,
+        fast_real inertia=0.4,const fast_mpmat &C_static=0);
 };
 
 //short mass used in Runge-Kutta-integrators
@@ -325,20 +334,22 @@ public:
 
     void build_mid();
     //get index of mass from sid, return -1 if not found
-    int_t get_mid(const char *ssid) const;
     int_t get_mid(uint64_t sid) const;
+    int_t get_mid(const char *ssid) const{ return get_mid(mass::make_sid(ssid)); }
 
     void reset_params();
     void copy_params(const msystem &);
     void clear();
-    bool push_back(const mass &m);
+    // if set_sid !=0, use set_sid as sid, otherwise use m.sid
+    bool push_back(const mass &m,uint64_t set_sid=0);
+    bool push_back(const char *set_ssid,const mass &m){ return push_back(m,mass::make_sid(set_ssid)); }
 
     msystem &operator =(const msystem &other);
     //compare time-constant parameters of masses and msystem
     //that is, msystem is considered same after integrate() for any amount of time
     bool is_same(const msystem &other);
 
-    msystem(){}
+    msystem(){ reset_params(); }
     msystem(msystem &&)=default;
     msystem(const msystem &other){ *this=other; }
     ~msystem(){ clear(); }

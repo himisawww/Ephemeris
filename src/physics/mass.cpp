@@ -30,6 +30,39 @@ void mass::update(fast_real t){
     exJ2=dJ2*t;
 }
 
+mass &mass::initialize(fast_real GM_,fast_real radius_,fast_real recpt_,
+    fast_real inertia_,const fast_mpmat &C_static_){
+    r=0;
+    v=0;
+    GL=NAN;
+    s=1;
+    w=0;
+    GM=GM_;
+    exJ2=0;
+    sid=0;
+    GM0=GM_;
+    dGM=0;
+    dJ2=0;
+    R=radius_;
+    inertia=inertia_;
+    k2=0;
+    k2r=0;
+    tide_delay=0;
+    tide_delay_factor=0;
+    lum=0;
+    recpt=recpt_;
+    A=3*inertia/2;
+    R2=R*R;
+    sR2=R<0?R2:0;
+    using Constants::c;
+    using Constants::G;
+    rR2G_4c=recpt*R2*(G/(4*c));
+    C_static=C_static_;
+    gpmodel=nullptr;
+    ringmodel=nullptr;
+    return *this;
+}
+
 void msystem::update(fast_real t,bsystem *pblist){
     for(mass &mi:mlist)mi.update(t);
         /*if(i==3){//earth rotation adjust
@@ -133,6 +166,7 @@ static void accel_deform(void *param,size_t){
 }
 static void accel_mainforce(void *param,size_t){
     using Constants::c;
+    using Constants::c2;
 
     mass &mi=*(mass*)param;
     auto &mlist=*(htl::vector<mass>*)mi.pmlist;

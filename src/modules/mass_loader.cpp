@@ -9,7 +9,7 @@
 using Configs::MAX_LINESIZE;
 using Configs::MAX_PATHSIZE;
 
-const char *default_path=".";
+static const char *default_path=".";
 
 static bool sanity(double dt){
     return dt>0&&dt!=INFINITY;
@@ -464,7 +464,7 @@ bool msystem::load(
 
         //Calculate initial GI and GL
         fast_mpmat fmis(m.s);
-        m.GI=fast_real(-2)/3*m.R2*(fmis.toworld(m.C_static)-m.A);
+        m.update_GI(fmis.toworld(m.C_static));
         m.GL=m.GI%m.w;
 
         mlist.push_back(m);
@@ -905,15 +905,19 @@ void msystem::build_mid(){
         midx.insert({mi.sid,i});
     }
 }
-int_t msystem::get_mid(const char *ssid) const{
-    size_t slen=strlen(ssid);
+uint64_t mass::make_sid(const char *ssid){
     uint64_t isid=0;
-    const size_t maxslen=sizeof(isid)-1;
-    if(slen>maxslen)return -1;
-    memcpy(&isid,ssid,slen);
-    return get_mid(isid);
+    if(ssid){
+        size_t slen=strlen(ssid);
+        constexpr size_t maxslen=sizeof(isid)-1;
+        if(slen>maxslen)return -1;
+        memcpy(&isid,ssid,slen);
+    }
+    return isid;
 }
 int_t msystem::get_mid(uint64_t sid) const{
+    if(sid==0||sid>mass::max_sid)
+        return -1;
     auto it=midx.find(sid);
 
     do{
@@ -997,11 +1001,14 @@ bool msystem::is_same(const msystem &other){
     }
     return true;
 }
-bool msystem::push_back(const mass &msrc){
-    auto result=midx.insert({msrc.sid,mlist.size()});
+bool msystem::push_back(const mass &msrc,uint64_t set_sid){
+    uint64_t sid=set_sid==0?msrc.sid:set_sid;
+    if(sid==0||sid>mass::max_sid)return false;
+    auto result=midx.insert({sid,mlist.size()});
     if(!result.second)return false;
     mlist.push_back(msrc);
     mass &m=mlist.back();
+    m.sid=sid;
     if(m.gpmodel)
         gp_components.push_back(m.gpmodel=geopotential::copy(m.gpmodel));
     if(m.ringmodel)
@@ -1023,7 +1030,7 @@ void msystem::scale_geopotential(int_t mid,fast_real factor){
     mi.k2r*=factor;
     mi.exJ2*=factor;
     mi.dJ2*=factor;
-    mi.GI=fast_real(-2)/3*mi.R2*(mi.C_potential-mi.A);
+    mi.update_GI(mi.C_potential);
     mi.GL=mi.GI%mi.w;
 }
 void msystem::scale_ring(int_t mid,fast_real factor){

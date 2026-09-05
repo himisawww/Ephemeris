@@ -100,6 +100,7 @@ int main(int argc,const char **argv){
                     LogCritical("\n         User shall either find a release version, or compile an executable using main branch.\n\n");
                     pass=false;
                 }
+                else wait=false;
             }
         }
         ~check_version(){

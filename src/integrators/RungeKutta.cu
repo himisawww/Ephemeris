@@ -209,6 +209,7 @@ void __device__ accel_0(){//deform
 
 void __device__ accel_1(){//accel
     const fast_real c=CONSTANT_VALUE_C;
+    const fast_real c2=c*c;
 
     int i0=blockIdx.x*dkf.mass_per_block;
     for(int di=0;di<dkf.mass_per_block;++di){

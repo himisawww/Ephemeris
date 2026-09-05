@@ -58,7 +58,7 @@ mc.y.y+=mi.exJ2/2;                                     \
 mc.z.z-=mi.exJ2;                                       \
 mc=fmis.toworld(mc);                                   \
 mi.C_potential+=mc;                                    \
-mi.GI=fast_real(-2)/3*mi.R2*(mi.C_potential-mi.A);
+mi.update_GI(mi.C_potential);
 
 #define UPDATE_ANGULAR_VELOCITY                                \
 if(mi.GL.is_finite()){                                         \
@@ -97,13 +97,18 @@ M.gaccel+=7*tp_dphi/2*mj.naccel                       \
     +tp_dg*delta1*r+tp_dg*(rbj-r%b*4)*b;
 
 #define LENSE_THIRRING(M)                        \
-fast_real rcr32=2*mj.GM/c*rr3;                   \
-fast_mpvec GL=mi.GL;                             \
-fast_mpvec GLb=GL*b;                             \
-M.daccel-=rcr32*(GLb-3*(GLb%r)*rr2*r);           \
-M.dtorque-=rcr32*(GL*(r*b));                     \
-fast_mpvec GLj=mj.GL;                            \
-M.daccel+=(rcr32*(GLj-3*(GLj%r)*rr2*r))*b;
+fast_real rcr32=mj.GM/c2*rr3;                    \
+fast_real mu2=(mi.GM+mj.GM)*2;                   \
+fast_real qji=rcr32*c*(2-mj.GM/mu2);             \
+fast_real qij=rcr32*c*(2-mi.GM/mu2);             \
+fast_mpvec GLi=mi.GL,GLj=mj.GL;                  \
+fast_real GLir=GLi%r,GLjr=GLj%r,GLij=GLi%GLj;    \
+fast_mpvec GLb=GLi*b;                            \
+M.daccel-=qji*(GLb-3*(GLb%r)*rr2*r);             \
+fast_mpvec xj=GLj-rr2*GLjr*3*r;                  \
+M.dtorque-=GLi*(qji*(r*b)-rcr32*xj);             \
+M.daccel+=qij*(xj*b);                            \
+M.daccel+=rcr32*rr2*3*(GLir*GLj+GLjr*GLi+(GLij-rr2*GLjr*GLir*5)*r);
 
 #define RADIATION_PRESSURE(M)            \
 M.daccel+=mj.lum*mi.rR2G_4c*rr3/mi.GM*r;

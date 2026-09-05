@@ -20,35 +20,48 @@ tests.push_back({T,S,L})
     if(seed==0)seed=*(uint64_t*)&(const double &)CalcTime();
     seedrandom(seed);
 
-    DECLARE_TEST(test_prepare,      "Preparing",
-        "Preparing resources (initials and params of celestial bodies)\n"
+    DECLARE_TEST(test_prepare,        "Preparing",
+        "Prepare resources (initials and params of celestial bodies)\n"
         "   for testing procedures.\n"
     );
-    DECLARE_TEST(test_math,         "VectorMath",
+    DECLARE_TEST(test_math,           "VectorMath",
         "Test correctness of vector/matrix/quaternion implementation\n"
         "   by checking mathematical identities.\n"
     );
-    DECLARE_TEST(test_geopotential, "Geopotential",
+    DECLARE_TEST(test_geopotential,   "Geopotential",
         "Make sure the implementation of geopotential model is correct\n"
         "   by direct comparing to (Associated-) Legendre Polynomials.\n"
     );
-    DECLARE_TEST(test_kepler,       "Keplerians",
+    DECLARE_TEST(test_kepler,         "Keplerians",
         "Test convertion between state vectors and orbital keplerian\n"
         "   parameters.\n"
     );
-    DECLARE_TEST(test_threadpool,   "ThreadPool",
+    DECLARE_TEST(test_threadpool,     "ThreadPool",
         "Test performance and stability of thread pool by recursive tasks.\n"
     );
-    DECLARE_TEST(test_integrator,   "Integrator",
+    DECLARE_TEST(test_integrator,     "Integrator",
         "Test consistency and convergency of integrators.\n"
     );
-    DECLARE_TEST(test_order,        "IntegratorOrder",
+    DECLARE_TEST(test_order,          "IntegratorOrder",
         "Test order of RungeKutta-12 integrator.\n"
     );
-    DECLARE_TEST(test_conservation, "Conservation",
+    DECLARE_TEST(test_conservation,   "Conservation",
         "Test conservation of momentum and angular momentum.\n"
     );
-    DECLARE_TEST(test_bspline,      "BSpline",
+    DECLARE_TEST(test_rotation_cutoff,"Rotation Cutoff",
+        "The cutoff error of rotation integrator shall be corrected properly,\n"
+        "   otherwise spin of tidal-locked moons diverge over long time,\n"
+        "   and fast rotators spin-up on axis of minimum moment of inertia.\n"
+    );
+    DECLARE_TEST(test_lense_thirring, "Lense-Thirring",
+        "Make sure implementation of Lense-Thirring effect is correct\n"
+        "   by comparing integrated precession of\n"
+        "       1) Mercury's perihelion, and\n"
+        "       2) Gravity-Probe-B's spin\n"
+        "   to observed values,\n"
+        "   and checking conservation of momentum and angular momentum.\n"
+    );
+    DECLARE_TEST(test_bspline,        "BSpline",
         "Use high order bspline basis functions to fit data sequence.\n"
     );
 
