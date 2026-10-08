@@ -608,7 +608,7 @@ public:
             "This overload is defined as deleted unless all the above conditions are true.");
         if(&_b!=&_other._b){
             if(_b>_other._b){
-                _construct_error(_e,_other._e);
+                _construct_error(_other._e);
                 _b=false;
             }
             else if(_b<_other._b){
@@ -626,7 +626,7 @@ public:
             ::std::is_nothrow_move_constructible<E>,::std::is_nothrow_move_assignable<E>>){
         if(&_b!=&_other._b){
             if(_b>_other._b){
-                _construct_error(_e,::std::move(_other._e));
+                _construct_error(::std::move(_other._e));
                 _b=false;
             }
             else if(_b<_other._b){
